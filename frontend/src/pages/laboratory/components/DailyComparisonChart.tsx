@@ -194,7 +194,7 @@ export const DailyComparisonChart: React.FC<Props> = ({ expanded, onExpand }) =>
           Daily {sampleType === 'received' ? 'Received' : sampleType === 'screened' ? 'Screened' : 'Initial'}{' '} Samples
         </h3>
 
-        {/* Controls */}
+        {/* Controls */}                                                                                                                                                                
         <div className="flex items-center gap-2 flex-wrap">
           {expanded && (
             <>

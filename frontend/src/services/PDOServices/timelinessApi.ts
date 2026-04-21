@@ -37,8 +37,7 @@ export interface TimelinessResponse {
 /* ================= API ================= */
 
 /**
- * Fetch timeliness data filtered by province
- * Calls: /api/timeliness?year1=&year2=&month=&province=
+ * Fetch timeliness data filtered by province (single month)
  */
 export const fetchTimelinessData = async (
   year1: string,
@@ -49,30 +48,23 @@ export const fetchTimelinessData = async (
   const res = await fetch(
     `/api/timeliness?year1=${year1}&year2=${year2}&month=${month}&province=${province}`
   );
-
-  if (!res.ok) {
-    throw new Error('Failed to fetch timeliness data');
-  }
-
+  if (!res.ok) throw new Error('Failed to fetch timeliness data');
   return res.json();
 };
 
 /**
- * Fetch timeliness summary without county filter
- * Calls: /api/timeliness/summary?year1=&year2=&month=
+ * Fetch timeliness summary without county filter (cumulative range)
+ * startMonth is always 1 (January), endMonth is user-selected
  */
 export const fetchTimelinessSummary = async (
   year1: string,
   year2: string,
-  month: string
+  startMonth: string,
+  endMonth: string
 ): Promise<TimelinessResponse> => {
   const res = await fetch(
-    `/api/timeliness/summary?year1=${year1}&year2=${year2}&month=${month}`
+    `/api/timeliness/summary?year1=${year1}&year2=${year2}&startMonth=${startMonth}&endMonth=${endMonth}`
   );
-
-  if (!res.ok) {
-    throw new Error('Failed to fetch timeliness summary data');
-  }
-
+  if (!res.ok) throw new Error('Failed to fetch timeliness summary data');
   return res.json();
 };

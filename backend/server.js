@@ -50,6 +50,7 @@ app.use(express.static(publicPath));
 app.use('/assets', express.static(path.join(publicPath, 'assets')));
 app.use('/css', express.static(publicPath));
 app.use('/js', express.static(publicPath));
+
 app.use('/uploads', express.static(uploadsPath));
 
 // ============================================
