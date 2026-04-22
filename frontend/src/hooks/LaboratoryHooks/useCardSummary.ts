@@ -1,46 +1,52 @@
 import { useQuery } from '@tanstack/react-query';
 import cardSummaryService from '../../services/LaboratoryServices/cardSummary';
-import type { 
+import type {
     CardSummaryResponse,
-    CardSummaryParams 
+    CardSummaryParams,
 } from '../../services/LaboratoryServices/cardSummary';
 
 /**
- * Hook to fetch laboratory card summary data
+ * General hook — supports all filters (dateFrom, dateTo, spectype).
  */
 export const useCardSummary = (params?: CardSummaryParams) => {
-    return useQuery({
-        queryKey: ['labCardSummary', params?.dateFrom, params?.dateTo],
-        queryFn: () => cardSummaryService.getCardSummary(params || {}),
-        staleTime: 5 * 60 * 1000, // Data is fresh for 5 minutes
-        gcTime: 10 * 60 * 1000, // Cache for 10 minutes
-        refetchOnWindowFocus: true, // Refetch when user comes back to tab
+    return useQuery<CardSummaryResponse>({
+        queryKey: ['labCardSummary', params?.dateFrom, params?.dateTo, params?.spectype],
+        queryFn:  () => cardSummaryService.getCardSummary(params ?? {}),
+        staleTime:           5 * 60 * 1000,
+        gcTime:             10 * 60 * 1000,
+        refetchOnWindowFocus: true,
         retry: 2,
     });
 };
 
 /**
- * Hook to fetch current month card summary
+ * Current month summary (no filters).
+ * Auto-refreshes every 2 minutes — suited for dashboard cards.
  */
 export const useCurrentMonthSummary = () => {
-    return useQuery({
+    return useQuery<CardSummaryResponse>({
         queryKey: ['labCardSummary', 'current-month'],
-        queryFn: () => cardSummaryService.getCurrentMonthSummary(),
-        staleTime: 5 * 60 * 1000,
+        queryFn:  () => cardSummaryService.getCurrentMonthSummary(),
+        staleTime:            5 * 60 * 1000,
         refetchOnWindowFocus: true,
-        refetchInterval: 2 * 60 * 1000, // Auto-refetch every 2 minutes for dashboard cards
+        refetchInterval:      2 * 60 * 1000,
     });
 };
 
 /**
- * Hook to fetch card summary for custom date range
+ * Custom date range hook.
+ * Pass enabled=false to defer fetching (e.g. waiting for user input).
  */
-export const useCustomRangeSummary = (dateFrom: string, dateTo: string, enabled: boolean = true) => {
-    return useQuery({
+export const useCustomRangeSummary = (
+    dateFrom: string,
+    dateTo:   string,
+    enabled:  boolean = true
+) => {
+    return useQuery<CardSummaryResponse>({
         queryKey: ['labCardSummary', 'custom', dateFrom, dateTo],
-        queryFn: () => cardSummaryService.getCustomRangeSummary(dateFrom, dateTo),
-        enabled: enabled && !!dateFrom && !!dateTo, // Only fetch if dates are provided and enabled
-        staleTime: 5 * 60 * 1000,
+        queryFn:  () => cardSummaryService.getCustomRangeSummary(dateFrom, dateTo),
+        enabled:  enabled && !!dateFrom && !!dateTo,
+        staleTime:            5 * 60 * 1000,
         refetchOnWindowFocus: true,
     });
 };

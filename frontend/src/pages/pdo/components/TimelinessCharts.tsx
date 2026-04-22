@@ -51,7 +51,7 @@ export const TimelinessCharts: React.FC = () => {
   const [year2, setYear2] = useState(currentYear.toString());
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);         // for county mode
   const [selectedEndMonth, setSelectedEndMonth] = useState(currentMonth);   // for summary mode (endMonth; startMonth always = 1)
-  const [selectedProvince, setSelectedProvince] = useState('Batangas');
+  const [selectedProvince, setSelectedProvince] = useState('All Provinces');
   const [viewMode, setViewMode] = useState<'county' | 'summary'>('county');
 
   const [data, setData] = useState<TimelinessRecord[]>([]);
@@ -60,7 +60,7 @@ export const TimelinessCharts: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   const years = ['2029', '2028', '2027', '2026', '2025', '2024', '2023', '2022', '2021', '2020'];
-  const provinces = ['Cavite', 'Laguna', 'Batangas', 'Rizal', 'Quezon'];
+  const provinces = ['All Provinces', 'Cavite', 'Laguna', 'Batangas', 'Rizal', 'Quezon'];
   const charts = [
     { title: 'Age of Collection', id: 'aoc' },
     { title: 'Transit Time', id: 'transit' },
@@ -209,10 +209,10 @@ export const TimelinessCharts: React.FC = () => {
           <div className="flex items-center gap-3">
             <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Timeliness of NBS</h4>
             {viewMode === 'county' && (
-              <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium">
-                {selectedProvince}
-              </span>
-            )}
+            <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium">
+              {selectedProvince === 'All Provinces' ? 'All Provinces' : selectedProvince}
+            </span>
+          )}
             {viewMode === 'summary' && (
               <span className="px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium">
                 All Counties · {summaryRangeLabel}
