@@ -215,13 +215,6 @@ export const FacilityPatientModal: React.FC<Props> = ({
     setSelectedPatient(null);
   };
 
-  const handleCompleteClose = () => {
-    setShowNotebookModal(false);
-    setSelectedPatient(null);
-    onClose(); // also close main modal
-  };
-
-
   const handleClose = () => {
     setSearchTerm("");
     setSelectedTestResult("all");
@@ -420,9 +413,9 @@ export const FacilityPatientModal: React.FC<Props> = ({
       {/* ================= NOTEBOOK DETAILS MODAL ================= */}
       <NotebookDetailsModal
         isOpen={showNotebookModal}
-        onClose={handleCompleteClose}
+        onClose={handleBackToFacilityList}
         onBackToResults={handleBackToFacilityList}
-        onBackToSearch={handleCompleteClose}
+        onBackToSearch={handleBackToFacilityList}
         patient={selectedPatient}
         loading={patientLoading}
         onNotebookAdded={() => {

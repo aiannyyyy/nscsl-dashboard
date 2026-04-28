@@ -73,8 +73,8 @@ exports.topUnsatisfactory = async (req, res) => {
           RPA."DESCR1" AS facility_name,
           RPA."COUNTY" AS province,
           SDA."LABNO"
-        FROM "PHMSDS"."RESULT_ARCHIVE" RA
-        JOIN "PHMSDS"."SAMPLE_DEMOG_ARCHIVE" SDA
+        FROM "PHMSDS"."RESULT_MASTER" RA
+        JOIN "PHMSDS"."SAMPLE_DEMOG_MASTER" SDA
           ON RA."LABNO" = SDA."LABNO"
         JOIN "PHMSDS"."REF_PROVIDER_ADDRESS" RPA
           ON SDA."SUBMID" = RPA."PROVIDERID"
@@ -378,8 +378,8 @@ exports.fullPatient = async (req, res) => {
                     RPA."DESCR1" AS facility_name,
                     RPA."COUNTY" AS province,
                     LDR."DESCR1" AS test_result
-                FROM "PHMSDS"."RESULT_ARCHIVE" RA
-                JOIN "PHMSDS"."SAMPLE_DEMOG_ARCHIVE" SDA
+                FROM "PHMSDS"."RESULT_MASTER" RA
+                JOIN "PHMSDS"."SAMPLE_DEMOG_MASTER" SDA
                     ON RA."LABNO" = SDA."LABNO"
                 JOIN "PHMSDS"."REF_PROVIDER_ADDRESS" RPA
                     ON SDA."SUBMID" = RPA."PROVIDERID"
@@ -709,11 +709,11 @@ exports.unsatProvince = async (req, res) => {
           ON SDA."SUBMID" = RPA."PROVIDERID"
         WHERE SUBSTR(SDA."LABNO", 8, 1) <> '8'
           AND DA."MNEMONIC" IN
-            ('UD','ODC','E109','E108','E107','E103','E102','E101','E100','DE','E104','E105')
+            ('UD','ODC','E109','INS', 'NE','E108','E107','E103','E102','E101','E100','DE', 'CONT')
           AND RPA."ADRS_TYPE" = '1'
           AND SDA."DTRECV" BETWEEN TO_DATE(:dateFrom1,'YYYY-MM-DD HH24:MI:SS')
                               AND TO_DATE(:dateTo1,'YYYY-MM-DD HH24:MI:SS')
-          AND SDA."SPECTYPE" IN ('20','87')
+          AND SDA."SPECTYPE" IN ('20','87','2','3','4')
 
         UNION ALL
 
@@ -729,11 +729,11 @@ exports.unsatProvince = async (req, res) => {
           ON SDA."SUBMID" = RPA."PROVIDERID"
         WHERE SUBSTR(SDA."LABNO", 8, 1) <> '8'
           AND RA."MNEMONIC" IN
-            ('UD','ODC','E109','E108','E107','E103','E102','E101','E100','DE','E104','E105')
+            ('UD','ODC','E109','INS', 'NE','E108','E107','E103','E102','E101','E100','DE', 'CONT')
           AND RPA."ADRS_TYPE" = '1'
           AND SDA."DTRECV" BETWEEN TO_DATE(:dateFrom1,'YYYY-MM-DD HH24:MI:SS')
                               AND TO_DATE(:dateTo1,'YYYY-MM-DD HH24:MI:SS')
-          AND SDA."SPECTYPE" IN ('20','87')
+          AND SDA."SPECTYPE" IN ('20','87','2','3','4')
 
         UNION ALL
 
@@ -749,7 +749,7 @@ exports.unsatProvince = async (req, res) => {
           ON SDA."SUBMID" = RPA."PROVIDERID"
         WHERE SUBSTR(SDA."LABNO", 8, 1) <> '8'
           AND DA."MNEMONIC" IN
-            ('UD','ODC','E109','E108','E107','E103','E102','E101','E100','DE','E104','E105')
+            ('UD','ODC','E109','INS', 'NE','E108','E107','E103','E102','E101','E100', 'DE', 'CONT')
           AND RPA."ADRS_TYPE" = '1'
           AND SDA."DTRECV" BETWEEN TO_DATE(:dateFrom2,'YYYY-MM-DD HH24:MI:SS')
                               AND TO_DATE(:dateTo2,'YYYY-MM-DD HH24:MI:SS')
@@ -769,7 +769,7 @@ exports.unsatProvince = async (req, res) => {
           ON SDA."SUBMID" = RPA."PROVIDERID"
         WHERE SUBSTR(SDA."LABNO", 8, 1) <> '8'
           AND RA."MNEMONIC" IN
-            ('UD','ODC','E109','E108','E107','E103','E102','E101','E100','DE','E104','E105')
+            ('UD','ODC','E109','INS', 'NE','E108','E107','E103','E102','E101','E100', 'DE', 'CONT')
           AND RPA."ADRS_TYPE" = '1'
           AND SDA."DTRECV" BETWEEN TO_DATE(:dateFrom2,'YYYY-MM-DD HH24:MI:SS')
                               AND TO_DATE(:dateTo2,'YYYY-MM-DD HH24:MI:SS')

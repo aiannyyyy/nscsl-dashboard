@@ -15,30 +15,33 @@ const MONTHS = [
 
 const YEARS = ['2029', '2028', '2027', '2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018'];
 
+const PROVINCES = ['All Provinces', 'Cavite', 'Laguna', 'Batangas', 'Rizal', 'Quezon'];
+
 export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({ refreshTrigger }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleString('default', { month: 'long' }));
+  const [selectedProvince, setSelectedProvince] = useState('All Provinces');
   const [statusData, setStatusData] = useState<StatusCount>({ active: 0, inactive: 0, closed: 0 });
   const [loading, setLoading] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 
   useEffect(() => {
-    console.log('📈 Chart useEffect triggered', { selectedYear, selectedMonth, refreshTrigger });
+    console.log('📈 Chart useEffect triggered', { selectedYear, selectedMonth, selectedProvince, refreshTrigger });
     fetchStatusData();
-  }, [selectedYear, selectedMonth, refreshTrigger]);
+  }, [selectedYear, selectedMonth, selectedProvince, refreshTrigger]);
 
   const fetchStatusData = async () => {
     setLoading(true);
     try {
       const monthIndex = MONTHS.indexOf(selectedMonth);
       const yearNum = parseInt(selectedYear);
-      
+
       if (monthIndex === -1) {
         console.error('Invalid month:', selectedMonth);
         setStatusData({ active: 0, inactive: 0, closed: 0 });
         return;
       }
-      
+
       const firstDay = new Date(yearNum, monthIndex, 1);
       const lastDay = new Date(yearNum, monthIndex + 1, 0, 23, 59, 59);
 
@@ -48,15 +51,17 @@ export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({ refres
       console.log('📅 Fetching chart data:', {
         selectedYear,
         selectedMonth,
+        selectedProvince,
         monthIndex,
         dateFrom,
         dateTo,
         refreshTrigger
       });
-      
-      const data = await facilityVisitsService.getStatusCount(dateFrom, dateTo);
+
+      const province = selectedProvince === 'All Provinces' ? undefined : selectedProvince;
+      const data = await facilityVisitsService.getStatusCount(dateFrom, dateTo, province);
       console.log('📊 Chart data received:', data);
-      
+
       setStatusData({
         active: data?.active || 0,
         inactive: data?.inactive || 0,
@@ -77,21 +82,25 @@ export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({ refres
       if (format === 'excel') {
         const excelData = [
           {
+            'Province': selectedProvince,
             'Status': 'Active',
             'Count': statusData.active,
             'Percentage': `${getPercentage(statusData.active)}%`
           },
           {
+            'Province': selectedProvince,
             'Status': 'Inactive',
             'Count': statusData.inactive,
             'Percentage': `${getPercentage(statusData.inactive)}%`
           },
           {
+            'Province': selectedProvince,
             'Status': 'Closed',
             'Count': statusData.closed,
             'Percentage': `${getPercentage(statusData.closed)}%`
           },
           {
+            'Province': selectedProvince,
             'Status': 'TOTAL',
             'Count': total,
             'Percentage': '100%'
@@ -100,7 +109,7 @@ export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({ refres
 
         await downloadChart({
           elementId: 'facility-visits-chart',
-          filename: `Facility_Visits_${selectedMonth}_${selectedYear}`,
+          filename: `Facility_Visits_${selectedProvince.replace(' ', '_')}_${selectedMonth}_${selectedYear}`,
           format: 'excel',
           data: excelData,
           sheetName: 'Facility Visits',
@@ -108,7 +117,7 @@ export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({ refres
       } else {
         await downloadChart({
           elementId: 'facility-visits-chart',
-          filename: `Facility_Visits_${selectedMonth}_${selectedYear}`,
+          filename: `Facility_Visits_${selectedProvince.replace(' ', '_')}_${selectedMonth}_${selectedYear}`,
           format,
           backgroundColor: '#ffffff',
           scale: 2,
@@ -135,6 +144,11 @@ export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({ refres
             <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
               Facilities Visits By This Month Of {selectedMonth} {selectedYear}
             </h4>
+            {selectedProvince !== 'All Provinces' && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                Province: <span className="font-medium text-gray-700 dark:text-gray-300">{selectedProvince}</span>
+              </p>
+            )}
           </div>
 
           {/* Download Dropdown */}
@@ -196,7 +210,7 @@ export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({ refres
           </div>
         </div>
 
-        {/* Chart Area - IMPORTANT: Added id="facility-visits-chart" */}
+        {/* Chart Area */}
         <div id="facility-visits-chart" className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-800/50 rounded-lg min-h-[300px] p-6">
           {loading ? (
             <div className="text-center">
@@ -208,7 +222,7 @@ export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({ refres
               <div className="text-6xl mb-4">📊</div>
               <p className="text-gray-600 dark:text-gray-400">No data available for this period</p>
               <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                {selectedMonth} {selectedYear}
+                {selectedProvince} — {selectedMonth} {selectedYear}
               </p>
             </div>
           ) : (
@@ -310,13 +324,19 @@ export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({ refres
       </div>
 
       {/* Footer with selectors */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex gap-2">
+      <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex gap-2 flex-wrap">
+        <select
+          value={selectedProvince}
+          onChange={(e) => setSelectedProvince(e.target.value)}
+          className="px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-sm border-0 focus:ring-2 focus:ring-blue-500"
+        >
+          {PROVINCES.map((province) => (
+            <option key={province} value={province}>{province}</option>
+          ))}
+        </select>
         <select
           value={selectedYear}
-          onChange={(e) => {
-            console.log('🔄 Year changed to:', e.target.value);
-            setSelectedYear(e.target.value);
-          }}
+          onChange={(e) => setSelectedYear(e.target.value)}
           className="px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-sm border-0 focus:ring-2 focus:ring-blue-500"
         >
           {YEARS.map((year) => (
@@ -325,10 +345,7 @@ export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({ refres
         </select>
         <select
           value={selectedMonth}
-          onChange={(e) => {
-            console.log('🔄 Month changed to:', e.target.value);
-            setSelectedMonth(e.target.value);
-          }}
+          onChange={(e) => setSelectedMonth(e.target.value)}
           className="px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-sm border-0 focus:ring-2 focus:ring-blue-500"
         >
           {MONTHS.map((month) => (

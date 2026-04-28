@@ -2,7 +2,7 @@ const oracledb = require('oracledb');
 
 const validTypes = {
     "Received": ["1", "87", "20", "2", "3", "4", "5", "18"],
-    "Screened": ["4", "3", "20", "2", "1", "87"],
+    "Screened": ["4", "3", "20", "2", "1"],
     "Initial":  ["20", "1"]
 };
 

@@ -281,7 +281,7 @@ const updateStatus = async (req, res) => {
 // Get facility status count (for doughnut chart)
 const getStatusCount = async (req, res) => {
     try {
-        const { date_from, date_to } = req.query;
+        const { date_from, date_to, province } = req.query;
 
         const today = new Date();
         const year = today.getFullYear();
@@ -292,7 +292,8 @@ const getStatusCount = async (req, res) => {
         const fromDate = date_from || defaultFrom;
         const toDate = date_to || defaultTo;
 
-        const sql = `
+        // Build query dynamically based on whether province is provided
+        let sql = `
             SELECT
                 COUNT(CASE WHEN status = '1' THEN 1 END) AS active,
                 COUNT(CASE WHEN status = '0' THEN 1 END) AS inactive,
@@ -301,9 +302,15 @@ const getStatusCount = async (req, res) => {
             WHERE date_visited BETWEEN ? AND ?
         `;
 
-        const [results] = await database.mysqlPool.query(sql, [fromDate, toDate]);
+        const params = [fromDate, toDate];
 
-        // Convert BigInt to regular numbers
+        if (province && province.trim() !== '') {
+            sql += ` AND province = ?`;
+            params.push(province.trim());
+        }
+
+        const [results] = await database.mysqlPool.query(sql, params);
+
         const statusCount = {
             active: Number(results[0].active),
             inactive: Number(results[0].inactive),

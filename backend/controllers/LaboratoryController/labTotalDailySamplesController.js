@@ -1,7 +1,7 @@
 const oracledb = require('oracledb');
 
 const SAMPLE_RECEIVED = ['1', '87', '20', '2', '3', '4', '5', '18'];
-const SAMPLE_SCREENED = ['4', '3', '20', '2', '1', '18', '87'];
+const SAMPLE_SCREENED = ['4', '3', '20', '2', '1', '18'];
 const SAMPLE_INITIAL = ['20'];
 
 exports.getLabTotalDailySamples = async (req, res) => {

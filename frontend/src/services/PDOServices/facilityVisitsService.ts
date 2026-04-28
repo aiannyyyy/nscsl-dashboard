@@ -36,11 +36,12 @@ class FacilityVisitsService {
         return response.data;
     }
 
-    async getStatusCount(dateFrom?: string, dateTo?: string): Promise<StatusCount> {
-        const params: any = {};
+    async getStatusCount(dateFrom?: string, dateTo?: string, province?: string): Promise<StatusCount> {
+        const params: Record<string, string> = {};
         if (dateFrom) params.date_from = dateFrom;
         if (dateTo) params.date_to = dateTo;
-        
+        if (province) params.province = province;
+
         const response = await api.get('/facility-visits/facility-status-count', { params });
         return response.data;
     }
@@ -50,15 +51,10 @@ class FacilityVisitsService {
             const response = await api.get('/facility-visits/lookup-facility', {
                 params: { facilitycode: facilityCode }
             });
-            
-            // The API returns an array format: [[code, adrs_type, name, province]]
+
             if (response.data && response.data.length > 0) {
                 const [facilitycode, , facilityname, province] = response.data[0];
-                return {
-                    facilitycode,
-                    facilityname,
-                    province
-                };
+                return { facilitycode, facilityname, province };
             }
             return null;
         } catch (error) {
@@ -69,18 +65,14 @@ class FacilityVisitsService {
 
     async create(data: FormData): Promise<any> {
         const response = await api.post('/facility-visits', data, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
+            headers: { 'Content-Type': 'multipart/form-data' },
         });
         return response.data;
     }
 
     async update(id: number, data: FormData): Promise<any> {
         const response = await api.put(`/facility-visits/${id}`, data, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
+            headers: { 'Content-Type': 'multipart/form-data' },
         });
         return response.data;
     }
@@ -96,14 +88,13 @@ class FacilityVisitsService {
     }
 
     async getFacilitiesByStatus(status: string, startDate?: string, endDate?: string): Promise<FacilityVisit[]> {
-        const params: any = {};
+        const params: Record<string, string> = {};
         if (startDate) params.startDate = startDate;
         if (endDate) params.endDate = endDate;
-        
+
         const response = await api.get(`/facility-visits/facilities-by-status/${status}`, { params });
         return response.data;
     }
 }
 
-// Default export
 export default new FacilityVisitsService();

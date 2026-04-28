@@ -21,14 +21,13 @@ const getMonthlyLabNoCount = async (req, res) => {
             });
         }
 
-        const spectypeValues = ["20", "1"];
+        const spectypeValues = ["4", "3", "20", "2"];
         let provinceClean = province.trim().toUpperCase();
 
         const spectypePlaceholders = spectypeValues
             .map((_, index) => `:spectype${index}`)
             .join(', ');
 
-        // ✅ ADDED: LOPEZ_NEARBY logic matching sample-receive controller
         const query = `
         SELECT
             CASE
@@ -58,10 +57,9 @@ const getMonthlyLabNoCount = async (req, res) => {
         WHERE
             RPA."ADRS_TYPE" = '1'
             AND SDA."SPECTYPE" IN (${spectypePlaceholders})
-            AND SDA."DTRECV" BETWEEN TO_DATE(:date_from, 'YYYY-MM-DD')
-                                AND TO_DATE(:date_to, 'YYYY-MM-DD')
+            AND SDA."DTRECV" >= TO_DATE(:date_from, 'YYYY-MM-DD')
+            AND SDA."DTRECV" < TO_DATE(:date_to, 'YYYY-MM-DD') + 1
             AND (
-                -- ✅ For LOPEZ_NEARBY, filter by SUBMID list
                 (:province = 'LOPEZ_NEARBY' AND SDA."SUBMID" IN (
                     51,174,267,365,469,488,490,497,503,537,566,576,595,
                     858,930,1002,1071,1502,2283,2286,3471,3784,3871,
@@ -70,7 +68,6 @@ const getMonthlyLabNoCount = async (req, res) => {
                     6390,6399,6472,6519,6915,6976,7120,7293,7339,
                     7887,7972,8306
                 ))
-                -- ✅ For other provinces, filter by county name
                 OR (:province != 'LOPEZ_NEARBY' AND UPPER(RPA."COUNTY") LIKE UPPER(:province || '%'))
             )
 
@@ -122,10 +119,9 @@ const getMonthlyLabNoCount = async (req, res) => {
         WHERE
             RPA."ADRS_TYPE" = '1'
             AND SDM."SPECTYPE" IN (${spectypePlaceholders})
-            AND SDM."DTRECV" BETWEEN TO_DATE(:date_from, 'YYYY-MM-DD')
-                                AND TO_DATE(:date_to, 'YYYY-MM-DD')
+            AND SDM."DTRECV" >= TO_DATE(:date_from, 'YYYY-MM-DD')
+            AND SDM."DTRECV" < TO_DATE(:date_to, 'YYYY-MM-DD') + 1
             AND (
-                -- ✅ For LOPEZ_NEARBY, filter by SUBMID list
                 (:province = 'LOPEZ_NEARBY' AND SDM."SUBMID" IN (
                     51,174,267,365,469,488,490,497,503,537,566,576,595,
                     858,930,1002,1071,1502,2283,2286,3471,3784,3871,
@@ -134,7 +130,6 @@ const getMonthlyLabNoCount = async (req, res) => {
                     6390,6399,6472,6519,6915,6976,7120,7293,7339,
                     7887,7972,8306
                 ))
-                -- ✅ For other provinces, filter by county name
                 OR (:province != 'LOPEZ_NEARBY' AND UPPER(RPA."COUNTY") LIKE UPPER(:province || '%'))
             )
 
@@ -179,15 +174,14 @@ const getMonthlyLabNoCount = async (req, res) => {
 
         console.log(`✅ Query returned ${result.rows.length} raw rows`);
 
-        // ✅ Return empty data with 200 status instead of 404 error
         if (result.rows.length === 0) {
             return res.json({
                 parameters: {
-                    type: 'Screened', // or 'Screened' for the screened controller
+                    type: 'Screened',
                     spectypes: spectypeValues,
                     dateRange: { from, to }
                 },
-                cumulativeData: [], // ✅ Empty array instead of error
+                cumulativeData: [],
                 rawData: [],
                 summary: {
                     totalRecords: 0,
@@ -199,7 +193,6 @@ const getMonthlyLabNoCount = async (req, res) => {
 
         console.log("📊 Sample raw rows:", result.rows.slice(0, 5));
 
-        // ✅ FIXED: Added .trim() to province name
         const monthlyData = result.rows.reduce((acc, row) => {
             const key = `${row.YEAR}-${String(row.MONTH).padStart(2, '0')}`;
             if (!acc[key]) {
@@ -207,7 +200,7 @@ const getMonthlyLabNoCount = async (req, res) => {
                     year: row.YEAR,
                     month: row.MONTH,
                     month_year: row.MONTH_YEAR,
-                    province: row.PROVINCE.trim(), // ✅ Added .trim()
+                    province: row.PROVINCE.trim(),
                     category: 'Screened',
                     total_samples: 0,
                     total_labno: 0,
@@ -281,7 +274,6 @@ const getCumulativeAllProvince = async (req, res) => {
 
         const spectypePlaceholders = spectypeValues.map((_, index) => `:spectype${index}`).join(', ');
 
-        // ✅ ADDED: LOPEZ_NEARBY logic matching sample-receive controller
         const query = `
             SELECT 
                 CASE
@@ -308,9 +300,8 @@ const getCumulativeAllProvince = async (req, res) => {
             WHERE 
                 RPA."ADRS_TYPE" = '1'
                 AND SDA."SPECTYPE" IN (${spectypePlaceholders})
-                AND SDA."DTRECV" BETWEEN 
-                    TO_DATE(:date_from, 'YYYY-MM-DD') 
-                    AND TO_DATE(:date_to, 'YYYY-MM-DD')
+                AND SDA."DTRECV" >= TO_DATE(:date_from, 'YYYY-MM-DD')
+                AND SDA."DTRECV" < TO_DATE(:date_to, 'YYYY-MM-DD') + 1
                 AND (
                     RPA."COUNTY" IN ('BATANGAS', 'LAGUNA', 'CAVITE', 'RIZAL', 'QUEZON')
                     OR SDA."SUBMID" IN (
@@ -364,9 +355,8 @@ const getCumulativeAllProvince = async (req, res) => {
             WHERE 
                 RPA."ADRS_TYPE" = '1'
                 AND SDM."SPECTYPE" IN (${spectypePlaceholders})
-                AND SDM."DTRECV" BETWEEN 
-                    TO_DATE(:date_from, 'YYYY-MM-DD') 
-                    AND TO_DATE(:date_to, 'YYYY-MM-DD')
+                AND SDM."DTRECV" >= TO_DATE(:date_from, 'YYYY-MM-DD')
+                AND SDM."DTRECV" < TO_DATE(:date_to, 'YYYY-MM-DD') + 1
                 AND (
                     RPA."COUNTY" IN ('BATANGAS', 'LAGUNA', 'CAVITE', 'RIZAL', 'QUEZON')
                     OR SDM."SUBMID" IN (
@@ -414,15 +404,14 @@ const getCumulativeAllProvince = async (req, res) => {
             { outFormat: oracledb.OUT_FORMAT_OBJECT }
         );        
 
-        // ✅ Return empty data with 200 status instead of 404 error
         if (result.rows.length === 0) {
             return res.json({
                 parameters: {
-                    type: 'Screened', // or 'Screened' for the screened controller
+                    type: 'Screened',
                     spectypes: spectypeValues,
                     dateRange: { from, to }
                 },
-                cumulativeData: [], // ✅ Empty array instead of error
+                cumulativeData: [],
                 rawData: [],
                 summary: {
                     totalRecords: 0,
@@ -432,12 +421,11 @@ const getCumulativeAllProvince = async (req, res) => {
             });
         }
 
-        // ✅ FIXED: Added .trim() to remove trailing spaces from province names
         const cumulativeData = result.rows.reduce((acc, row) => {
-            const key = row.PROVINCE.trim(); // ✅ Added .trim()
+            const key = row.PROVINCE.trim();
             if (!acc[key]) {
                 acc[key] = {
-                    province: row.PROVINCE.trim(), // ✅ Added .trim()
+                    province: row.PROVINCE.trim(),
                     category: 'Screened',
                     total_samples: 0,
                     total_labno: 0,

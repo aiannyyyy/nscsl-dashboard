@@ -3,7 +3,7 @@ const oracledb = require('oracledb');
 // Valid sample types mapping
 const VALID_TYPES = {
     'received': ['1', '87', '20', '2', '3', '4', '5', '18'],
-    'screened': ['4', '3', '20', '2', '1', '18', '87'],
+    'screened': ['4', '3', '20', '2', '1', '18'],
     'initial':  ['20']
 };
 
