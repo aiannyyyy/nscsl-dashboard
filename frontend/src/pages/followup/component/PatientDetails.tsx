@@ -259,23 +259,40 @@ const ExportMenu: React.FC<{
 };
 
 // ─── Test Codes ───────────────────────────────────────────────────────────────
-
+// 'ALL' = show records matching every code in this list combined
+// Individual entries = filter to that single code only
+ 
 const TEST_CODES = [
     'ALL',
-    'BTND1', 'BTND2', 'IRT1', 'IRT2', 'IRT3',
+    'TSH1', 'TSH2',
     'OHP1', 'OHP2', 'OHP3',
-    '3MCCMS', 'BARTS', 'BKDMS1', 'BKDMS2', 'CITMS1', 'CITMS2',
-    'CP1MS1', 'CP1MS2', 'CP2MS1', 'CP2MS2',
-    'CUDMS1', 'CUDMS2', 'GA1MS1', 'GA1MS2', 'GA2MS1', 'GA2MS2',
-    'HCYMS1', 'HCYMS2', 'IVAMS1', 'IVAMS2', 'LCHMS1', 'LCHMS2',
-    'LEUMS1', 'LEUMS2', 'MCAMS1', 'MCAMS2', 'MCDMS1', 'MCDMS2',
-    'METMS1', 'METMS2', 'MMAMS1', 'MMAMS2',
-    'PHEMS1', 'PHEMS2', 'SAMS1', 'SAMS2', 'TYRMS1', 'TYRMS2',
+    'GMU', 'GN1', 'GC1', 'GN2', 'GC2', 'GMVC', 'GNC', 'GCC', 'GALP',
+    'PHEMS1', 'PHEMS2',
+    'LEUMS1', 'LEUMS2',
+    'METMS1', 'METMS2',
+    'SAMS2',
+    'TYRMS1', 'TYRMS2',
+    'CITMS1', 'CITMS2',
+    'CUDMS1', 'CUDMS2',
+    'CP1MS1', 'CP1MS2',
+    'CP2MS1', 'CP2MS2',
+    'GA2MS1', 'GA2MS2',
+    'MCAMS1', 'MCAMS2',
     'VLCMS1', 'VLCMS2',
-    'F', 'FE', 'FEA', 'GC1', 'GC2', 'GC3',
-    'GM1', 'GM3', 'GM6', 'GMU', 'GMV',
-    'GN1', 'GN2', 'GN3',
+    'LCHMS1', 'LCHMS2',
+    'MMAMS1', 'MMAMS2',
+    'MDMS1', 'MDMS2',
+    'BKTMS1', 'BKTMS2',
+    'IVAMS1', 'IVAMS2',
+    'GA1MS1', 'GA1MS2',
+    'STPN', 'TPN1',
+    'BTND1', 'BTND2',
+    'IRT1', 'IRT2', 'IRT3',
+    'BARTS',
+    'FE', 'F', 'FAEB', 'FAES', 'FEA', 'FS', 'FDA',
+    'BTS1',
 ] as const;
+ 
 
 // ─── Table Column Config ──────────────────────────────────────────────────────
 

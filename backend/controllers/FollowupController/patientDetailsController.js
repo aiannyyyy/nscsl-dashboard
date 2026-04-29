@@ -1,8 +1,41 @@
 const oracledb = require('oracledb');
 
+// Full list of valid mnemonics — used when testCode === 'ALL'
+const ALL_MNEMONICS = [
+    'TSH1', 'TSH2',
+    'OHP1', 'OHP2', 'OHP3',
+    'GMU', 'GN1', 'GC1', 'GN2', 'GC2', 'GMVC', 'GNC', 'GCC', 'GALP',
+    'PHEMS1', 'PHEMS2',
+    'LEUMS1', 'LEUMS2',
+    'METMS1', 'METMS2',
+    'SAMS2',
+    'TYRMS1', 'TYRMS2',
+    'CITMS1', 'CITMS2',
+    'CUDMS1', 'CUDMS2',
+    'CP1MS1', 'CP1MS2',
+    'CP2MS1', 'CP2MS2',
+    'GA2MS1', 'GA2MS2',
+    'MCAMS1', 'MCAMS2',
+    'VLCMS1', 'VLCMS2',
+    'LCHMS1', 'LCHMS2',
+    'MMAMS1', 'MMAMS2',
+    'MDMS1', 'MDMS2',
+    'BKTMS1', 'BKTMS2',
+    'IVAMS1', 'IVAMS2',
+    'GA1MS1', 'GA1MS2',
+    'STPN', 'TPN1',
+    'BTND1', 'BTND2',
+    'IRT1', 'IRT2', 'IRT3',
+    'BARTS',
+    'FE', 'F', 'FAEB', 'FAES', 'FEA', 'FS', 'FDA',
+    'BTS1',
+];
+
 /**
  * Get Patient Details for Follow-up
- * Returns: patient lab results filtered by date range and optional test code
+ * Returns: patient lab results filtered by date range and optional test code.
+ * When testCode === 'ALL', results are restricted to ALL_MNEMONICS list above.
+ * When a specific testCode is provided, results are filtered to that code only.
  */
 exports.getPatientDetails = async (req, res) => {
     let connection;
@@ -11,10 +44,8 @@ exports.getPatientDetails = async (req, res) => {
     try {
         console.log('[Patient Details] Request received');
 
-        // Get query parameters
         const { dateFrom, dateTo, testCode = 'ALL' } = req.query;
 
-        // Validate required parameters
         if (!dateFrom || !dateTo) {
             return res.status(400).json({
                 success: false,
@@ -23,9 +54,7 @@ exports.getPatientDetails = async (req, res) => {
             });
         }
 
-        // Get database connection from app.locals
         const oraclePool = req.app.locals.oracleDb;
-
         if (!oraclePool) {
             return res.status(500).json({
                 success: false,
@@ -36,20 +65,21 @@ exports.getPatientDetails = async (req, res) => {
 
         connection = await oraclePool.getConnection();
 
-        // Build optional test code filter
         let filterCondition = '';
         let binds = {
             StartDate: new Date(dateFrom),
-            EndDate: new Date(dateTo)
+            EndDate:   new Date(dateTo),
         };
 
         if (testCode && testCode !== 'ALL') {
-            filterCondition = `AND (:Code = 'ALL' OR daa."TESTCODE" = :Code OR da."MNEMONIC" = :Code)`;
+            // Single specific code — filter TESTCODE or MNEMONIC
+            filterCondition = `AND (daa."TESTCODE" = :Code OR da."MNEMONIC" = :Code)`;
             binds.Code = testCode;
         } else {
-            // Still bind Code as 'ALL' so the query doesn't break if filterCondition is dynamic
-            binds.Code = 'ALL';
-            filterCondition = `AND (:Code = 'ALL' OR daa."TESTCODE" = :Code OR da."MNEMONIC" = :Code)`;
+            // ALL — build an IN list from ALL_MNEMONICS using numbered bind variables
+            const bindKeys = ALL_MNEMONICS.map((_, i) => `:mn${i}`).join(', ');
+            filterCondition = `AND (daa."TESTCODE" IN (${bindKeys}) OR da."MNEMONIC" IN (${bindKeys}))`;
+            ALL_MNEMONICS.forEach((mn, i) => { binds[`mn${i}`] = mn; });
         }
 
         console.log(`[Patient Details] Date range: ${dateFrom} to ${dateTo}, Test Code: ${testCode}`);
@@ -100,8 +130,7 @@ exports.getPatientDetails = async (req, res) => {
                 JOIN "PHMSDS"."REF_PROVIDER_ADDRESS"      rpa
                     ON  sd."SUBMID"   = rpa."PROVIDERID"
                 WHERE
-                    da."MNEMONIC" IN ('OHP1', 'OHP2', 'OHP3')
-                    AND sd."LNAME"  <> 'CDC'
+                    sd."LNAME"  <> 'CDC'
                     AND sd."DTRECV" >= :StartDate
                     AND sd."DTRECV"  < :EndDate
                     ${filterCondition}
@@ -127,11 +156,7 @@ exports.getPatientDetails = async (req, res) => {
             data: rows,
             meta: {
                 totalRecords: rows.length,
-                filters: {
-                    dateFrom,
-                    dateTo,
-                    testCode: testCode || 'ALL'
-                }
+                filters: { dateFrom, dateTo, testCode: testCode || 'ALL' }
             },
             executionTime: `${executionTime}ms`,
             timestamp: new Date().toISOString()
@@ -139,9 +164,7 @@ exports.getPatientDetails = async (req, res) => {
 
     } catch (error) {
         console.error('❌ Patient Details Error:', error);
-
         const executionTime = Date.now() - startTime;
-
         res.status(500).json({
             success: false,
             error: 'An error occurred while fetching patient details',
@@ -162,30 +185,13 @@ exports.getPatientDetails = async (req, res) => {
 
 /**
  * Get Valid Test Codes
- * Returns the list of all valid test code filter options
+ * Returns 'ALL' plus every individual test code.
  */
 exports.getTestCodes = (req, res) => {
-    const testCodes = [
-        'ALL',
-        'BTND1', 'BTND2', 'IRT1', 'IRT2', 'IRT3',
-        'OHP1', 'OHP2', 'OHP3',
-        '3MCCMS', 'BARTS', 'BKDMS1', 'BKDMS2', 'CITMS1', 'CITMS2',
-        'CP1MS1', 'CP1MS2', 'CP2MS1', 'CP2MS2',
-        'CUDMS1', 'CUDMS2', 'GA1MS1', 'GA1MS2', 'GA2MS1', 'GA2MS2',
-        'HCYMS1', 'HCYMS2', 'IVAMS1', 'IVAMS2', 'LCHMS1', 'LCHMS2',
-        'LEUMS1', 'LEUMS2', 'MCAMS1', 'MCAMS2', 'MCDMS1', 'MCDMS2',
-        'METMS1', 'METMS2', 'MMAMS1', 'MMAMS2',
-        'PHEMS1', 'PHEMS2', 'SAMS1', 'SAMS2', 'TYRMS1', 'TYRMS2',
-        'VLCMS1', 'VLCMS2',
-        'F', 'FE', 'FEA', 'GC1', 'GC2', 'GC3',
-        'GM1', 'GM3', 'GM6', 'GMU', 'GMV',
-        'GN1', 'GN2', 'GN3'
-    ];
-
     res.json({
         success: true,
-        data: testCodes,
-        total: testCodes.length,
+        data: ['ALL', ...ALL_MNEMONICS],
+        total: ALL_MNEMONICS.length + 1,
         timestamp: new Date().toISOString()
     });
 };
