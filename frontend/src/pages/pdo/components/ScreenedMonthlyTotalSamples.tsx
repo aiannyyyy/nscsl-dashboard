@@ -440,11 +440,11 @@ export const MonthlyTotalSamples: React.FC<Props> = ({
                 iconType="circle"
               />
 
-              <Bar dataKey="year1" name={yearA} fill="#3b82f6" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="year1" name={yearA} fill="#3877db" radius={[4, 4, 0, 0]}>
                 <LabelList content={CustomLabel} />
               </Bar>
 
-              <Bar dataKey="year2" name={yearB} fill="#ec4899" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="year2" name={yearB} fill="#fffb00" radius={[4, 4, 0, 0]}>
                 <LabelList content={CustomLabel} />
               </Bar>
             </BarChart>

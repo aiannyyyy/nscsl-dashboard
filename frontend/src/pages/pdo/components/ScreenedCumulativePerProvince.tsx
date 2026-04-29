@@ -506,7 +506,7 @@ export const CumulativePerProvince: React.FC<Props> = ({
               <Bar 
                 dataKey={yearA} 
                 name={yearA}
-                fill="#3b82f6"
+                fill="#3877db"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={150}
               >
@@ -516,7 +516,7 @@ export const CumulativePerProvince: React.FC<Props> = ({
               <Bar 
                 dataKey={yearB} 
                 name={yearB}
-                fill="#ec4899"
+                fill="#fffb00"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={150}
               >

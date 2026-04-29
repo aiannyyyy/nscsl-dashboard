@@ -241,11 +241,11 @@ export const UnsatPerProvince: React.FC = () => {
                 />
                 <Legend />
 
-                <Bar dataKey="period1" name={`${shortMonth} ${yearA}`} fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="period1" name={`${shortMonth} ${yearA}`} fill="#3877db" radius={[4, 4, 0, 0]}>
                   <LabelList content={CustomLabel} />
                 </Bar>
 
-                <Bar dataKey="period2" name={`${shortMonth} ${yearB}`} fill="#ef4444" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="period2" name={`${shortMonth} ${yearB}`} fill="#fffb00" radius={[4, 4, 0, 0]}>
                   <LabelList content={CustomLabel} />
                 </Bar>
               </BarChart>

@@ -556,7 +556,7 @@ export const MonthlyTotalSamples: React.FC<Props> = ({
               <Bar 
                 dataKey="year1" 
                 name={yearA}
-                fill="#3b82f6"
+                fill="#3877db"
                 radius={[4, 4, 0, 0]}
               >
                 <LabelList content={CustomLabel} />
@@ -565,7 +565,7 @@ export const MonthlyTotalSamples: React.FC<Props> = ({
               <Bar 
                 dataKey="year2" 
                 name={yearB}
-                fill="#ec4899"
+                fill="#fffb00"
                 radius={[4, 4, 0, 0]}
               >
                 <LabelList content={CustomLabel} />
