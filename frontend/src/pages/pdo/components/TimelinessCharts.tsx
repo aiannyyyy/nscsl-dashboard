@@ -1,19 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { downloadChart } from '../../../utils/chartDownloadUtils';
-
-interface TimelinessRecord {
-  month: string;
-  aoc_mean_year1: number; aoc_mean_year2: number;
-  aoc_median_year1: number; aoc_median_year2: number;
-  aoc_mode_year1: number; aoc_mode_year2: number;
-  transit_mean_year1: number; transit_mean_year2: number;
-  transit_median_year1: number; transit_median_year2: number;
-  transit_mode_year1: number; transit_mode_year2: number;
-  aur_mean_year1: number; aur_mean_year2: number;
-  aur_median_year1: number; aur_median_year2: number;
-  aur_mode_year1: number; aur_mode_year2: number;
-}
+import {
+  fetchTimelinessData,
+  fetchTimelinessCountyCumulative,
+  fetchTimelinessMonthly,
+  fetchTimelinessSummary,
+} from '../../../services/PDOServices/timelinessApi';
+import type { TimelinessRecord } from '../../../services/PDOServices/timelinessApi';
 
 interface ApiResponse {
   success: boolean;
@@ -23,25 +17,20 @@ interface ApiResponse {
 }
 
 const months = [
-  { label: 'Jan', value: '1' },
-  { label: 'Feb', value: '2' },
-  { label: 'Mar', value: '3' },
-  { label: 'Apr', value: '4' },
-  { label: 'May', value: '5' },
-  { label: 'Jun', value: '6' },
-  { label: 'Jul', value: '7' },
-  { label: 'Aug', value: '8' },
-  { label: 'Sept', value: '9' },
-  { label: 'Oct', value: '10' },
-  { label: 'Nov', value: '11' },
-  { label: 'Dec', value: '12' },
+  { label: 'Jan', value: '1' }, { label: 'Feb', value: '2' },
+  { label: 'Mar', value: '3' }, { label: 'Apr', value: '4' },
+  { label: 'May', value: '5' }, { label: 'Jun', value: '6' },
+  { label: 'Jul', value: '7' }, { label: 'Aug', value: '8' },
+  { label: 'Sept', value: '9' }, { label: 'Oct', value: '10' },
+  { label: 'Nov', value: '11' }, { label: 'Dec', value: '12' },
 ];
 
-// Builds cumulative range options: "January", "January - February", etc.
 const cumulativeRangeOptions = months.map((m, i) => ({
   label: i === 0 ? m.label : `Jan - ${m.label}`,
-  endMonth: m.value, // startMonth is always '1'
+  endMonth: m.value,
 }));
+
+type ViewMode = 'province' | 'summary';
 
 export const TimelinessCharts: React.FC = () => {
   const currentYear = new Date().getFullYear();
@@ -49,10 +38,11 @@ export const TimelinessCharts: React.FC = () => {
 
   const [year1, setYear1] = useState((currentYear - 1).toString());
   const [year2, setYear2] = useState(currentYear.toString());
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth);         // for county mode
-  const [selectedEndMonth, setSelectedEndMonth] = useState(currentMonth);   // for summary mode (endMonth; startMonth always = 1)
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [selectedEndMonth, setSelectedEndMonth] = useState(currentMonth);
   const [selectedProvince, setSelectedProvince] = useState('All Provinces');
-  const [viewMode, setViewMode] = useState<'county' | 'summary'>('county');
+  const [viewMode, setViewMode] = useState<ViewMode>('province');
+  const [isCumulative, setIsCumulative] = useState(false);
 
   const [data, setData] = useState<TimelinessRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -69,15 +59,13 @@ export const TimelinessCharts: React.FC = () => {
 
   useEffect(() => {
     const checkDarkMode = () => {
-      if (typeof document !== 'undefined') {
+      if (typeof document !== 'undefined')
         setIsDarkMode(document.documentElement.classList.contains('dark'));
-      }
     };
     checkDarkMode();
     const observer = new MutationObserver(checkDarkMode);
-    if (typeof document !== 'undefined') {
+    if (typeof document !== 'undefined')
       observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    }
     return () => observer.disconnect();
   }, []);
 
@@ -86,23 +74,20 @@ export const TimelinessCharts: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        let url = '';
-        if (viewMode === 'county') {
-          url = `/api/timeliness?year1=${year1}&year2=${year2}&month=${selectedMonth}&province=${selectedProvince}`;
+        let result;
+
+        if (viewMode === 'province') {
+          result = isCumulative
+            ? await fetchTimelinessCountyCumulative(year1, year2, '1', selectedEndMonth, selectedProvince)
+            : await fetchTimelinessData(year1, year2, selectedMonth, selectedProvince);
         } else {
-          // startMonth always 1, endMonth is selectedEndMonth
-          url = `/api/timeliness/summary?year1=${year1}&year2=${year2}&startMonth=1&endMonth=${selectedEndMonth}`;
+          // summary
+          result = isCumulative
+            ? await fetchTimelinessSummary(year1, year2, '1', selectedEndMonth)
+            : await fetchTimelinessMonthly(year1, year2, selectedMonth);
         }
 
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to fetch data');
-
-        const result: ApiResponse = await response.json();
-        if (!result || !Array.isArray(result.data)) {
-          setData([]);
-        } else {
-          setData(result.data);
-        }
+        setData(Array.isArray(result?.data) ? result.data : []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
         setData([]);
@@ -112,7 +97,7 @@ export const TimelinessCharts: React.FC = () => {
     };
 
     fetchData();
-  }, [year1, year2, selectedMonth, selectedEndMonth, selectedProvince, viewMode]);
+  }, [year1, year2, selectedMonth, selectedEndMonth, selectedProvince, viewMode, isCumulative]);
 
   const getChartData = (chartType: string) => {
     if (!data || data.length === 0) return [];
@@ -142,18 +127,17 @@ export const TimelinessCharts: React.FC = () => {
       [year2]: item[year2],
     }));
 
+  const getMonthLabel = () => {
+    if (isCumulative)
+      return cumulativeRangeOptions.find(o => o.endMonth === selectedEndMonth)?.label ?? selectedEndMonth;
+    return months.find(m => m.value === selectedMonth)?.label ?? selectedMonth;
+  };
+
   const handleDownload = async (chartId: string, format: 'png' | 'svg' | 'excel') => {
     const chart = charts.find(c => c.id === chartId);
     if (!chart) return;
-
-    const rangeLabel = viewMode === 'summary'
-      ? cumulativeRangeOptions.find(o => o.endMonth === selectedEndMonth)?.label ?? selectedEndMonth
-      : months.find(m => m.value === selectedMonth)?.label ?? selectedMonth;
-
-    const filename = viewMode === 'county'
-      ? `${chart.title.replace(/\s+/g, '_')}_${selectedProvince}_${rangeLabel}_${year1}_vs_${year2}`
-      : `${chart.title.replace(/\s+/g, '_')}_Summary_${rangeLabel}_${year1}_vs_${year2}`;
-
+    const modeLabel = viewMode === 'province' ? selectedProvince : 'Summary';
+    const filename = `${chart.title.replace(/\s+/g, '_')}_${modeLabel}_${getMonthLabel()}_${year1}_vs_${year2}`;
     try {
       if (format === 'excel') {
         await downloadChart({ elementId: `chart-${chartId}`, filename, format: 'excel', data: getExcelData(chartId), sheetName: chart.title });
@@ -197,8 +181,13 @@ export const TimelinessCharts: React.FC = () => {
     return { year1Color: '#c4b5fd', year2Color: '#fde047' };
   };
 
-  // Label shown in the badge and filename
-  const summaryRangeLabel = cumulativeRangeOptions.find(o => o.endMonth === selectedEndMonth)?.label ?? 'Jan';
+  const badgeLabel = viewMode === 'province'
+    ? (selectedProvince === 'All Provinces' ? 'All Provinces' : selectedProvince)
+    : 'All Provinces';
+
+  const badgeColor = viewMode === 'province'
+    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+    : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300';
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 transition-colors min-h-[300px]">
@@ -206,41 +195,61 @@ export const TimelinessCharts: React.FC = () => {
       {/* Header */}
       <div className="p-5 border-b border-gray-200 dark:border-gray-800">
         <div className="flex flex-wrap justify-between items-center gap-4">
+
+          {/* Title + badges */}
           <div className="flex items-center gap-3">
             <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Timeliness of NBS</h4>
-            {viewMode === 'county' && (
-            <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium">
-              {selectedProvince === 'All Provinces' ? 'All Provinces' : selectedProvince}
+            <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${badgeColor}`}>
+              {badgeLabel}
             </span>
-          )}
-            {viewMode === 'summary' && (
-              <span className="px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium">
-                All Counties · {summaryRangeLabel}
-              </span>
-            )}
+            <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
+              isCumulative
+                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+            }`}>
+              {isCumulative ? 'Cumulative' : 'Single Month'}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Toggle View */}
+
+            {/* View mode toggle */}
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs font-medium">
+              <button
+                onClick={() => setViewMode('province')}
+                className={`px-3 py-1.5 transition-colors ${
+                  viewMode === 'province'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                Per Province
+              </button>
+              <button
+                onClick={() => setViewMode('summary')}
+                className={`px-3 py-1.5 transition-colors ${
+                  viewMode === 'summary'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                Summary
+              </button>
+            </div>
+
+            {/* Cumulative toggle */}
             <button
-              onClick={() => setViewMode(viewMode === 'county' ? 'summary' : 'county')}
-              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+              onClick={() => setIsCumulative(!isCumulative)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                isCumulative
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'
+              }`}
             >
-              {viewMode === 'county' ? (
-                <>
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  Show Summary
-                </>
-              ) : (
-                <>
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  Back to County View
-                </>
-              )}
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Cumulative
             </button>
 
             {/* Year dropdowns */}
@@ -256,23 +265,23 @@ export const TimelinessCharts: React.FC = () => {
               {years.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
 
-            {/* Month selector — switches based on viewMode */}
-            {viewMode === 'county' ? (
-              <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-xs border-0 focus:ring-2 focus:ring-blue-500 font-medium">
-                {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
-            ) : (
+            {/* Month dropdown */}
+            {isCumulative ? (
               <select value={selectedEndMonth} onChange={(e) => setSelectedEndMonth(e.target.value)}
                 className="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-xs border-0 focus:ring-2 focus:ring-blue-500 font-medium">
                 {cumulativeRangeOptions.map(o => (
                   <option key={o.endMonth} value={o.endMonth}>{o.label}</option>
                 ))}
               </select>
+            ) : (
+              <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
+                className="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-xs border-0 focus:ring-2 focus:ring-blue-500 font-medium">
+                {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
             )}
 
-            {/* Province — only visible in county mode */}
-            {viewMode === 'county' && (
+            {/* Province — only for province mode */}
+            {viewMode === 'province' && (
               <select value={selectedProvince} onChange={(e) => setSelectedProvince(e.target.value)}
                 className="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-xs border-0 focus:ring-2 focus:ring-blue-500 font-medium">
                 {provinces.map(p => <option key={p} value={p}>{p}</option>)}
@@ -292,7 +301,6 @@ export const TimelinessCharts: React.FC = () => {
             </div>
           </div>
         )}
-
         {error && (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
@@ -301,13 +309,11 @@ export const TimelinessCharts: React.FC = () => {
             </div>
           </div>
         )}
-
         {!loading && !error && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {charts.map((chart) => {
               const chartData = getChartData(chart.id);
               const colors = getChartColors(chart.id);
-
               return (
                 <div key={chart.id} className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -326,7 +332,6 @@ export const TimelinessCharts: React.FC = () => {
                       </div>
                     </div>
                   </div>
-
                   <div id={`chart-${chart.id}`} className="h-52 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
                     {chartData.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">

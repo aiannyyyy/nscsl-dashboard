@@ -29,15 +29,19 @@ export interface TimelinessRecord {
 }
 
 export interface TimelinessResponse {
+  success: boolean;
   data: TimelinessRecord[];
   recordCount: number;
   executionTime: string;
+  rawDataCount?: number;
+  filters?: Record<string, unknown>;
 }
 
 /* ================= API ================= */
 
 /**
- * Fetch timeliness data filtered by province (single month)
+ * COUNTY MODE — single month + province filter
+ * Endpoint: GET /api/timeliness
  */
 export const fetchTimelinessData = async (
   year1: string,
@@ -46,15 +50,51 @@ export const fetchTimelinessData = async (
   province: string
 ): Promise<TimelinessResponse> => {
   const res = await fetch(
-    `/api/timeliness?year1=${year1}&year2=${year2}&month=${month}&province=${province}`
+    `/api/timeliness?year1=${year1}&year2=${year2}&month=${month}&province=${encodeURIComponent(province)}`
   );
   if (!res.ok) throw new Error('Failed to fetch timeliness data');
   return res.json();
 };
 
 /**
- * Fetch timeliness summary without county filter (cumulative range)
- * startMonth is always 1 (January), endMonth is user-selected
+ * COUNTY CUMULATIVE MODE — Jan to selected month + province filter
+ * Endpoint: GET /api/timeliness/summary
+ * province param is optional — pass 'All Provinces' or empty to skip filter
+ */
+export const fetchTimelinessCountyCumulative = async (
+  year1: string,
+  year2: string,
+  startMonth: string,
+  endMonth: string,
+  province: string
+): Promise<TimelinessResponse> => {
+  const res = await fetch(
+    `/api/timeliness/summary?year1=${year1}&year2=${year2}&startMonth=${startMonth}&endMonth=${endMonth}&province=${encodeURIComponent(province)}`
+  );
+  if (!res.ok) throw new Error('Failed to fetch timeliness county cumulative data');
+  return res.json();
+};
+
+/**
+ * MONTHLY MODE — single month, no province filter
+ * Endpoint: GET /api/timeliness/monthly
+ */
+export const fetchTimelinessMonthly = async (
+  year1: string,
+  year2: string,
+  month: string
+): Promise<TimelinessResponse> => {
+  const res = await fetch(
+    `/api/timeliness/monthly?year1=${year1}&year2=${year2}&month=${month}`
+  );
+  if (!res.ok) throw new Error('Failed to fetch timeliness monthly data');
+  return res.json();
+};
+
+/**
+ * SUMMARY MODE — cumulative Jan to selected month, no province filter
+ * Endpoint: GET /api/timeliness/summary
+ * startMonth is always '1' (January)
  */
 export const fetchTimelinessSummary = async (
   year1: string,
