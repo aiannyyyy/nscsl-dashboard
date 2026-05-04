@@ -107,3 +107,26 @@ export type {
 // Export helper function from endorsement service
 export { createEndorsementFormData } from '../../services/LaboratoryServices/unsatEndorsementService';
 
+// Logbook Endorsement Hooks
+export {
+    useLogbookEndorsementLookup,
+    useLogbookEndorsement,
+    useLogbookEndorsementList,
+    useLogbookCategoryStats,
+    useLogbookMnemonicStats,
+    useCreateLogbookEndorsement,
+    useUpdateLogbookEndorsement,
+    logbookEndorsementKeys,
+} from './useLogbookEndorsement';
+
+// Export types from logbook endorsement service
+export type {
+    LogbookLookupTest,
+    LogbookLookupPatient,
+    LogbookLookupResponse,
+    LogbookEndorsementRecord,
+    CreateLogbookEndorsementPayload,
+    UpdateLogbookEndorsementPayload,
+    LogbookStatsItem,
+} from '../../services/LaboratoryServices/logbookEndorsementServices';
+

@@ -59,6 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed })
         { title: 'Demo & Unsat', path: '/dashboard/laboratory/demo-unsat' },
         { title: 'Inventory', path: '/dashboard/laboratory/inventory' },
         { title: 'Patient Information System', path: '/dashboard/laboratory/patient-information-system' },
+        { title: 'Endorsement to Follow Up', path: '/dashboard/laboratory/endorsement-to-followup' },
       ],
     },
     {

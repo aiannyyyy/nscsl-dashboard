@@ -229,6 +229,9 @@ app.use("/api/common-errors", require("./routes/LaboratoryRoutes/commonErrorRout
 // Unsat Endorsement
 app.use("/api/endorsements", require("./routes/LaboratoryRoutes/unsatEndorsementRoutes"))
 
+// Laboratory Logbook Endorsement
+app.use("/api/laboratory/logbook-endorsement", require("./routes/LaboratoryRoutes/logbookEndorsementRoutes"));
+
 // IT Job Order Routes
 app.use('/api/it-job-order', require('./routes/ITRoutes/itJobOrderRoutes'));
 
