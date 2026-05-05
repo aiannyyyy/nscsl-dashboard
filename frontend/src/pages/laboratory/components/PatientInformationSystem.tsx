@@ -69,6 +69,8 @@ interface Props {
   results: SampleRecord[];
   isLoading: boolean;
   totalCount: number;
+  /** From route query e.g. `?labNumber=` — prefill search and load results */
+  deeplinkLabNumber?: string | null;
 }
 
 // ═══════════════════════════════════════════════
@@ -1710,10 +1712,24 @@ const ResultsTable: React.FC<{
 // ROOT COMPONENT  (unchanged)
 // ═══════════════════════════════════════════════
 
-export const PatientInformationSystem: React.FC<Props> = ({ onSearch, results = [], isLoading, totalCount }) => {
+export const PatientInformationSystem: React.FC<Props> = ({
+  onSearch,
+  results = [],
+  isLoading,
+  totalCount,
+  deeplinkLabNumber = null,
+}) => {
   const [params,     setParams]     = useState<SearchParams>(EMPTY_PARAMS);
   const [viewRecord, setViewRecord] = useState<SampleRecord | null>(null);
   const handleChange = (name: keyof SearchParams, value: string) => setParams(prev => ({ ...prev, [name]: value }));
+
+  useEffect(() => {
+    const lab = deeplinkLabNumber?.trim();
+    if (!lab) return;
+    const merged: SearchParams = { ...EMPTY_PARAMS, labNumber: lab };
+    setParams(merged);
+    onSearch(merged);
+  }, [deeplinkLabNumber, onSearch]);
 
   return (
     <div className="p-6 text-gray-900 dark:text-gray-100">

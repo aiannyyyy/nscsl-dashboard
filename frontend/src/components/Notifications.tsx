@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Bell, X, ClipboardList, CheckCircle, XCircle, Wrench, Clock, AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, X, ClipboardList, CheckCircle, XCircle, Wrench, Clock, AlertTriangle, BookOpen, Send } from 'lucide-react';
 import {
     useGetNotifications,
     useGetUnreadCount,
@@ -12,6 +13,7 @@ import type { Notification } from '../services/notificationService';
 
 export const Notifications: React.FC = () => {
     const [showNotifications, setShowNotifications] = useState(false);
+    const navigate = useNavigate();
 
     const { data: notifications = [], isLoading, error, refetch } = useGetNotifications();
     const { data: unreadData } = useGetUnreadCount();
@@ -26,6 +28,9 @@ export const Notifications: React.FC = () => {
         try {
             if (!notification.is_read) {
                 await markAsReadMutation.mutateAsync(notification.id);
+            }
+            if (notification.link?.trim()) {
+                navigate(notification.link.trim());
             }
             setShowNotifications(false);
         } catch (error) {
@@ -69,6 +74,13 @@ export const Notifications: React.FC = () => {
             case 'status_update':
                 return <Clock size={16} />;
 
+            case 'logbook_endorsement':
+                return <BookOpen size={16} />;
+            case 'logbook_tc_approved':
+                return <CheckCircle size={16} />;
+            case 'logbook_endorsement_recall':
+                return <Send size={16} />;
+
             default:
                 return 'ℹ️';
         }
@@ -104,6 +116,13 @@ export const Notifications: React.FC = () => {
             case 'status_update':
                 return 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400';
 
+            case 'logbook_endorsement':
+                return 'bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400';
+            case 'logbook_tc_approved':
+                return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400';
+            case 'logbook_endorsement_recall':
+                return 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400';
+
             default:
                 return 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400';
         }
@@ -114,7 +133,11 @@ export const Notifications: React.FC = () => {
     // =========================================================================
     const getJobOrderBadge = (type: string): string | null => {
         const jobOrderTypes = ['new_job_order', 'approved', 'rejected', 'assigned', 'resolved', 'status_update'];
-        return jobOrderTypes.includes(type) ? 'IT Work Order' : null;
+        if (jobOrderTypes.includes(type)) return 'IT Work Order';
+        if (type === 'logbook_endorsement') return 'Logbook';
+        if (type === 'logbook_tc_approved') return 'Logbook TC';
+        if (type === 'logbook_endorsement_recall') return 'Recall';
+        return null;
     };
 
     const formatTimeAgo = (dateString: string): string => {

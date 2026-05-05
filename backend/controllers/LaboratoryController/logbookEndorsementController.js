@@ -19,6 +19,67 @@ const FIELD_LIMIT = {
 /** Truncate to DB-safe length. Trims whitespace first. */
 const toShortText = (value, max) => String(value || "").trim().slice(0, max);
 
+/** Readable ASCII for notification body (no em dash, odd spaces, etc.). */
+const plainNotificationText = (value) =>
+  String(value || "")
+    .replace(/[\u2013\u2014\u2212]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/\u00A0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const TEAM_CAPTAIN_POSITION = "Team Captain";
+const LAB_MANAGER_POSITION = "Laboratory Manager";
+const QAO_POSITION = "Quality Assurance Officer";
+const NOTIFY_ON_TC_APPROVE_POSITIONS = ["Laboratory Manager", "Quality Assurance Officer"];
+const NOTIFY_RECALL_POSITIONS = ["Followup 1", "Followup 2", "Followup 3", "Followup 4"];
+
+/** Lab Manager + QAO share `qao` as "lm|qa", legacy QA-only as plain string with no "|". */
+function parseLmQaStored(raw) {
+  const s = raw == null ? "" : String(raw).trim();
+  if (!s) return { lm: "", qa: "" };
+  const i = s.indexOf("|");
+  if (i === -1) return { lm: "", qa: s.trim() };
+  return { lm: s.slice(0, i).trim(), qa: s.slice(i + 1).trim() };
+}
+
+function buildLmQaStored(lm, qa) {
+  const l = lm != null ? String(lm).trim() : "";
+  const q = qa != null ? String(qa).trim() : "";
+  if (l && q) return `${l}|${q}`;
+  if (l) return `${l}|`;
+  if (q) return q;
+  return "";
+}
+
+/** Follow-up recall when both LM and QAO slots in `qao` are filled (`fun` is separate: FUN only). */
+function sendRecallNotifications(row, endorsementId, createdBy) {
+  const { lm: lmStr, qa: qaStr } = parseLmQaStored(row.qao);
+  const lm = lmStr !== "";
+  const qa = qaStr !== "";
+  if (!lm || !qa) return;
+
+  const labnoDisp = plainNotificationText(toShortText(row.labno, FIELD_LIMIT.labno));
+  const patientDisp = plainNotificationText(toShortText(row.patient_name, FIELD_LIMIT.patient_name));
+  const categoryDisp = plainNotificationText(toShortText(row.category, FIELD_LIMIT.category));
+  const lmDisp = plainNotificationText(toShortText(lmStr, FIELD_LIMIT.person));
+  const qaoDisp = plainNotificationText(toShortText(qaStr, FIELD_LIMIT.person));
+  const byDisp = plainNotificationText(createdBy);
+
+  void sendToUsersByPosition({
+    positions: NOTIFY_RECALL_POSITIONS,
+    type: "logbook_endorsement_recall",
+    title: "Endorsement To Recall",
+    message: `Lab ${labnoDisp}, patient ${patientDisp}. Category ${categoryDisp}. Lab Manager ${lmDisp} and Quality Assurance ${qaoDisp} signed.`,
+    link: `/dashboard/laboratory/endorsement-to-followup?endorsementId=${endorsementId}`,
+    reference_id: Number(endorsementId),
+    reference_type: "logbook_endorsement",
+    created_by: byDisp,
+  }).catch((err) => {
+    console.error("[approveLabQa] notify Followup error:", err?.message || err);
+  });
+}
+
 // ─── Oracle lookup ────────────────────────────────────────────────────────────
 const getPatientDetails = async (req, res) => {
   let connection;
@@ -238,16 +299,16 @@ const createLogbookEndorsement = async (req, res) => {
 
     const createdByName =
       req.user?.name || toShortText(analyst, FIELD_LIMIT.analyst) || "System";
-    const labnoDisp = toShortText(labno, FIELD_LIMIT.labno);
-    const patientDisp = toShortText(patient_name, FIELD_LIMIT.patient_name);
-    const categoryDisp = toShortText(category, FIELD_LIMIT.category);
+    const labnoDisp = plainNotificationText(toShortText(labno, FIELD_LIMIT.labno));
+    const patientDisp = plainNotificationText(toShortText(patient_name, FIELD_LIMIT.patient_name));
+    const categoryDisp = plainNotificationText(toShortText(category, FIELD_LIMIT.category));
 
     void sendToUsersByPosition({
       positions: ["Team Captain"],
       type: "logbook_endorsement",
-      title: "New logbook endorsement to follow up",
-      message: `Lab ${labnoDisp} — ${patientDisp}. Category: ${categoryDisp}.`,
-      link: "/dashboard/laboratory/endorsement-to-followup",
+      title: "New logbook endorsement",
+      message: `Lab ${labnoDisp}, patient ${patientDisp}. Category ${categoryDisp}.`,
+      link: `/dashboard/laboratory/endorsement-to-followup?endorsementId=${result.insertId}`,
       reference_id: result.insertId,
       reference_type: "logbook_endorsement",
       created_by: createdByName,
@@ -355,6 +416,242 @@ const updateLogbookEndorsement = async (req, res) => {
   }
 };
 
+// ─── Team Captain approve (tc + tc_date only) ────────────────────────────────
+const approveTeamCaptain = async (req, res) => {
+  try {
+    const pos = String(req.user?.position || "").trim();
+    if (pos !== TEAM_CAPTAIN_POSITION) {
+      return res.status(403).json({
+        success: false,
+        error: "Only Team Captain can record this approval.",
+      });
+    }
+
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ success: false, error: "id is required" });
+    }
+
+    const [rows] = await database.mysqlPool.query(
+      `SELECT id, labno, patient_name, category, tc FROM ${DB_TABLE} WHERE id = ?`,
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: "Record not found" });
+    }
+
+    const row = rows[0];
+    if (row.tc != null && String(row.tc).trim() !== "") {
+      return res.status(409).json({
+        success: false,
+        error: "Team Captain approval is already recorded for this endorsement.",
+      });
+    }
+
+    const now = new Date();
+    const captainName = toShortText(req.user.name, FIELD_LIMIT.person);
+
+    const [result] = await database.mysqlPool.query(
+      `UPDATE ${DB_TABLE}
+       SET tc = ?, tc_date = ?, modified_by = ?, date_modified = ?
+       WHERE id = ?
+         AND (tc IS NULL OR TRIM(tc) = '')`,
+      [captainName, now, captainName, now, id]
+    );
+
+    if (!result.affectedRows) {
+      return res.status(409).json({
+        success: false,
+        error: "Team Captain approval is already recorded for this endorsement.",
+      });
+    }
+
+    const labnoDisp = plainNotificationText(toShortText(row.labno, FIELD_LIMIT.labno));
+    const patientDisp = plainNotificationText(toShortText(row.patient_name, FIELD_LIMIT.patient_name));
+    const categoryDisp = plainNotificationText(toShortText(row.category, FIELD_LIMIT.category));
+    const captainDisp = plainNotificationText(captainName);
+
+    void sendToUsersByPosition({
+      positions: NOTIFY_ON_TC_APPROVE_POSITIONS,
+      type: "logbook_tc_approved",
+      title: "Approved by Team Captain",
+      message: `Lab ${labnoDisp}, patient ${patientDisp}. Approved by Team Captain ${captainDisp}. Category ${categoryDisp}.`,
+      link: `/dashboard/laboratory/endorsement-to-followup?endorsementId=${id}`,
+      reference_id: Number(id),
+      reference_type: "logbook_endorsement",
+      created_by: captainDisp,
+    }).catch((err) => {
+      console.error("[approveTeamCaptain] notify LM/QAO error:", err?.message || err);
+    });
+
+    return res.json({
+      success: true,
+      message: "Team Captain approval saved.",
+      tc: captainName,
+      tc_date: now.toISOString(),
+    });
+  } catch (error) {
+    console.error("[logbookEndorsementController] approveTeamCaptain error:", {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+    });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to save Team Captain approval",
+      message: error.sqlMessage || error.message,
+    });
+  }
+};
+
+// ─── Lab Manager + QAO (merged in qao) / FUN (fun) — existing columns ─────────
+const approveLabQa = async (req, res) => {
+  try {
+    const role = String(req.body?.role ?? "")
+      .trim()
+      .toLowerCase();
+    const pos = String(req.user?.position ?? "").trim();
+
+    const asLabManager =
+      role === "lab_manager" || role === "laboratory_manager";
+    const asQao =
+      role === "qao" || role === "quality_assurance_officer";
+
+    if (!asLabManager && !asQao) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid role. Use "lab_manager" or "qao".',
+      });
+    }
+
+    if (asLabManager && pos !== LAB_MANAGER_POSITION) {
+      return res.status(403).json({
+        success: false,
+        error: "Only Laboratory Manager can record this approval.",
+      });
+    }
+    if (asQao && pos !== QAO_POSITION) {
+      return res.status(403).json({
+        success: false,
+        error: "Only Quality Assurance Officer can record this approval.",
+      });
+    }
+
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ success: false, error: "id is required" });
+    }
+
+    const [rows] = await database.mysqlPool.query(
+      `SELECT id, labno, patient_name, category, tc, qao, fun FROM ${DB_TABLE} WHERE id = ?`,
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: "Record not found" });
+    }
+
+    const row = rows[0];
+    if (row.tc == null || String(row.tc).trim() === "") {
+      return res.status(400).json({
+        success: false,
+        error: "Team Captain must approve before Lab Manager or QAO.",
+      });
+    }
+
+    const prevQao = row.qao === undefined || row.qao === null ? null : String(row.qao);
+    const approverName = toShortText(req.user.name, FIELD_LIMIT.person);
+    const now = new Date();
+
+    if (asLabManager) {
+      const parsed = parseLmQaStored(row.qao);
+      if (parsed.lm) {
+        return res.status(409).json({
+          success: false,
+          error: "Laboratory Manager signature is already recorded.",
+        });
+      }
+      const combined = toShortText(
+        buildLmQaStored(approverName, parsed.qa),
+        FIELD_LIMIT.person
+      );
+      const [result] = await database.mysqlPool.query(
+        `UPDATE ${DB_TABLE}
+         SET qao = ?, qao_date = ?, modified_by = ?, date_modified = ?
+         WHERE id = ? AND qao <=> ?`,
+        [combined, now, approverName, now, id, prevQao]
+      );
+      if (!result.affectedRows) {
+        return res.status(409).json({
+          success: false,
+          error: "Laboratory Manager signature is already recorded.",
+        });
+      }
+    } else {
+      const parsed = parseLmQaStored(row.qao);
+      if (parsed.qa) {
+        return res.status(409).json({
+          success: false,
+          error: "Quality Assurance signature is already recorded.",
+        });
+      }
+      const combined = toShortText(
+        buildLmQaStored(parsed.lm, approverName),
+        FIELD_LIMIT.person
+      );
+      const [result] = await database.mysqlPool.query(
+        `UPDATE ${DB_TABLE}
+         SET qao = ?, qao_date = ?, modified_by = ?, date_modified = ?
+         WHERE id = ? AND qao <=> ?`,
+        [combined, now, approverName, now, id, prevQao]
+      );
+      if (!result.affectedRows) {
+        return res.status(409).json({
+          success: false,
+          error: "Quality Assurance signature is already recorded.",
+        });
+      }
+    }
+
+    const [afterRows] = await database.mysqlPool.query(
+      `SELECT labno, patient_name, category, qao, fun FROM ${DB_TABLE} WHERE id = ?`,
+      [id]
+    );
+    if (afterRows.length) {
+      sendRecallNotifications(afterRows[0], id, approverName);
+    }
+
+    const [fresh] = await database.mysqlPool.query(
+      `SELECT qao, qao_date, fun, fun_date FROM ${DB_TABLE} WHERE id = ?`,
+      [id]
+    );
+    const r = fresh[0] || {};
+
+    return res.json({
+      success: true,
+      message: asLabManager
+        ? "Laboratory Manager approval saved."
+        : "Quality Assurance approval saved.",
+      qao: r.qao ?? null,
+      qao_date: r.qao_date ? new Date(r.qao_date).toISOString() : null,
+      fun: r.fun ?? null,
+      fun_date: r.fun_date ? new Date(r.fun_date).toISOString() : null,
+    });
+  } catch (error) {
+    console.error("[logbookEndorsementController] approveLabQa error:", {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+    });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to save approval",
+      message: error.sqlMessage || error.message,
+    });
+  }
+};
+
 // ─── Stats — count DISTINCT labno so multi-analyte rows count as one ─────────
 const getCategoryStats = async (_req, res) => {
   try {
@@ -392,6 +689,8 @@ module.exports = {
   getAllLogbookEndorsements,
   createLogbookEndorsement,
   updateLogbookEndorsement,
+  approveTeamCaptain,
+  approveLabQa,
   getCategoryStats,
   getMnemonicStats,
 };

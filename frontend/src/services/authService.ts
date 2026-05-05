@@ -18,6 +18,7 @@ interface User {
   name: string;
   role: 'admin' | 'super-user' | 'user';
   department: 'pdo' | 'admin' | 'laboratory' | 'followup' | 'it-job-order' | 'all';
+  position?: string;
 }
 
 interface LoginResponse {

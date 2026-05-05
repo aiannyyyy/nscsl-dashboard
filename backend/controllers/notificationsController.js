@@ -1,21 +1,30 @@
 const { database } = require('../config');
 
+/**
+ * Department string for matching department-wide rows (user_id IS NULL).
+ * User-targeted rows only need userId; missing dept must not block the API.
+ */
+function broadcastDeptParam(dept) {
+    if (dept == null) return '';
+    return String(dept).trim();
+}
+
 // Get all notifications for a user
 const getNotifications = async (req, res) => {
     try {
-        const userDept = req.user?.dept;
-        const userId = req.user?.user_id ?? null;
+        const userId = req.user?.user_id;
+        const deptForBroadcast = broadcastDeptParam(req.user?.dept);
         const { limit = 50, offset = 0 } = req.query;
 
         console.log('==========================================');
         console.log('🔍 GETTING NOTIFICATIONS FOR:');
         console.log('User ID:', userId);
-        console.log('User Dept:', userDept);
+        console.log('User Dept (broadcast match):', deptForBroadcast || '(none)');
         console.log('User Name:', req.user?.name);
         console.log('==========================================');
 
-        if (!userDept) {
-            return res.status(400).json({ error: "User department not found" });
+        if (userId == null) {
+            return res.status(400).json({ error: "User not found" });
         }
 
         // ✅ FIXED LOGIC:
@@ -51,11 +60,11 @@ const getNotifications = async (req, res) => {
             LIMIT ? OFFSET ?
         `;
 
-        console.log('📝 Query params:', [userId, userDept, parseInt(limit), parseInt(offset)]);
+        console.log('📝 Query params:', [userId, deptForBroadcast, parseInt(limit), parseInt(offset)]);
 
         const [results] = await database.mysqlPool.query(sql, [
             userId,
-            userDept,
+            deptForBroadcast,
             parseInt(limit),
             parseInt(offset)
         ]);
@@ -75,11 +84,11 @@ const getNotifications = async (req, res) => {
 // Get unread count
 const getUnreadCount = async (req, res) => {
     try {
-        const userDept = req.user?.dept;
-        const userId = req.user?.user_id ?? null;
+        const userId = req.user?.user_id;
+        const deptForBroadcast = broadcastDeptParam(req.user?.dept);
 
-        if (!userDept) {
-            return res.status(400).json({ error: "User department not found" });
+        if (userId == null) {
+            return res.status(400).json({ error: "User not found" });
         }
 
         // ✅ Same fixed logic as getNotifications
@@ -94,7 +103,7 @@ const getUnreadCount = async (req, res) => {
                 )
         `;
 
-        const [results] = await database.mysqlPool.query(sql, [userId, userDept]);
+        const [results] = await database.mysqlPool.query(sql, [userId, deptForBroadcast]);
 
         res.json({ count: Number(results[0].count) });
     } catch (err) {
@@ -206,12 +215,12 @@ const markAsRead = async (req, res) => {
 // Mark all notifications as read for this user
 const markAllAsRead = async (req, res) => {
     try {
-        const userDept = req.user?.dept;
-        const userId = req.user?.user_id ?? null;
+        const userId = req.user?.user_id;
+        const deptForBroadcast = broadcastDeptParam(req.user?.dept);
         const now = new Date();
 
-        if (!userDept) {
-            return res.status(400).json({ error: "User department not found" });
+        if (userId == null) {
+            return res.status(400).json({ error: "User not found" });
         }
 
         // ✅ Same fixed logic
@@ -226,7 +235,7 @@ const markAllAsRead = async (req, res) => {
                 )
         `;
 
-        const [result] = await database.mysqlPool.query(sql, [now, userId, userDept]);
+        const [result] = await database.mysqlPool.query(sql, [now, userId, deptForBroadcast]);
 
         res.json({
             message: "All notifications marked as read",
@@ -272,12 +281,12 @@ const deleteNotification = async (req, res) => {
 // Delete all notifications for this user
 const deleteAllNotifications = async (req, res) => {
     try {
-        const userDept = req.user?.dept;
-        const userId = req.user?.user_id ?? null;
+        const userId = req.user?.user_id;
+        const deptForBroadcast = broadcastDeptParam(req.user?.dept);
         const now = new Date();
 
-        if (!userDept) {
-            return res.status(400).json({ error: "User department not found" });
+        if (userId == null) {
+            return res.status(400).json({ error: "User not found" });
         }
 
         // ✅ Same fixed logic
@@ -291,7 +300,7 @@ const deleteAllNotifications = async (req, res) => {
                 )
         `;
 
-        const [result] = await database.mysqlPool.query(sql, [now, userId, userDept]);
+        const [result] = await database.mysqlPool.query(sql, [now, userId, deptForBroadcast]);
 
         res.json({
             message: "All notifications deleted successfully",

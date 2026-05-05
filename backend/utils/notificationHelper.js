@@ -205,7 +205,6 @@ async function sendToAllUsersInDepartment(options) {
 
         console.log(`👥 Found ${users.length} users in ${department} department:`);
         users.forEach(u => console.log(`   - ${u.name} (ID: ${u.user_id}, Dept: ${u.dept})`));
-
         if (users.length === 0) {
             console.log(`⚠️ No users found in ${department} department`);
             return [];
@@ -225,7 +224,7 @@ async function sendToAllUsersInDepartment(options) {
         console.log(`✅ Successfully sent ${results.length} individual notifications`);
         return results;
 
-    } catch (error) {
+    } catch (error) {+
         console.error('❌ Failed to send notifications to department users:', error);
         throw error;
     }

@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 import {
+  approveLogbookLabQa,
+  approveLogbookTeamCaptain,
   createLogbookEndorsement,
   getAllLogbookEndorsements,
   getLogbookCategoryStats,
@@ -12,7 +14,9 @@ import {
   type LogbookLookupResponse,
   type LogbookStatsResponse,
   type UpdateLogbookEndorsementPayload,
+  type LabQaApproveRole,
 } from '../../services/LaboratoryServices/logbookEndorsementServices';
+import { notificationKeys } from '../useNotifications';
 
 export const logbookEndorsementKeys = {
   all: ['logbookEndorsement'] as const,
@@ -72,6 +76,7 @@ export const useCreateLogbookEndorsement = () => {
     mutationFn: (payload: CreateLogbookEndorsementPayload) => createLogbookEndorsement(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: logbookEndorsementKeys.all });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
   });
 };
@@ -86,6 +91,29 @@ export const useUpdateLogbookEndorsement = () => {
   });
 };
 
+export const useApproveLogbookTeamCaptain = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => approveLogbookTeamCaptain(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: logbookEndorsementKeys.all });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+    },
+  });
+};
+
+export const useApproveLogbookLabQa = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, role }: { id: number; role: LabQaApproveRole }) =>
+      approveLogbookLabQa(id, role),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: logbookEndorsementKeys.all });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+    },
+  });
+};
+
 export default {
   useLogbookEndorsementLookup,
   useLogbookEndorsement,
@@ -94,4 +122,6 @@ export default {
   useLogbookMnemonicStats,
   useCreateLogbookEndorsement,
   useUpdateLogbookEndorsement,
+  useApproveLogbookTeamCaptain,
+  useApproveLogbookLabQa,
 };

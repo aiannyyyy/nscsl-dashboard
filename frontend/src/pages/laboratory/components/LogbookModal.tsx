@@ -22,9 +22,8 @@ const getCurrentUsername = (): string => {
       return parsed?.name || parsed?.username || parsed?.email || 'SYSTEM';
     }
   } catch {
-    // Ignore malformed local storage payload.
+    // ignore
   }
-
   try {
     const currentUser = localStorage.getItem('currentUser');
     if (currentUser) {
@@ -32,9 +31,8 @@ const getCurrentUsername = (): string => {
       return parsed?.username || parsed?.fullName || 'SYSTEM';
     }
   } catch {
-    // Ignore malformed local storage payload.
+    // ignore
   }
-
   return 'SYSTEM';
 };
 
@@ -46,18 +44,13 @@ export const LogbookModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
     facility_code: '',
     category: '',
     analyst: getCurrentUsername(),
-    tc: '',
-    tc_date: '',
-    qao: '',
-    qao_date: '',
-    fun: '',
-    fun_date: '',
   });
 
   const lookupQuery = useLogbookEndorsementLookup(labno, false);
   const createMutation = useCreateLogbookEndorsement();
 
   const handleLookup = async () => {
+    if (!labno.trim()) return;
     const result = await lookupQuery.refetch();
     const payload = result.data?.data;
     if (!payload) return;
@@ -68,14 +61,14 @@ export const LogbookModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
       facility_code: payload.submid || '',
     }));
 
-    const rowsFromLookup = (payload.tests || []).slice(0, 10).map((test) => ({
-      selected: true,
-      mnemonic: String(test.mnemonic || ''),
-      analytes: String(test.testName || '').slice(0, 20),
-      values: String(test.value ?? '').slice(0, 20),
-    }));
-
-    setTestRows(rowsFromLookup);
+    setTestRows(
+      (payload.tests || []).slice(0, 10).map((test) => ({
+        selected: true,
+        mnemonic: String(test.mnemonic || ''),
+        analytes: String(test.testName || '').trim(),
+        values: String(test.value ?? '').trim(),
+      }))
+    );
   };
 
   const updateTestRow = (index: number, key: keyof DraftTestRow, value: string | boolean) => {
@@ -93,156 +86,194 @@ export const LogbookModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
       return;
     }
 
+    const uniqueMnemonics = [...new Set(selectedRows.map((r) => r.mnemonic.trim()).filter(Boolean))];
+    const mnemonicCombined = uniqueMnemonics.length === 0 ? selectedRows[0].mnemonic : uniqueMnemonics.join('+');
+    const analytesCombined = selectedRows.map((r) => r.analytes.trim()).join(' | ');
+    const valuesCombined = selectedRows.map((r) => r.values.trim()).join(' | ');
+
     try {
-      await Promise.all(
-        selectedRows.map((row) =>
-          createMutation.mutateAsync({
-            labno: labno.trim(),
-            patient_name: form.patient_name,
-            facility_code: form.facility_code,
-            category: form.category,
-            mnemonic: row.mnemonic,
-            analytes: row.analytes,
-            values: row.values,
-            analyst: form.analyst,
-            tc: form.tc || undefined,
-            tc_date: form.tc_date || null,
-            qao: form.qao || undefined,
-            qao_date: form.qao_date || null,
-            fun: form.fun || undefined,
-            fun_date: form.fun_date || null,
-          })
-        )
-      );
+      await createMutation.mutateAsync({
+        labno: labno.trim(),
+        patient_name: form.patient_name,
+        facility_code: form.facility_code,
+        category: form.category,
+        mnemonic: mnemonicCombined,
+        analytes: analytesCombined,
+        values: valuesCombined,
+        analyst: form.analyst,
+      });
       alert('Endorsement saved successfully.');
       onClose();
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        error?.message ||
-        'Failed to save endorsement.';
-      alert(message);
+    } catch (error: unknown) {
+      const message = (() => {
+        if (typeof error === 'object' && error !== null) {
+          const e = error as {
+            response?: { data?: { message?: string; error?: string } };
+            message?: string;
+          };
+          return e.response?.data?.message || e.response?.data?.error || e.message;
+        }
+        if (error instanceof Error) return error.message;
+        return undefined;
+      })();
+      alert(message || 'Failed to save endorsement.');
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl"
+        className="w-full max-w-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Add Endorsement</h3>
-          <button type="button" onClick={onClose} className="p-1 text-gray-500 hover:text-gray-700">
+          <button type="button" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="md:col-span-2">
-              <label className="text-xs text-gray-500">Lab No.</label>
+        <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+
+          {/* Lab No. — inline search, Enter triggers lookup */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Lab No.</label>
+            <div className="flex gap-2 mt-1">
               <input
                 value={labno}
                 onChange={(e) => setLabno(e.target.value)}
-                className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleLookup();
+                  }
+                }}
+                placeholder="Type lab number and press Enter…"
+                className="flex-1 min-w-0 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
                 required
               />
-            </div>
-            <div className="flex items-end">
               <button
                 type="button"
                 onClick={handleLookup}
-                className="w-full px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                disabled={!labno.trim() || lookupQuery.isFetching}
+                className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 transition-colors"
               >
-                Lookup Lab No.
+                {lookupQuery.isFetching ? 'Searching…' : 'Search'}
               </button>
             </div>
+            {lookupQuery.isError && (
+              <p className="mt-1 text-xs text-red-500">No data found for this lab number.</p>
+            )}
           </div>
 
-          {lookupQuery.error && <p className="text-xs text-red-600">No data found for this lab number.</p>}
+          {/* Patient info — only shown after lookup */}
+          {form.patient_name && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Patient Name</label>
+                <input
+                  value={form.patient_name}
+                  disabled
+                  className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Facility Code</label>
+                <input
+                  value={form.facility_code}
+                  disabled
+                  className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
+                />
+              </div>
+            </div>
+          )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Category + Analyst */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-500">Patient Name</label>
-              <input value={form.patient_name} className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800" disabled required />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Facility Code</label>
-              <input value={form.facility_code} className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800" disabled required />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Category</label>
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Category</label>
               <select
                 value={form.category}
                 onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value }))}
-                className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               >
-                <option value="">Select category...</option>
-                {CATEGORY_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
+                <option value="">Select…</option>
+                {CATEGORY_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-500">Analyst</label>
-              <input value={form.analyst} className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800" disabled required />
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Analyst</label>
+              <input
+                value={form.analyst}
+                disabled
+                className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
+              />
             </div>
           </div>
 
+          {/* Results table */}
           <div>
-            <p className="text-xs text-gray-500 mb-2">Lookup Results (max 10 rows)</p>
-            <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                Results <span className="text-gray-400">(max 10)</span>
+              </p>
+              {testRows.length > 0 && (
+                <span className="text-xs text-indigo-500 dark:text-indigo-400">
+                  {testRows.filter((r) => r.selected).length} of {testRows.length} selected
+                </span>
+              )}
+            </div>
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
               <table className="w-full text-xs">
-                <thead className="bg-gray-50 dark:bg-gray-800">
+                <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                   <tr>
-                    <th className="px-2 py-2 text-left">Use</th>
-                    <th className="px-2 py-2 text-left">Mnemonic</th>
-                    <th className="px-2 py-2 text-left">Analytes</th>
-                    <th className="px-2 py-2 text-left">Values</th>
+                    <th className="px-2 py-2 text-left w-8"></th>
+                    <th className="px-2 py-2 text-left text-gray-600 dark:text-gray-400 font-semibold">Mnemonic</th>
+                    <th className="px-2 py-2 text-left text-gray-600 dark:text-gray-400 font-semibold">Analyte</th>
+                    <th className="px-2 py-2 text-left text-gray-600 dark:text-gray-400 font-semibold">Value</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {testRows.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-2 py-3 text-center text-gray-500">
-                        Lookup a lab number to load up to 10 analyte/value rows.
+                      <td colSpan={4} className="px-3 py-4 text-center text-xs text-gray-400 dark:text-gray-500">
+                        Search a lab number to load analyte rows.
                       </td>
                     </tr>
                   ) : (
                     testRows.map((row, index) => (
-                      <tr key={`${row.mnemonic}-${index}`} className="border-t border-gray-100 dark:border-gray-800">
-                        <td className="px-2 py-2">
-                          <input type="checkbox" checked={row.selected} onChange={(e) => updateTestRow(index, 'selected', e.target.checked)} />
-                        </td>
-                        <td className="px-2 py-2">
+                      <tr
+                        key={`${row.mnemonic}-${index}`}
+                        className={`transition-colors ${
+                          row.selected
+                            ? 'bg-white dark:bg-gray-900'
+                            : 'bg-gray-50/60 dark:bg-gray-800/40 opacity-50'
+                        }`}
+                      >
+                        <td className="px-2 py-2 text-center">
                           <input
-                            value={row.mnemonic}
-                            readOnly
-                            disabled
-                            className="w-full px-2 py-1 rounded border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
+                            type="checkbox"
+                            checked={row.selected}
+                            onChange={(e) => updateTestRow(index, 'selected', e.target.checked)}
+                            className="accent-indigo-600"
                           />
                         </td>
-                        <td className="px-2 py-2">
-                          <input
-                            value={row.analytes}
-                            readOnly
-                            disabled
-                            className="w-full px-2 py-1 rounded border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
-                          />
+                        <td className="px-2 py-2 font-semibold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                          {row.mnemonic}
                         </td>
-                        <td className="px-2 py-2">
-                          <input
-                            value={row.values}
-                            readOnly
-                            disabled
-                            className="w-full px-2 py-1 rounded border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
-                          />
+                        <td className="px-2 py-2 text-gray-700 dark:text-gray-300">
+                          {row.analytes}
+                        </td>
+                        <td className="px-2 py-2 font-mono text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                          {row.values}
                         </td>
                       </tr>
                     ))
@@ -253,17 +284,25 @@ export const LogbookModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg bg-gray-200 dark:bg-gray-700">
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          >
             Cancel
           </button>
-          <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1.5">
+          <button
+            type="submit"
+            disabled={createMutation.isPending}
+            className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+          >
             <Save className="w-3.5 h-3.5" />
-            Save Endorsement
+            {createMutation.isPending ? 'Saving…' : 'Save Endorsement'}
           </button>
         </div>
       </form>
     </div>
   );
 };
-

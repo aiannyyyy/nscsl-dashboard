@@ -122,6 +122,43 @@ export const updateLogbookEndorsement = async (
   return response.data;
 };
 
+export interface ApproveTeamCaptainResponse {
+  success: boolean;
+  message: string;
+  tc: string;
+  tc_date: string;
+}
+
+/** Team Captain only; sets tc + tc_date and notifies LM / QAO */
+export const approveLogbookTeamCaptain = async (
+  id: number
+): Promise<ApproveTeamCaptainResponse> => {
+  const response = await api.patch(`${LOGBOOK_ENDORSEMENT_ENDPOINT}/${id}/team-captain-approve`);
+  return response.data;
+};
+
+export type LabQaApproveRole = 'lab_manager' | 'qao';
+
+export interface ApproveLabQaResponse {
+  success: boolean;
+  message: string;
+  qao: string | null;
+  qao_date: string | null;
+  fun: string | null;
+  fun_date: string | null;
+}
+
+/** Laboratory Manager writes fun/fun_date; QAO writes qao/qao_date */
+export const approveLogbookLabQa = async (
+  id: number,
+  role: LabQaApproveRole
+): Promise<ApproveLabQaResponse> => {
+  const response = await api.patch(`${LOGBOOK_ENDORSEMENT_ENDPOINT}/${id}/lab-qa-approve`, {
+    role,
+  });
+  return response.data;
+};
+
 export const getLogbookCategoryStats = async (): Promise<LogbookStatsResponse> => {
   const response = await api.get(`${LOGBOOK_ENDORSEMENT_ENDPOINT}/stats/category`);
   return response.data;
@@ -137,6 +174,8 @@ export default {
   getAllLogbookEndorsements,
   createLogbookEndorsement,
   updateLogbookEndorsement,
+  approveLogbookTeamCaptain,
+  approveLogbookLabQa,
   getLogbookCategoryStats,
   getLogbookMnemonicStats,
 };

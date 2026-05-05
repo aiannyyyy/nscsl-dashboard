@@ -15,6 +15,8 @@ export interface User {
   name: string;
   role: UserRole;
   department: Department;
+  /** Job title from login API (e.g. Team Captain) */
+  position?: string;
 }
 
 // Define auth context interface

@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { PatientInformationSystem } from './components/PatientInformationSystem';
 import type { SearchParams, SampleRecord } from './components/PatientInformationSystem';
 import { searchPatients } from '../../services/LaboratoryServices/pisServices';
 
 export const PatientInformationSystemContainer: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const labFromUrl = searchParams.get('labNumber')?.trim() || null;
+
   const [results, setResults]       = useState<SampleRecord[]>([]);
   const [isLoading, setIsLoading]   = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
-  const handleSearch = async (params: SearchParams) => {
+  const handleSearch = useCallback(async (params: SearchParams) => {
     setIsLoading(true);
     try {
       const response = await searchPatients(params as unknown as Record<string, string>);
@@ -27,7 +31,7 @@ export const PatientInformationSystemContainer: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   return (
     <PatientInformationSystem
@@ -35,6 +39,7 @@ export const PatientInformationSystemContainer: React.FC = () => {
       results={results}
       isLoading={isLoading}
       totalCount={totalCount}
+      deeplinkLabNumber={labFromUrl}
     />
   );
 };
