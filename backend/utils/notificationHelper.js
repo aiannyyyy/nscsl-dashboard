@@ -119,6 +119,75 @@ async function sendToMultipleDepartments(departments, notificationData) {
 }
 
 /**
+ * Normalize dept from the user row to a value accepted by sendNotification().
+ */
+function normalizeUserDeptForNotification(dept) {
+    if (!dept) return null;
+    const d = String(dept).toLowerCase().trim();
+    if (d === 'administrator') return 'administrator';
+    if (d === 'admin') return 'admin';
+    if (d === 'program' || d === 'pdo') return 'program';
+    if (d === 'laboratory' || d === 'lab') return 'laboratory';
+    if (d === 'follow up' || d === 'followup') return 'followup';
+    return d;
+}
+
+/**
+ * Send one notification per user matching any of the given job titles (user.position).
+ */
+async function sendToUsersByPosition(options) {
+    try {
+        const { positions, ...notificationData } = options;
+        const posList = Array.isArray(positions) ? positions : positions ? [positions] : [];
+        if (posList.length === 0) {
+            console.log('⚠️ sendToUsersByPosition: no positions provided');
+            return [];
+        }
+
+        const placeholders = posList.map(() => '?').join(',');
+        const [users] = await database.mysqlPool.query(
+            `SELECT user_id, dept, name FROM test_nscslcom_nscsl_dashboard.user 
+             WHERE position IN (${placeholders})`,
+            posList
+        );
+
+        if (users.length === 0) {
+            console.log(`⚠️ No users found for position(s): ${posList.join(', ')}`);
+            return [];
+        }
+
+        const validDepartments = ['admin', 'administrator', 'program', 'laboratory', 'followup'];
+        const results = [];
+
+        for (const user of users) {
+            const department = normalizeUserDeptForNotification(user.dept);
+            if (!department || !validDepartments.includes(department)) {
+                console.warn(
+                    `⚠️ Skipping notification for user ${user.user_id} (${user.name}): dept "${user.dept}" → invalid for notifications`
+                );
+                continue;
+            }
+            try {
+                const id = await sendNotification({
+                    ...notificationData,
+                    department,
+                    user_id: user.user_id,
+                });
+                results.push(id);
+            } catch (err) {
+                console.error(`❌ Notification failed for user ${user.user_id}:`, err.message);
+            }
+        }
+
+        console.log(`✅ sendToUsersByPosition: ${results.length} notification(s) for position(s) ${posList.join(', ')}`);
+        return results;
+    } catch (error) {
+        console.error('❌ sendToUsersByPosition failed:', error);
+        throw error;
+    }
+}
+
+/**
  * Send notification to ALL users in a department (individual notifications per user)
  */
 async function sendToAllUsersInDepartment(options) {
@@ -165,5 +234,6 @@ async function sendToAllUsersInDepartment(options) {
 module.exports = {
     sendNotification,
     sendToMultipleDepartments,
-    sendToAllUsersInDepartment
+    sendToAllUsersInDepartment,
+    sendToUsersByPosition
 };
