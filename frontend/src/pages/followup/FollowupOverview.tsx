@@ -13,19 +13,10 @@ export const FollowupOverview: React.FC = () => {
       <header className="mb-8">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold text-violet-500 uppercase tracking-widest mb-1">
-              Ward Dashboard
-            </p>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Follow-up Overview
+              Follow-Up Dashboard
             </h1>
-            <p className="text-sm text-slate-400 mt-1">
-              Thursday, 19 February 2026 — Morning Shift
-            </p>
           </div>
-          <button className="self-start sm:self-auto text-sm font-medium bg-violet-600 hover:bg-violet-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-violet-200 dark:shadow-none">
-            + New Follow-up
-          </button>
         </div>
       </header>
 
@@ -39,16 +30,6 @@ export const FollowupOverview: React.FC = () => {
         <NurseCards />
       </div>
 
-      {/* Queue + Feed 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2">
-          <FollowupQueue />
-        </div>
-        <div className="xl:col-span-1">
-          <ActivityFeed />
-        </div>
-      </div>
-      */}
       <PatientDetails />
     </div>
   );

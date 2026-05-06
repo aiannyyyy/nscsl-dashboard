@@ -188,31 +188,27 @@ const AnalyteValueList: React.FC<{
   items: string[];
   mono?: boolean;
   dense?: boolean;
-  narrowNumeric?: boolean;
-  /** If set, clip each line for compact table cells (full text in title), a la FacilityVisits remarks. */
-  truncateAt?: number;
-}> = ({ items, mono, dense, narrowNumeric, truncateAt }) => {
-  const lineCls = dense ? 'text-xs' : 'text-sm';
-  const emptyCls = dense ? 'text-xs' : 'text-sm';
-  if (items.length === 0) return <span className={`${emptyCls} text-gray-400 dark:text-gray-500`}>—</span>;
+}> = ({ items, mono, dense }) => {
+  if (items.length === 0)
+    return <span className={`${dense ? 'text-xs' : 'text-sm'} text-gray-400 dark:text-gray-500`}>—</span>;
+
+  const first = items[0];
+  const rest = items.length - 1;
+  const truncated = first.length > 28 ? `${first.slice(0, 28).trim()}…` : first;
+
   return (
-    <div className={`flex flex-col ${dense ? 'gap-0.5' : 'gap-1'}`}>
-      {items.map((item, i) => {
-        const full = item;
-        const text =
-          truncateAt != null && full.length > truncateAt
-            ? `${full.slice(0, truncateAt).trim()}...`
-            : full;
-        return (
-          <span
-            key={i}
-            className={`${lineCls} leading-snug text-gray-700 dark:text-gray-300 ${mono ? 'font-mono tabular-nums' : ''} ${narrowNumeric || truncateAt != null ? 'block truncate max-w-full' : ''}`}
-            title={full}
-          >
-            {text}
-          </span>
-        );
-      })}
+    <div className="flex flex-col gap-0.5 min-w-0">
+      <span
+        className={`${dense ? 'text-xs' : 'text-sm'} leading-snug text-gray-700 dark:text-gray-300 ${mono ? 'font-mono tabular-nums' : ''} block truncate max-w-full`}
+        title={items.join(' | ')}
+      >
+        {truncated}
+      </span>
+      {rest > 0 && (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 w-fit">
+          +{rest} more
+        </span>
+      )}
     </div>
   );
 };
@@ -259,6 +255,40 @@ const sampleRecordFromEndorsement = (r: GroupedRecord): SampleRecord => {
     AGECOLL: empty,
     SEX: empty,
   };
+};
+
+const parseLmQaDisplay = (raw: string | null | undefined): { lm: string; qa: string } => {
+  const s = (raw ?? '').trim();
+  if (!s) return { lm: '', qa: '' };
+  const i = s.indexOf('|');
+  if (i === -1) return { lm: '', qa: s };
+  return { lm: s.slice(0, i).trim(), qa: s.slice(i + 1).trim() };
+};
+
+const LmQaCell: React.FC<{ qao: string | null; qao_date: string | null; dense?: boolean }> = ({
+  qao,
+  qao_date,
+  dense,
+}) => {
+  const { lm, qa } = parseLmQaDisplay(qao);
+  if (!lm && !qa) {
+    return <span className={`${dense ? 'text-xs' : 'text-sm'} text-gray-400 dark:text-gray-500`}>—</span>;
+  }
+  return (
+    <div className="flex flex-col gap-0.5 min-w-0">
+      {lm && (
+        <span className={`${dense ? 'text-xs' : 'text-sm'} font-medium text-gray-900 dark:text-gray-100 truncate`} title={lm}>
+          {lm}
+        </span>
+      )}
+      {qa && (
+        <span className={`${dense ? 'text-xs' : 'text-sm'} font-medium text-gray-900 dark:text-gray-100 truncate`} title={qa}>
+          {qa}
+        </span>
+      )}
+      {qao_date?.trim() ? <DateTimeCell raw={qao_date} dense /> : null}
+    </div>
+  );
 };
 
 const TEAM_CAPTAIN_POSITION = 'Team Captain';
@@ -354,28 +384,41 @@ const ViewDetailsModal: React.FC<{
             <DetailRow label="Mnemonic" value={record.mnemonic} />
             <DetailRow label="Category" value={record.category} />
             <div className="col-span-2">
-              <DetailRow
-                label={`Analytes (${record._analytesList.length})`}
-                value={
-                  <div className="flex flex-col gap-1">
-                    {record._analytesList.map((a, i) => (
-                      <span key={i} className="text-sm text-gray-800 dark:text-gray-100">{a}</span>
-                    ))}
-                  </div>
-                }
-              />
-            </div>
-            <div className="col-span-2">
-              <DetailRow
-                label={`Values (${record._valuesList.length})`}
-                value={
-                  <div className="flex flex-col gap-1">
-                    {record._valuesList.map((v, i) => (
-                      <span key={i} className="text-sm font-mono text-gray-800 dark:text-gray-100">{v}</span>
-                    ))}
-                  </div>
-                }
-              />
+              <div className="bg-gray-50 dark:bg-gray-800/80 rounded-lg border border-gray-100 dark:border-gray-700/80 overflow-hidden">
+                <div className="px-3 pt-2.5 pb-1.5">
+                  <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500">
+                    Analytes & Values ({Math.max(record._analytesList.length, record._valuesList.length)})
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-t border-gray-100 dark:border-gray-700/80">
+                    <thead>
+                      <tr className="bg-gray-100/70 dark:bg-gray-700/40">
+                        <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 w-1/2">
+                          Analyte
+                        </th>
+                        <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 w-1/2">
+                          Value
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                      {Array.from({
+                        length: Math.max(record._analytesList.length, record._valuesList.length),
+                      }).map((_, i) => (
+                        <tr key={i} className={i % 2 === 0 ? '' : 'bg-gray-50/50 dark:bg-gray-800/30'}>
+                          <td className="px-3 py-1.5 text-sm text-gray-800 dark:text-gray-100 break-words">
+                            {record._analytesList[i] ?? '—'}
+                          </td>
+                          <td className="px-3 py-1.5 text-sm font-mono text-gray-700 dark:text-gray-300 break-words">
+                            {record._valuesList[i] ?? '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -390,7 +433,7 @@ const ViewDetailsModal: React.FC<{
             <DetailRow label="TC" value={<PersonCell name={record.tc} datetime={record.tc_date} />} />
             <DetailRow
               label="QAO / Lab Manager"
-              value={<PersonCell name={record.qao} datetime={record.qao_date} />}
+              value={<LmQaCell qao={record.qao} qao_date={record.qao_date} />}
             />
             <DetailRow
               label="FUN"
@@ -598,7 +641,7 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const colCount = 14;
+  const colCount = 13;
 
   // Human-readable label for the selected date
   const dateLabel = formatDisplayDate(selectedDate);
@@ -728,7 +771,7 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
         <div className="px-4 pb-4 pt-1">
           <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
             <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
-              <table className="w-full table-fixed text-xs relative leading-snug border-collapse">
+              <table className="min-w-full w-max text-xs relative leading-snug border-collapse">
                 <colgroup>
                   <col className="w-[4.5rem]" />
                   <col className="w-[5rem]" />
@@ -742,7 +785,6 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
                   <col className="w-[5.75rem]" />
                   <col className="w-[6.5rem]" />
                   <col className="w-[4.5rem]" />
-                  <col className="w-[6rem]" />
                   <col className="w-[2.75rem]" />
                 </colgroup>
 
@@ -762,7 +804,6 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
                         { key: 'tc', label: 'TC' },
                         { key: 'qao', label: 'LM / QA' },
                         { key: 'fun', label: 'FUN' },
-                        { key: 'mod', label: 'Modified' },
                         { key: 'act', label: 'Actions', sticky: true },
                       ] as const
                     ).map((col) =>
@@ -867,10 +908,9 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
                       <td className="px-3 py-2 align-top"><PersonCell name={row.analyst} datetime={row.analyst_date} dense /></td>
                       <td className="px-3 py-2 align-top"><PersonCell name={row.tc} datetime={row.tc_date} dense /></td>
                       <td className="px-3 py-2 align-top">
-                        <PersonCell name={row.qao || null} datetime={row.qao_date} dense />
+                        <LmQaCell qao={row.qao} qao_date={row.qao_date} dense />
                       </td>
                       <td className="px-3 py-2 align-top"><PersonCell name={row.fun} datetime={row.fun_date} dense /></td>
-                      <td className="px-3 py-2 align-top"><DatePersonCell raw={row.date_modified} person={row.modified_by} dense /></td>
 
                       <td
                         className={`sticky right-0 z-10 px-3 py-2 align-top border-l border-gray-200 dark:border-gray-800 shadow-[-2px_0_4px_rgba(0,0,0,0.05)] dark:shadow-[-2px_0_4px_rgba(0,0,0,0.2)] transition-colors ${stickyBg} group-hover:bg-gray-50 dark:group-hover:bg-gray-800/50`}

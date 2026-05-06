@@ -1,64 +1,54 @@
 import React, { useState } from 'react';
+import { Activity, CheckCircle2, CalendarCheck } from 'lucide-react';
 
 interface Nurse {
   id: number;
   name: string;
   role: string;
   avatar: string;
-  activePatients: number;
-  followupsDue: number;
-  completedToday: number;
-  status: 'available' | 'busy' | 'off-duty';
+  totalRecalledPatientsForThisMonth: number;
+  totalRecalledToday: number;
+  assignedTest: string;
 }
 
 const nurses: Nurse[] = [
   {
     id: 1,
-    name: 'Mia Garcia',
+    name: 'Mia Carla Garcia',
     role: 'Follow Up Nurse I',
     avatar: 'MG',
-    activePatients: 14,
-    followupsDue: 3,
-    completedToday: 8,
-    status: 'available',
+    totalRecalledPatientsForThisMonth: 14,
+    totalRecalledToday: 3,
+    assignedTest: 'METAB',
   },
   {
     id: 2,
     name: 'Vivien Marie Wagan',
     role: 'Follow Up Nurse II',
     avatar: 'VM',
-    activePatients: 9,
-    followupsDue: 6,
-    completedToday: 5,
-    status: 'available',
+    totalRecalledPatientsForThisMonth: 9,
+    totalRecalledToday: 6,
+    assignedTest: 'HEMOG',
   },
   {
     id: 3,
     name: 'Gretel Yedra',
     role: 'Follow Up Nurse III',
     avatar: 'GY',
-    activePatients: 11,
-    followupsDue: 1,
-    completedToday: 12,
-    status: 'available',
+    totalRecalledPatientsForThisMonth: 11,
+    totalRecalledToday: 1,
+    assignedTest: 'ENDO',
   },
   {
     id: 4,
     name: 'Milyne Macayanan',
     role: 'Follow Up Nurse IV',
     avatar: 'MM',
-    activePatients: 7,
-    followupsDue: 4,
-    completedToday: 3,
-    status: 'available',
+    totalRecalledPatientsForThisMonth: 7,
+    totalRecalledToday: 4,
+    assignedTest: 'G6PD',
   },
 ];
-
-const statusConfig = {
-  available: { label: 'Available', dot: 'bg-emerald-400', text: 'text-emerald-400' },
-  busy: { label: 'On Shift', dot: 'bg-amber-400', text: 'text-amber-400' },
-  'off-duty': { label: 'Off Duty', dot: 'bg-slate-400', text: 'text-slate-400' },
-};
 
 const avatarColors = [
   'from-violet-500 to-purple-600',
@@ -72,52 +62,45 @@ export const NurseCards: React.FC = () => {
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 tracking-tight">
-            Care Team
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">Active nurses this shift</p>
-        </div>
-        <span className="text-xs font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-300 px-3 py-1 rounded-full">
-          {nurses.filter((n) => n.status !== 'off-duty').length} on shift
-        </span>
+      <div className="mb-5">
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 tracking-tight">
+          Follow Up Nurses
+        </h2>
+        <p className="text-xs text-slate-400 mt-0.5">Recall activity overview</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {nurses.map((nurse, i) => {
-          const status = statusConfig[nurse.status];
           const isHovered = hovered === nurse.id;
+          // Progress: today out of this month total (avoid divide by zero)
+          const monthTotal = nurse.totalRecalledPatientsForThisMonth || 1;
+          const progressPct = Math.round((nurse.totalRecalledToday / monthTotal) * 100);
 
           return (
             <div
               key={nurse.id}
               onMouseEnter={() => setHovered(nurse.id)}
               onMouseLeave={() => setHovered(null)}
-              className={`relative rounded-2xl p-5 cursor-pointer transition-all duration-300 border
-                ${
-                  nurse.status === 'off-duty'
-                    ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-700/50 opacity-70'
-                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700/60'
-                }
-                ${isHovered ? 'shadow-xl -translate-y-1' : 'shadow-sm'}
-              `}
+              className={`relative bg-white dark:bg-gray-900 border rounded-xl p-4 flex flex-col gap-4 transition-all duration-200 ${
+                isHovered
+                  ? 'border-indigo-300 dark:border-indigo-700 shadow-md shadow-indigo-100 dark:shadow-indigo-900/20 -translate-y-0.5'
+                  : 'border-gray-200 dark:border-gray-800 shadow-sm'
+              }`}
             >
-              {/* Top row */}
-              <div className="flex items-start justify-between mb-4">
+              {/* Top row: avatar + assigned test badge */}
+              <div className="flex items-start justify-between">
                 <div
-                  className={`w-11 h-11 rounded-xl bg-gradient-to-br ${avatarColors[i]} flex items-center justify-center text-white text-sm font-bold shadow-md`}
+                  className={`w-11 h-11 rounded-xl bg-gradient-to-br ${avatarColors[i]} flex items-center justify-center text-white text-sm font-bold shadow-md shrink-0`}
                 >
                   {nurse.avatar}
                 </div>
-                <span className={`flex items-center gap-1.5 text-xs font-medium ${status.text}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${status.dot} animate-pulse`} />
-                  {status.label}
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800/40">
+                  {nurse.assignedTest}
                 </span>
               </div>
 
               {/* Name & role */}
-              <div className="mb-4">
+              <div>
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">
                   {nurse.name}
                 </p>
@@ -125,42 +108,40 @@ export const NurseCards: React.FC = () => {
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="text-center">
-                  <p className="text-lg font-bold text-slate-800 dark:text-slate-100">
-                    {nurse.activePatients}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1 bg-slate-50 dark:bg-slate-800/50 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <CalendarCheck className="w-3 h-3 text-indigo-400 shrink-0" />
+                    <span className="text-[10px] text-slate-400 leading-tight">This Month</span>
+                  </div>
+                  <p className="text-lg font-bold text-slate-800 dark:text-slate-100 tabular-nums">
+                    {nurse.totalRecalledPatientsForThisMonth}
                   </p>
-                  <p className="text-[10px] text-slate-400 leading-tight">Patients</p>
                 </div>
-                <div className="text-center border-x border-slate-100 dark:border-slate-700">
-                  <p className={`text-lg font-bold ${nurse.followupsDue > 4 ? 'text-rose-500' : 'text-amber-500'}`}>
-                    {nurse.followupsDue}
+                <div className="flex flex-col gap-1 bg-slate-50 dark:bg-slate-800/50 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                    <span className="text-[10px] text-slate-400 leading-tight">Today</span>
+                  </div>
+                  <p className="text-lg font-bold text-emerald-500 tabular-nums">
+                    {nurse.totalRecalledToday}
                   </p>
-                  <p className="text-[10px] text-slate-400 leading-tight">Due</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-emerald-500">{nurse.completedToday}</p>
-                  <p className="text-[10px] text-slate-400 leading-tight">Done</p>
                 </div>
               </div>
 
               {/* Progress bar */}
-              <div className="mt-4">
-                <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                  <span>Follow-up progress</span>
-                  <span>
-                    {Math.round(
-                      (nurse.completedToday / (nurse.completedToday + nurse.followupsDue)) * 100
-                    )}
-                    %
-                  </span>
+              <div>
+                <div className="flex justify-between text-[10px] text-slate-400 mb-1.5">
+                  <div className="flex items-center gap-1">
+                    <Activity className="w-2.5 h-2.5" />
+                    <span>Today vs. Month</span>
+                  </div>
+                  <span className="tabular-nums font-medium">{progressPct}%</span>
                 </div>
                 <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-violet-500 to-purple-400 rounded-full transition-all duration-500"
-                    style={{
-                      width: `${(nurse.completedToday / (nurse.completedToday + nurse.followupsDue)) * 100}%`,
-                    }}
+                    className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${avatarColors[i]}`}
+                    style={{ width: `${progressPct}%` }}
                   />
                 </div>
               </div>

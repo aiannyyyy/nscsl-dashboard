@@ -11,7 +11,7 @@ interface Stat {
 
 const stats: Stat[] = [
   {
-    label: 'Total Follow-ups',
+    label: 'Total Recalled For this Month',
     value: 142,
     sub: '+12 since yesterday',
     icon: (
@@ -23,7 +23,7 @@ const stats: Stat[] = [
     bg: 'bg-violet-50 dark:bg-violet-900/30',
   },
   {
-    label: 'Completed Today',
+    label: 'Total Recalled Today',
     value: 28,
     sub: '19.7% of total',
     icon: (
@@ -35,7 +35,7 @@ const stats: Stat[] = [
     bg: 'bg-emerald-50 dark:bg-emerald-900/30',
   },
   {
-    label: 'Overdue',
+    label: 'Total Pending',
     value: 14,
     sub: '↑ 3 from last shift',
     icon: (
@@ -47,7 +47,7 @@ const stats: Stat[] = [
     bg: 'bg-rose-50 dark:bg-rose-900/30',
   },
   {
-    label: 'Avg Response Time',
+    label: 'Avg Recalled Time',
     value: '2.4h',
     sub: '-18 min from avg',
     icon: (

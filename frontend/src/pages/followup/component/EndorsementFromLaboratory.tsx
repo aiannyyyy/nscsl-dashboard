@@ -676,16 +676,16 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
                 <colgroup>
                   <col className="w-[4.5rem]" />
                   <col className="w-[5rem]" />
-                  <col className="w-[8.5rem]" />
+                  <col className="w-[6rem]" />
                   <col className="w-[3rem]" />
                   <col className="w-[4rem]" />
-                  <col className="w-[5.25rem]" />
+                  <col className="w-[4rem]" />
                   <col className="w-[7rem]" />
                   <col className="w-[3.5rem]" />
                   <col className="w-[6.25rem]" />
                   <col className="w-[5.5rem]" />
                   <col className="w-[6rem]" />
-                  <col className="w-[5.25rem]" />
+                  <col className="w-[5rem]" />
                   <col className="w-[5rem]" />
                   <col className="w-[2.75rem]" />
                 </colgroup>

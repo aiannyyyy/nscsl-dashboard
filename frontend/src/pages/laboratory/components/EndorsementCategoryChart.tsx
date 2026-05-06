@@ -76,7 +76,7 @@ export const EndorsementCategoryChart: React.FC<Props> = ({ selectedDate, expand
               Endorsements by Category
             </h3>
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              Unique orders across lab departments
+              Unique Endorsements based on Category
             </p>
           </div>
         </div>
@@ -146,7 +146,7 @@ export const EndorsementCategoryChart: React.FC<Props> = ({ selectedDate, expand
       </div>
 
       <div className="px-5 pb-4 flex items-center gap-2">
-        <span className="text-xs text-gray-400 dark:text-gray-500">Total unique orders:</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500">Total Unique Categories:</span>
         <span className="text-xs font-bold text-cyan-600 dark:text-cyan-400">{total.toLocaleString()}</span>
       </div>
     </div>

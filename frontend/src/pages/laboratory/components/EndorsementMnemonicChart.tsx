@@ -70,7 +70,7 @@ export const EndorsementMnemonicChart: React.FC<Props> = ({ selectedDate, expand
               Endorsements by Mnemonic
             </h3>
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              Unique follow-up orders per test code
+              Unique Endorsements as per Mnemonic
             </p>
           </div>
         </div>
@@ -110,7 +110,7 @@ export const EndorsementMnemonicChart: React.FC<Props> = ({ selectedDate, expand
       </div>
 
       <div className="px-5 pb-4 flex items-center gap-2">
-        <span className="text-xs text-gray-400 dark:text-gray-500">Total unique orders:</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500">Total Unique Mnemonic:</span>
         <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{total.toLocaleString()}</span>
       </div>
     </div>

@@ -81,7 +81,7 @@ export const EndorsementCategoryChart: React.FC<Props> = ({ selectedDate, expand
           </div>
           <div>
             <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 leading-tight">
-              Endorsements by Category
+              Endorsements by Category (Recalled)
             </h3>
             <p className="text-xs text-gray-400 dark:text-gray-500">
               FUN recall completed only (pending queue excluded)
@@ -154,7 +154,7 @@ export const EndorsementCategoryChart: React.FC<Props> = ({ selectedDate, expand
       </div>
 
       <div className="px-5 pb-4 flex items-center gap-2">
-        <span className="text-xs text-gray-400 dark:text-gray-500">Total unique orders:</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500">Total Unique Categories:</span>
         <span className="text-xs font-bold text-cyan-600 dark:text-cyan-400">{total.toLocaleString()}</span>
       </div>
     </div>
