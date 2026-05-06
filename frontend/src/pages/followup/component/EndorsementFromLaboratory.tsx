@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import {
   Search,
   X,
@@ -163,22 +164,35 @@ const LmQaCell: React.FC<{ qao: string | null; qao_date: string | null; dense?: 
   dense,
 }) => {
   const { lm, qa } = parseLmQaDisplay(qao);
-  if (!lm && !qa) {
+  const { date, time } = formatDateTimeParts(qao_date);
+  const hasWhen = Boolean(qao_date?.trim());
+  const whenLine =
+    hasWhen && (date !== '—' || time)
+      ? `${date !== '—' ? date : ''}${time ? ` ${time}` : ''}`
+      : '';
+
+  if (!lm && !qa && !hasWhen) {
     return <span className={`${dense ? 'text-xs' : 'text-sm'} text-gray-400 dark:text-gray-500`}>—</span>;
   }
+
+  const nameCls = dense ? 'text-xs' : 'text-sm';
+  const whenCls = dense ? 'text-[10px]' : 'text-xs';
+
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
-      {lm ? (
-        <span className={`${dense ? 'text-xs' : 'text-sm'} font-medium text-gray-900 dark:text-gray-100 truncate`} title={lm}>
+      {lm && (
+        <span className={`${nameCls} font-medium text-gray-900 dark:text-gray-100 truncate`} title={lm}>
           {lm}
         </span>
-      ) : null}
-      {qa ? (
-        <span className={`${dense ? 'text-xs' : 'text-sm'} font-medium text-gray-900 dark:text-gray-100 truncate`} title={qa}>
+      )}
+      {qa && (
+        <span className={`${nameCls} font-medium text-gray-900 dark:text-gray-100 truncate`} title={qa}>
           {qa}
         </span>
-      ) : null}
-      {qao_date?.trim() ? <DateTimeCell raw={qao_date} dense /> : null}
+      )}
+      {whenLine && (
+        <span className={`${whenCls} text-gray-500 dark:text-gray-400 whitespace-nowrap`}>{whenLine}</span>
+      )}
     </div>
   );
 };
@@ -216,28 +230,83 @@ const DatePersonCell: React.FC<{ raw?: string | null; person?: string | null; de
   );
 };
 
+const TOOLTIP_OFFSET = { x: 12, y: -130 };
+
 const AnalyteValueList: React.FC<{
   items: string[];
   mono?: boolean;
   dense?: boolean;
   narrowNumeric?: boolean;
   truncateAt?: number;
-}> = ({ items, mono, dense, narrowNumeric, truncateAt }) => {
-  if (items.length === 0) return <span className={`${dense ? 'text-xs' : 'text-sm'} text-gray-400 dark:text-gray-500`}>—</span>;
+  pairedWith?: string[];
+}> = ({ items, mono, dense, pairedWith }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
+  const ref = useRef<HTMLDivElement>(null);
+
+  const flatItems = items.flatMap((i) => i.split('|').map((s) => s.trim()).filter(Boolean));
+  const flatPaired = pairedWith?.flatMap((i) => i.split('|').map((s) => s.trim()).filter(Boolean));
+
+  if (flatItems.length === 0)
+    return <span className={`${dense ? 'text-xs' : 'text-sm'} text-gray-400 dark:text-gray-500`}>—</span>;
+
+  const preview = flatItems[0].length > 20 ? `${flatItems[0].slice(0, 20).trim()}…` : flatItems[0];
+  const rest = flatItems.length - 1;
+
   return (
-    <div className={`flex flex-col ${dense ? 'gap-0.5' : 'gap-1'}`}>
-      {items.map((item, i) => {
-        const text = truncateAt != null && item.length > truncateAt ? `${item.slice(0, truncateAt).trim()}...` : item;
-        return (
-          <span
-            key={i}
-            className={`${dense ? 'text-xs' : 'text-sm'} leading-snug text-gray-700 dark:text-gray-300 ${mono ? 'font-mono tabular-nums' : ''} ${narrowNumeric || truncateAt != null ? 'block truncate max-w-full' : ''}`}
-            title={item}
-          >
-            {text}
+    <div
+      ref={ref}
+      className="relative min-w-0"
+      onMouseEnter={(e) => {
+        setTooltipPos({
+          top: e.clientY + window.scrollY + TOOLTIP_OFFSET.y,
+          left: e.clientX + window.scrollX + TOOLTIP_OFFSET.x,
+        });
+        setShowTooltip(true);
+      }}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      <div className="flex flex-col gap-0.5 cursor-default">
+        <span
+          className={`${dense ? 'text-xs' : 'text-sm'} leading-snug text-gray-700 dark:text-gray-300 ${mono ? 'font-mono tabular-nums' : ''} block truncate max-w-full`}
+        >
+          {preview}
+        </span>
+        {rest > 0 && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 w-fit">
+            +{rest} more
           </span>
-        );
-      })}
+        )}
+      </div>
+
+      {showTooltip && typeof document !== 'undefined' && ReactDOM.createPortal(
+        <div
+          className="fixed z-[9999] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-2 min-w-[220px] max-w-[340px]"
+          style={{ top: tooltipPos.top, left: tooltipPos.left }}
+          onMouseEnter={() => setShowTooltip(true)}
+          onMouseLeave={() => setShowTooltip(false)}
+        >
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-gray-100 dark:border-gray-700">
+                <th className="text-left pb-1 px-2 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Analyte</th>
+                {flatPaired && <th className="text-left pb-1 px-2 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Value</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {flatItems.map((item, i) => (
+                <tr key={i} className={i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-gray-700/40'}>
+                  <td className="px-2 py-1 text-gray-700 dark:text-gray-300">{item}</td>
+                  {flatPaired && (
+                    <td className="px-2 py-1 font-mono text-gray-700 dark:text-gray-300">{flatPaired[i] ?? '—'}</td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
@@ -355,24 +424,47 @@ const ViewDetailsModal: React.FC<{
               <DetailRow label="Mnemonic" value={record.mnemonic} />
               <DetailRow label="Category" value={record.category} />
               <div className="col-span-2">
-                <DetailRow
-                  label={`Analytes (${record._analytesList.length})`}
-                  value={
-                    <div className="flex flex-col gap-1">
-                      {record._analytesList.map((a, i) => <span key={i} className="text-sm text-gray-800 dark:text-gray-100">{a}</span>)}
-                    </div>
-                  }
-                />
-              </div>
-              <div className="col-span-2">
-                <DetailRow
-                  label={`Values (${record._valuesList.length})`}
-                  value={
-                    <div className="flex flex-col gap-1">
-                      {record._valuesList.map((v, i) => <span key={i} className="text-sm font-mono text-gray-800 dark:text-gray-100">{v}</span>)}
-                    </div>
-                  }
-                />
+                <div className="bg-gray-50 dark:bg-gray-800/80 rounded-lg border border-gray-100 dark:border-gray-700/80 overflow-hidden">
+                  <div className="px-3 pt-2.5 pb-1.5">
+                    <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500">
+                      Analytes & Values ({Math.max(
+                        record._analytesList.flatMap((a) => a.split('|')).length,
+                        record._valuesList.flatMap((v) => v.split('|')).length
+                      )})
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-t border-gray-100 dark:border-gray-700/80">
+                      <thead>
+                        <tr className="bg-gray-100/70 dark:bg-gray-700/40">
+                          <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 w-1/2">Analyte</th>
+                          <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 w-1/2">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                        {(() => {
+                          const flatAnalytes = record._analytesList.flatMap((a) =>
+                            a.split('|').map((s) => s.trim()).filter(Boolean)
+                          );
+                          const flatValues = record._valuesList.flatMap((v) =>
+                            v.split('|').map((s) => s.trim()).filter(Boolean)
+                          );
+                          const rowCount = Math.max(flatAnalytes.length, flatValues.length);
+                          return Array.from({ length: rowCount }).map((_, i) => (
+                            <tr key={i} className={i % 2 === 0 ? '' : 'bg-gray-50/50 dark:bg-gray-800/30'}>
+                              <td className="px-3 py-1.5 text-sm text-gray-800 dark:text-gray-100 break-words">
+                                {flatAnalytes[i] ?? '—'}
+                              </td>
+                              <td className="px-3 py-1.5 text-sm font-mono text-gray-700 dark:text-gray-300 break-words">
+                                {flatValues[i] ?? '—'}
+                              </td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -791,10 +883,10 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
                             </span>
                           </td>
                           <td className="px-3 py-2 align-top min-w-0">
-                            <AnalyteValueList items={row._analytesList} dense truncateAt={36} />
+                            <AnalyteValueList items={row._analytesList} dense pairedWith={row._valuesList} />
                           </td>
                           <td className="px-3 py-2 align-top min-w-0">
-                            <AnalyteValueList items={row._valuesList} mono dense narrowNumeric />
+                            <AnalyteValueList items={row._valuesList} mono dense />
                           </td>
                           <td className="px-3 py-2 align-top">
                             <PersonCell name={row.analyst} datetime={row.analyst_date} dense />
