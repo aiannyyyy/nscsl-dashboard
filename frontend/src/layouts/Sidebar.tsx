@@ -67,6 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed })
       icon: <UserCheck size={20} />,
       subItems: [
         { title: 'Overview', path: '/dashboard/followup' },
+        { title: 'Logbook Endorsement', path: '/dashboard/followup/logbook-endorsement' },
       ],
     },
     {

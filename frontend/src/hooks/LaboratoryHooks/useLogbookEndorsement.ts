@@ -16,6 +16,7 @@ import {
   type UpdateLogbookEndorsementPayload,
   type LabQaApproveRole,
 } from '../../services/LaboratoryServices/logbookEndorsementServices';
+import { FOLLOWUP_LOGBOOK_ENDORSEMENT_QUERY_ROOT } from '../../services/FollowupServices/funLogbookEndorsementService';
 import { notificationKeys } from '../useNotifications';
 
 export const logbookEndorsementKeys = {
@@ -76,6 +77,7 @@ export const useCreateLogbookEndorsement = () => {
     mutationFn: (payload: CreateLogbookEndorsementPayload) => createLogbookEndorsement(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: logbookEndorsementKeys.all });
+      queryClient.invalidateQueries({ queryKey: FOLLOWUP_LOGBOOK_ENDORSEMENT_QUERY_ROOT });
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
   });
@@ -97,6 +99,7 @@ export const useApproveLogbookTeamCaptain = () => {
     mutationFn: (id: number) => approveLogbookTeamCaptain(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: logbookEndorsementKeys.all });
+      queryClient.invalidateQueries({ queryKey: FOLLOWUP_LOGBOOK_ENDORSEMENT_QUERY_ROOT });
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
   });
@@ -109,6 +112,7 @@ export const useApproveLogbookLabQa = () => {
       approveLogbookLabQa(id, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: logbookEndorsementKeys.all });
+      queryClient.invalidateQueries({ queryKey: FOLLOWUP_LOGBOOK_ENDORSEMENT_QUERY_ROOT });
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
   });

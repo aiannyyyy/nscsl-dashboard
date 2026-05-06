@@ -1,6 +1,6 @@
 const oracledb = require("oracledb");
 const { database } = require("../../config");
-const { sendToUsersByPosition } = require("../../utils/notificationHelper");
+const { sendNotificationsToFollowupTeam, sendToUsersByPosition } = require("../../utils/notificationHelper");
 
 const DB_TABLE = "test_nscslcom_nscsl_dashboard.logbook_endorsement";
 
@@ -32,7 +32,6 @@ const TEAM_CAPTAIN_POSITION = "Team Captain";
 const LAB_MANAGER_POSITION = "Laboratory Manager";
 const QAO_POSITION = "Quality Assurance Officer";
 const NOTIFY_ON_TC_APPROVE_POSITIONS = ["Laboratory Manager", "Quality Assurance Officer"];
-const NOTIFY_RECALL_POSITIONS = ["Followup 1", "Followup 2", "Followup 3", "Followup 4"];
 
 /** Lab Manager + QAO share `qao` as "lm|qa", legacy QA-only as plain string with no "|". */
 function parseLmQaStored(raw) {
@@ -60,18 +59,21 @@ function sendRecallNotifications(row, endorsementId, createdBy) {
   if (!lm || !qa) return;
 
   const labnoDisp = plainNotificationText(toShortText(row.labno, FIELD_LIMIT.labno));
-  const patientDisp = plainNotificationText(toShortText(row.patient_name, FIELD_LIMIT.patient_name));
-  const categoryDisp = plainNotificationText(toShortText(row.category, FIELD_LIMIT.category));
-  const lmDisp = plainNotificationText(toShortText(lmStr, FIELD_LIMIT.person));
-  const qaoDisp = plainNotificationText(toShortText(qaStr, FIELD_LIMIT.person));
   const byDisp = plainNotificationText(createdBy);
 
-  void sendToUsersByPosition({
-    positions: NOTIFY_RECALL_POSITIONS,
+  const recallTitle = plainNotificationText(
+    `Recall ready (${labnoDisp})`.slice(0, 120)
+  );
+  const recallMessage = plainNotificationText(
+    `${labnoDisp}: LM/QAO verified. FUN recall pending.`
+      .slice(0, 240)
+  );
+
+  void sendNotificationsToFollowupTeam({
     type: "logbook_endorsement_recall",
-    title: "Endorsement To Recall",
-    message: `Lab ${labnoDisp}, patient ${patientDisp}. Category ${categoryDisp}. Lab Manager ${lmDisp} and Quality Assurance ${qaoDisp} signed.`,
-    link: `/dashboard/laboratory/endorsement-to-followup?endorsementId=${endorsementId}`,
+    title: recallTitle,
+    message: recallMessage,
+    link: `/dashboard/followup/logbook-endorsement?endorsementId=${endorsementId}`,
     reference_id: Number(endorsementId),
     reference_type: "logbook_endorsement",
     created_by: byDisp,

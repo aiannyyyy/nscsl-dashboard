@@ -224,8 +224,60 @@ async function sendToAllUsersInDepartment(options) {
         console.log(`✅ Successfully sent ${results.length} individual notifications`);
         return results;
 
-    } catch (error) {+
+    } catch (error) {
         console.error('❌ Failed to send notifications to department users:', error);
+        throw error;
+    }
+}
+
+/**
+ * All users tied to Follow-up (name variants in DB) — LM/QAO-recall notices.
+ */
+async function sendNotificationsToFollowupTeam(notificationData) {
+    try {
+        /**
+         * Matches real rows such as dept "Follow Up" and positions
+         * "Follow Up Head", "Followup 1", "Followup 2" (see user table sample).
+         * REGEXP dept: handles "Follow  Up" → still "follow" + whitespace + "up".
+         */
+        const [users] = await database.mysqlPool.query(`
+            SELECT DISTINCT user_id, name, dept, position
+            FROM test_nscslcom_nscsl_dashboard.user
+            WHERE user_id IS NOT NULL
+              AND (
+                /* dept e.g. "Follow Up" / "Follow-up" / "Follow  Up" → normalize hyphens to spaces first */
+                   REPLACE(REPLACE(LOWER(TRIM(IFNULL(dept,''))), '-', ' '), '/', ' ')
+                      REGEXP '^follow[[:space:]]+up($|[[:space:]].*)'
+                OR REPLACE(LOWER(TRIM(IFNULL(dept,''))), '-', ' ')
+                      REGEXP '^followup($|[[:space:]].+)'
+               /* Fallback: roster titles ("Follow Up Head", "Followup 1") */
+                OR LOWER(TRIM(IFNULL(position,''))) LIKE 'follow up%'
+                OR LOWER(TRIM(IFNULL(position,''))) REGEXP '^followup[[:space:]]+[[:digit:]]+$'
+               )
+        `);
+
+        if (users.length === 0) {
+            console.log('⚠️ sendNotificationsToFollowupTeam: no users matched follow-up dept variants');
+            return [];
+        }
+
+        const results = [];
+        for (const user of users) {
+            try {
+                const id = await sendNotification({
+                    ...notificationData,
+                    department: 'followup',
+                    user_id: user.user_id,
+                });
+                results.push(id);
+            } catch (err) {
+                console.error(`❌ Follow-up recall notification failed for user ${user.user_id}:`, err.message);
+            }
+        }
+        console.log(`✅ sendNotificationsToFollowupTeam: ${results.length} notification(s)`);
+        return results;
+    } catch (error) {
+        console.error('❌ sendNotificationsToFollowupTeam failed:', error);
         throw error;
     }
 }
@@ -234,5 +286,6 @@ module.exports = {
     sendNotification,
     sendToMultipleDepartments,
     sendToAllUsersInDepartment,
-    sendToUsersByPosition
+    sendToUsersByPosition,
+    sendNotificationsToFollowupTeam,
 };

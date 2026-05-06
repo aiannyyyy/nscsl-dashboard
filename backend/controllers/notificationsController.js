@@ -2,11 +2,24 @@ const { database } = require('../config');
 
 /**
  * Department string for matching department-wide rows (user_id IS NULL).
- * User-targeted rows only need userId; missing dept must not block the API.
+ * Normalize follow-up spellings so LOWER(notification.department) can match inserts like "Followup".
  */
 function broadcastDeptParam(dept) {
     if (dept == null) return '';
-    return String(dept).trim();
+    const trimmed = String(dept).trim();
+    /** Collapse "Follow - Up", "Follow  Up" → canonical "follow up" for comparisons */
+    const normalized = trimmed
+        .toLowerCase()
+        .replace(/-/g, ' ')
+        .replace(/\s+/g, ' ');
+    if (
+        normalized === 'followup'
+        || normalized === 'follow up'
+        || normalized.startsWith('follow up ')
+    ) {
+        return 'followup';
+    }
+    return trimmed;
 }
 
 // Get all notifications for a user

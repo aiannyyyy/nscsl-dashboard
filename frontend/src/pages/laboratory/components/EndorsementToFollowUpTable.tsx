@@ -10,7 +10,9 @@ import {
   CalendarDays,
   BookOpen,
   CheckCircle,
+  Download,
 } from 'lucide-react';
+import { exportLogbookEndorsementsToExcel } from '../../../utils/excelExport';
 import {
   useLogbookEndorsementList,
   useApproveLogbookTeamCaptain,
@@ -611,7 +613,6 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
           onClose={() => setViewRecord(null)}
           onViewPis={(r) => {
             setPisRecord(sampleRecordFromEndorsement(r));
-            setViewRecord(null);
           }}
           showTeamCaptainApprove={showTeamCaptainApproveInModal}
           onTeamCaptainApprove={async () => {
@@ -687,25 +688,36 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            {/* ── Right side: search + export + add ── */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="relative w-44">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                 <input
                   type="search"
-                  placeholder="Search records..."
+                  placeholder="Search..."
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); resetPage(); }}
-                  className="w-full pl-8 pr-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                  className="w-full pl-7 pr-2.5 py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                 />
               </div>
 
-              {/* Add Endorsement — labelled with the selected date */}
+              <button
+                type="button"
+                onClick={() => exportLogbookEndorsementsToExcel(filtered, selectedDate)}
+                disabled={filtered.length === 0}
+                className="px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg flex items-center gap-1.5 font-medium shrink-0 transition-colors"
+                title="Export to Excel"
+              >
+                <Download className="w-3 h-3" />
+                Export
+              </button>
+
               <button
                 type="button"
                 onClick={() => setShowAddModal(true)}
-                className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg flex items-center justify-center gap-1.5 font-medium shrink-0 transition-colors"
+                className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg flex items-center gap-1.5 font-medium shrink-0 transition-colors"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3 h-3" />
                 Add for {isToday ? 'Today' : selectedDate}
               </button>
             </div>

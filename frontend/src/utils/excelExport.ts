@@ -59,3 +59,55 @@ export const exportUnsatCountToExcel = (
 
   XLSX.writeFile(workbook, filename);
 };
+
+//Export on the endorsement table
+/**
+ * Export logbook endorsement records to Excel
+ */
+export const exportLogbookEndorsementsToExcel = (
+  data: { 
+    date_input: string;
+    labno: string;
+    patient_name: string;
+    facility_code: string;
+    category: string;
+    mnemonic: string;
+    analytes: string;
+    values: string;
+    analyst: string;
+    analyst_date: string;
+    tc: string | null;
+    tc_date: string | null;
+    qao: string | null;
+    qao_date: string | null;
+    fun: string | null;
+    fun_date: string | null;
+  }[],
+  selectedDate: string
+) => {
+  const formattedData = data.map((item) => ({
+    'Date': item.date_input ? item.date_input.slice(0, 10) : '—',
+    'Lab No.': item.labno ?? '—',
+    'Patient Name': item.patient_name ?? '—',
+    'Facility Code': item.facility_code ?? '—',
+    'Category': item.category ?? '—',
+    'Mnemonic': item.mnemonic ?? '—',
+    'Analytes': item.analytes ?? '—',
+    'Values': item.values ?? '—',
+    'Analyst': item.analyst ?? '—',
+    'Analyst Date': item.analyst_date ? item.analyst_date.slice(0, 10) : '—',
+    'TC': item.tc ?? '—',
+    'TC Date': item.tc_date ? item.tc_date.slice(0, 10) : '—',
+    'LM / QAO': item.qao ?? '—',
+    'LM / QAO Date': item.qao_date ? item.qao_date.slice(0, 10) : '—',
+    'FUN': item.fun ?? '—',
+    'FUN Date': item.fun_date ? item.fun_date.slice(0, 10) : '—',
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Endorsements');
+
+  const filename = `Logbook_Endorsements_${selectedDate}.xlsx`;
+  XLSX.writeFile(workbook, filename);
+};

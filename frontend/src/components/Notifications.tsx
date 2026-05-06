@@ -281,7 +281,7 @@ export const Notifications: React.FC = () => {
                                                                         {badge}
                                                                     </span>
                                                                 )}
-                                                                <p className="font-semibold text-sm text-gray-900 dark:text-white leading-tight">
+                                                                <p className="font-semibold text-sm text-gray-900 dark:text-white leading-tight line-clamp-2">
                                                                     {notification.title}
                                                                 </p>
                                                             </div>
@@ -299,7 +299,7 @@ export const Notifications: React.FC = () => {
                                                             </div>
                                                         </div>
 
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-3 break-words">
                                                             {notification.message}
                                                         </p>
 

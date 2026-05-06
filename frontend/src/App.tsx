@@ -20,7 +20,8 @@ import { ITJobOrderSummary } from './pages/it-job-order/ITJobOrderSummary';
 import { PatientInformationSystemContainer } from './pages/laboratory/PatientInformationSystemContainer';
 import { LaboratoryInventoryOverview } from './pages/laboratory/LaboratoryInventoryOverview';
 import { LopezQuezonOverview } from './pages/pdo/LopezQuezonOverview';
-import { EndorsementToFollowUp } from './pages/laboratory/EndorsementToFollowUp' 
+import { EndorsementToFollowUp } from './pages/laboratory/EndorsementToFollowUp'
+import { LogbookEndorsement } from './pages/followup/LogbookEndorsement'
 
 // Create a QueryClient instance
 const queryClient = new QueryClient({
@@ -74,6 +75,7 @@ function App() {
  
               {/* Followup Routes */}
               <Route path="followup" element={<FollowupOverview />} />
+              <Route path="followup/logbook-endorsement" element={<LogbookEndorsement />} />
 
               {/* IT Job Order Routes */}
               <Route path="it-job-order" element={<ITJobOrderOverview />} />

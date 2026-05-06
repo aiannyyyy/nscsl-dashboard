@@ -232,6 +232,7 @@ app.use("/api/endorsements", require("./routes/LaboratoryRoutes/unsatEndorsement
 // Laboratory Logbook Endorsement
 app.use("/api/laboratory/logbook-endorsement", require("./routes/LaboratoryRoutes/logbookEndorsementRoutes"));
 
+
 // IT Job Order Routes
 app.use('/api/it-job-order', require('./routes/ITRoutes/itJobOrderRoutes'));
 
@@ -240,6 +241,9 @@ app.use('/api/notifications', require('./routes/notificationRoutes'));
 
 // Patient Details Routes
 app.use('/api/followup', require('./routes/FollowupRoutes/patientDetailsRoutes'));
+
+// Followup Endorsement
+app.use('/api/followup/logbook-endorsement', require('./routes/FollowupRoutes/logbookEndorsementRoutes'));
 
 //Patient Information System
 app.use('/api/laboratory/pis', require('./routes/LaboratoryRoutes/pisRoutes'));
