@@ -245,6 +245,9 @@ app.use('/api/followup', require('./routes/FollowupRoutes/patientDetailsRoutes')
 // Followup Endorsement
 app.use('/api/followup/logbook-endorsement', require('./routes/FollowupRoutes/logbookEndorsementRoutes'));
 
+// Followup Summary Cards
+app.use('/api/followup/summary-cards', require('./routes/FollowupRoutes/followupSummaryCardsRoutes'));
+
 //Patient Information System
 app.use('/api/laboratory/pis', require('./routes/LaboratoryRoutes/pisRoutes'));
 
