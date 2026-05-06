@@ -22,6 +22,7 @@ import { LaboratoryInventoryOverview } from './pages/laboratory/LaboratoryInvent
 import { LopezQuezonOverview } from './pages/pdo/LopezQuezonOverview';
 import { EndorsementToFollowUp } from './pages/laboratory/EndorsementToFollowUp'
 import { LogbookEndorsement } from './pages/followup/LogbookEndorsement'
+import { CMSUrgent } from './pages/followup/CMSUrgent';
 
 // Create a QueryClient instance
 const queryClient = new QueryClient({
@@ -76,6 +77,7 @@ function App() {
               {/* Followup Routes */}
               <Route path="followup" element={<FollowupOverview />} />
               <Route path="followup/logbook-endorsement" element={<LogbookEndorsement />} />
+              <Route path="followup/cms-urgent" element={ <CMSUrgent /> } />
 
               {/* IT Job Order Routes */}
               <Route path="it-job-order" element={<ITJobOrderOverview />} />

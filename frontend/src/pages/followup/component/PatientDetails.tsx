@@ -173,7 +173,7 @@ const DetailModal: React.FC<{
                         <Field label="Mnemonic"           value={<Badge label={patient.MNEMONIC} color="emerald" />} />
                         <Field label="Test Code"          value={<Badge label={patient.TESTCODE} color="amber" />} />
                         <Field label="Value"              value={patient.VALUE} />
-                        <Field label="Date Received"      value={<DateCell val={patient.DTRECV} />} />
+                        <Field label="Date Received"      value={<DateCell val={patient.DTRECV} tm={patient.TMRECV} />} />
                         <Field label="Current Collection" value={<DateCell val={patient.CURRENT_DTCOLL} tm={patient.CURRENT_TMCOLL} />} />
                         <Field label="Linked Collection"  value={<DateCell val={patient.LINKED_DTCOLL} tm={patient.LINKED_TMCOLL} />} />
                         <Field label="Last Modified"      value={<DateCell val={patient.LASTMOD} />} />
@@ -605,7 +605,7 @@ export const PatientDetails: React.FC = () => {
                                         </td>
                                         {/* Date Received */}
                                         <td className="px-4 py-2.5 whitespace-nowrap">
-                                            <DateCell val={row.DTRECV} />
+                                            <DateCell val={row.DTRECV} tm={row.TMRECV} />
                                         </td>
                                         {/* Current Collection */}
                                         <td className="px-4 py-2.5 whitespace-nowrap">

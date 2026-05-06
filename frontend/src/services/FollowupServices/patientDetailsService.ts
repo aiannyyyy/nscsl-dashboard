@@ -25,6 +25,7 @@ export interface PatientDetail {
     GESTAGE: string | null;
     CLINSTAT: string | null;
     COUNTY: string | null;
+    TMRECV: string | null;
 }
 
 export interface PatientDetailsFilters {

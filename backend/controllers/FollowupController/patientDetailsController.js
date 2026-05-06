@@ -90,7 +90,7 @@ exports.getPatientDetails = async (req, res) => {
                 CURRENT_DTCOLL, LINKED_DTCOLL,
                 "BIRTHTM", CURRENT_TMCOLL, LINKED_TMCOLL,
                 "LNAME", "FNAME", "PHYSID", "BIRTHDT",
-                "BIRTHWT", "SUBMID", "SEX", "GESTAGE", "CLINSTAT", "COUNTY"
+                "BIRTHWT", "SUBMID", "SEX", "GESTAGE", "CLINSTAT", "COUNTY", "TMRECV"
             FROM (
                 -- ARCHIVE
                 SELECT
@@ -116,6 +116,7 @@ exports.getPatientDetails = async (req, res) => {
                     sd."GESTAGE",
                     sd."CLINSTAT",
                     rpa."COUNTY",
+                    sd."TMRECV",
                     ROW_NUMBER() OVER (
                         PARTITION BY da."LABNO", sd."LINK"
                         ORDER BY sd."DTRECV" DESC
@@ -162,6 +163,7 @@ exports.getPatientDetails = async (req, res) => {
                     sd."GESTAGE",
                     sd."CLINSTAT",
                     rpa."COUNTY",
+                    sd."TMRECV",
                     ROW_NUMBER() OVER (
                         PARTITION BY da."LABNO", sd."LINK"
                         ORDER BY sd."DTRECV" DESC
