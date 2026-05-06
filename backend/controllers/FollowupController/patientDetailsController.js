@@ -92,6 +92,7 @@ exports.getPatientDetails = async (req, res) => {
                 "LNAME", "FNAME", "PHYSID", "BIRTHDT",
                 "BIRTHWT", "SUBMID", "SEX", "GESTAGE", "CLINSTAT", "COUNTY"
             FROM (
+                -- ARCHIVE
                 SELECT
                     da."LABNO",
                     sd."LINK",
@@ -126,6 +127,52 @@ exports.getPatientDetails = async (req, res) => {
                 JOIN "PHMSDS"."SAMPLE_DEMOG_ARCHIVE"      sd
                     ON  da."LABNO"    = sd."LABNO"
                 LEFT JOIN "PHMSDS"."SAMPLE_DEMOG_ARCHIVE" sd_link
+                    ON  sd."LINK"     = sd_link."LABNO"
+                JOIN "PHMSDS"."REF_PROVIDER_ADDRESS"      rpa
+                    ON  sd."SUBMID"   = rpa."PROVIDERID"
+                WHERE
+                    sd."LNAME"  <> 'CDC'
+                    AND sd."DTRECV" >= :StartDate
+                    AND sd."DTRECV"  < :EndDate
+                    ${filterCondition}
+
+                UNION ALL
+
+                -- MASTER
+                SELECT
+                    da."LABNO",
+                    sd."LINK",
+                    da."MNEMONIC",
+                    daa."VALUE",
+                    daa."TESTCODE",
+                    daa."LASTMOD",
+                    sd."DTRECV",
+                    sd."DTCOLL"         AS CURRENT_DTCOLL,
+                    sd_link."DTCOLL"    AS LINKED_DTCOLL,
+                    sd."BIRTHTM",
+                    sd."TMCOLL"         AS CURRENT_TMCOLL,
+                    sd_link."TMCOLL"    AS LINKED_TMCOLL,
+                    sd."LNAME",
+                    sd."FNAME",
+                    sd."PHYSID",
+                    sd."BIRTHDT",
+                    sd."BIRTHWT",
+                    sd."SUBMID",
+                    sd."SEX",
+                    sd."GESTAGE",
+                    sd."CLINSTAT",
+                    rpa."COUNTY",
+                    ROW_NUMBER() OVER (
+                        PARTITION BY da."LABNO", sd."LINK"
+                        ORDER BY sd."DTRECV" DESC
+                    ) AS rn
+                FROM "PHMSDS"."DISORDER_MASTER"          da
+                JOIN "PHMSDS"."DISORDER_AVG_MASTER"      daa
+                    ON  da."LABNO"    = daa."LABNO"
+                    AND da."REPTCODE" = daa."REPTCODE"
+                JOIN "PHMSDS"."SAMPLE_DEMOG_MASTER"      sd
+                    ON  da."LABNO"    = sd."LABNO"
+                LEFT JOIN "PHMSDS"."SAMPLE_DEMOG_MASTER" sd_link
                     ON  sd."LINK"     = sd_link."LABNO"
                 JOIN "PHMSDS"."REF_PROVIDER_ADDRESS"      rpa
                     ON  sd."SUBMID"   = rpa."PROVIDERID"
