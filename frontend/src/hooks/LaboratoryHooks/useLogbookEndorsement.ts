@@ -19,6 +19,8 @@ import {
 import { FOLLOWUP_LOGBOOK_ENDORSEMENT_QUERY_ROOT } from '../../services/FollowupServices/funLogbookEndorsementService';
 import { notificationKeys } from '../useNotifications';
 
+// ─── Query keys ───────────────────────────────────────────────────────────────
+
 export const logbookEndorsementKeys = {
   all: ['logbookEndorsement'] as const,
   details: () => [...logbookEndorsementKeys.all, 'detail'] as const,
@@ -28,6 +30,8 @@ export const logbookEndorsementKeys = {
   categoryStats: () => [...logbookEndorsementKeys.stats(), 'category'] as const,
   mnemonicStats: () => [...logbookEndorsementKeys.stats(), 'mnemonic'] as const,
 };
+
+// ─── Queries ──────────────────────────────────────────────────────────────────
 
 export const useLogbookEndorsementLookup = (
   labno: string,
@@ -44,6 +48,7 @@ export const useLogbookEndorsementLookup = (
   });
 };
 
+/** Alias kept for backwards compatibility */
 export const useLogbookEndorsement = useLogbookEndorsementLookup;
 
 export const useLogbookEndorsementList = (): UseQueryResult<LogbookEndorsementListResponse, Error> => {
@@ -71,10 +76,21 @@ export const useLogbookMnemonicStats = (): UseQueryResult<LogbookStatsResponse, 
   });
 };
 
+// ─── Mutations ────────────────────────────────────────────────────────────────
+
+/**
+ * Create a new logbook endorsement.
+ * Payload accepts an optional `note` and multiple `attachments` (File[]).
+ *
+ * @example
+ * mutate({ ...fields, note: 'See attached', attachments: selectedFiles });
+ */
 export const useCreateLogbookEndorsement = () => {
   const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: (payload: CreateLogbookEndorsementPayload) => createLogbookEndorsement(payload),
+    mutationFn: (payload: CreateLogbookEndorsementPayload) =>
+      createLogbookEndorsement(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: logbookEndorsementKeys.all });
       queryClient.invalidateQueries({ queryKey: FOLLOWUP_LOGBOOK_ENDORSEMENT_QUERY_ROOT });
@@ -83,18 +99,27 @@ export const useCreateLogbookEndorsement = () => {
   });
 };
 
+/**
+ * Update an existing logbook endorsement.
+ * Optional `attachments` adds files (append) unless `files_to_keep` / `files_to_delete` are sent;
+ * `remove_attachment: true` clears all attachments.
+ */
 export const useUpdateLogbookEndorsement = () => {
   const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: (payload: UpdateLogbookEndorsementPayload) => updateLogbookEndorsement(payload),
+    mutationFn: (payload: UpdateLogbookEndorsementPayload) =>
+      updateLogbookEndorsement(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: logbookEndorsementKeys.all });
+      queryClient.invalidateQueries({ queryKey: FOLLOWUP_LOGBOOK_ENDORSEMENT_QUERY_ROOT });
     },
   });
 };
 
 export const useApproveLogbookTeamCaptain = () => {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: (id: number) => approveLogbookTeamCaptain(id),
     onSuccess: () => {
@@ -107,6 +132,7 @@ export const useApproveLogbookTeamCaptain = () => {
 
 export const useApproveLogbookLabQa = () => {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: ({ id, role }: { id: number; role: LabQaApproveRole }) =>
       approveLogbookLabQa(id, role),

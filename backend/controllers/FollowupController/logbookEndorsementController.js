@@ -41,6 +41,8 @@ const getAllLogbookEndorsements = async (_req, res) => {
          qao_date,
          fun,
          fun_date,
+         note,
+         attachment_path,
          date_modified,
          modified_by
        FROM ${DB_TABLE}
@@ -77,6 +79,8 @@ const getLogbookEndorsementsRecalledSection = async (_req, res) => {
          qao_date,
          fun,
          fun_date,
+         note,
+         attachment_path,
          date_modified,
          modified_by
        FROM ${DB_TABLE}

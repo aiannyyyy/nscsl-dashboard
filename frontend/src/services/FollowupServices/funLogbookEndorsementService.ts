@@ -23,6 +23,10 @@ export interface LogbookEndorsementRecord {
   qao_date: string | null;
   fun: string | null;
   fun_date: string | null;
+  /** Free-text note from laboratory logbook endorsement */
+  note: string | null;
+  /** Comma-separated uploads relative paths */
+  attachment_path: string | null;
   date_modified: string | null;
   modified_by: string | null;
 }

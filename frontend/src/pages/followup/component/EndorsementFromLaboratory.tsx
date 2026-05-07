@@ -13,6 +13,7 @@ import {
   Clock,
   CheckCircle,
   Download,
+  Paperclip,
 } from 'lucide-react';
 import { exportLogbookEndorsementsToExcel } from '../../../utils/excelExport';
 import {
@@ -23,6 +24,10 @@ import {
 import { useAuth } from '../../../context/AuthContext';
 import type { LogbookEndorsementRecord } from '../../../services/FollowupServices/funLogbookEndorsementService';
 import PatientRecordModal, { type SampleRecord } from '../../laboratory/components/PatientRecordModal';
+import {
+  LogbookAttachmentsPanel,
+  parseLogbookAttachmentPaths,
+} from '../../laboratory/components/LogbookAttachmentsPanel';
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20];
 
@@ -31,7 +36,7 @@ const parseLmQaDisplay = (raw: string | null | undefined): { lm: string; qa: str
   const s = (raw ?? '').trim();
   if (!s) return { lm: '', qa: '' };
   const i = s.indexOf('|');
-  if (i === -1) return { lm: '', qa: s };
+  if (i === -1) return { lm: '', qa: s }; // legacy: QA-only, no pipe
   return { lm: s.slice(0, i).trim(), qa: s.slice(i + 1).trim() };
 };
 
@@ -39,6 +44,17 @@ const isRecallPendingRow = (r: LogbookEndorsementRecord): boolean => {
   const fu = r.fun != null ? String(r.fun).trim() : '';
   const fd = r.fun_date != null ? String(r.fun_date).trim() : '';
   return !fu && !fd;
+};
+
+/**
+ * FIX B: Accept rows where TC is signed + at least one of LM or QAO is present.
+ * Legacy rows store QA-only in `qao` (no pipe). Both should not be required.
+ */
+const isEligibleForPendingQueue = (r: LogbookEndorsementRecord): boolean => {
+  const hasTc = Boolean(String(r.tc ?? '').trim());
+  const { lm, qa } = parseLmQaDisplay(r.qao);
+  const hasQao = Boolean(lm) || Boolean(qa);
+  return hasTc && hasQao;
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -96,9 +112,26 @@ const groupByLabno = (records: LogbookEndorsementRecord[]): GroupedRecord[] => {
 };
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
+/**
+ * FIX A: Timezone-safe date extraction.
+ * MySQL may return ISO strings like "2025-01-15T00:00:00.000Z" which in UTC+8
+ * would shift to the previous day if naively sliced. We parse using the local
+ * clock so the date always matches what was stored.
+ */
 const toDateOnly = (raw: string | null | undefined): string => {
   if (!raw) return '';
-  return raw.trim().slice(0, 10);
+  const trimmed = raw.trim();
+  if (trimmed.includes('T')) {
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+  }
+  // "2025-01-15 00:00:00" — no T, plain slice is safe
+  return trimmed.slice(0, 10);
 };
 
 const filterRecordsByDateAndSearch = (
@@ -400,7 +433,7 @@ const ViewDetailsModal: React.FC<{
           </button>
         </div>
 
-        {/* Body */}
+        {/* Body — FIX: removed overflow-hidden, use overflow-y-auto only on this div */}
         <div className="px-6 py-5 overflow-y-auto max-h-[65vh] space-y-5">
           <div>
             <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
@@ -468,6 +501,9 @@ const ViewDetailsModal: React.FC<{
               </div>
             </div>
           </div>
+
+          {/* FIX: LogbookAttachmentsPanel portals its own modals to document.body now */}
+          <LogbookAttachmentsPanel note={record.note} attachmentPath={record.attachment_path} />
 
           <div>
             <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
@@ -566,7 +602,9 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
   const resetPage = () => setPage(1);
 
   const sourceRecords = useMemo(() => {
-    if (sectionTab === 'queue') return queueData?.data ?? [];
+    if (sectionTab === 'queue') {
+      return (queueData?.data ?? []).filter(isEligibleForPendingQueue);
+    }
     return (archiveData?.data ?? []).filter((r) => !isRecallPendingRow(r));
   }, [sectionTab, queueData?.data, archiveData?.data]);
 
@@ -574,7 +612,13 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
 
   const queueTabCount = useMemo(
     () =>
-      groupByLabno(filterRecordsByDateAndSearch(queueData?.data ?? [], selectedDate, search)).length,
+      groupByLabno(
+        filterRecordsByDateAndSearch(
+          (queueData?.data ?? []).filter(isEligibleForPendingQueue),
+          selectedDate,
+          search
+        )
+      ).length,
     [queueData?.data, selectedDate, search]
   );
 
@@ -595,7 +639,7 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
     if (!focusEndorsementId) { openedFocusIdRef.current = null; return; }
     const id = Number(focusEndorsementId);
     if (!Number.isFinite(id)) return;
-    const pendingRows = queueData?.data ?? [];
+    const pendingRows = (queueData?.data ?? []).filter(isEligibleForPendingQueue);
     const archiveRows = archiveData?.data ?? [];
     if (!pendingRows.length && !archiveRows.length) return;
     const raw =
@@ -627,7 +671,17 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
   const paginated = allGrouped.slice((page - 1) * pageSize, page * pageSize);
 
   const dateLabel = formatDisplayDate(selectedDate);
-  const isToday = selectedDate === new Date().toISOString().slice(0, 10);
+
+  // FIX C: use local date comparison, not UTC-based toISOString
+  const todayLocal = (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  })();
+  const isToday = selectedDate === todayLocal;
+
   const colCount = 14;
 
   // ── Done Recall handler ──
@@ -906,7 +960,15 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
                           <td
                             className={`sticky right-0 z-10 px-3 py-2 align-top border-l border-gray-200 dark:border-gray-800 shadow-[-2px_0_4px_rgba(0,0,0,0.05)] dark:shadow-[-2px_0_4px_rgba(0,0,0,0.2)] transition-colors ${stickyBg} group-hover:bg-gray-50 dark:group-hover:bg-gray-800/50`}
                           >
-                            <div className="flex items-center justify-center">
+                            <div className="flex items-center justify-center gap-0.5">
+                              {parseLogbookAttachmentPaths(row.attachment_path).length > 0 && (
+                                <span
+                                  className="inline-flex p-1.5 text-amber-600 dark:text-amber-400 rounded-lg"
+                                  title={`${parseLogbookAttachmentPaths(row.attachment_path).length} attachment(s)`}
+                                >
+                                  <Paperclip className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                                </span>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => setViewRecord(row)}
