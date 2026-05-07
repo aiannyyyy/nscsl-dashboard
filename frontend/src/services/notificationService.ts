@@ -6,7 +6,7 @@ const NOTIFICATION_ENDPOINT = '/notifications';
 // Types
 export interface Notification {
     id: number;
-    department: 'admin' | 'program' | 'laboratory' | 'followup';
+    department: 'Admin' | 'Administrator' | 'Program' | 'Laboratory' | 'Follow Up' | string;
     user_id: number | null;
     type: string;
     title: string;
@@ -25,7 +25,7 @@ export interface UnreadCountResponse {
 }
 
 export interface CreateNotificationPayload {
-    department: string;
+    department: 'admin' | 'administrator' | 'program' | 'laboratory' | 'followup' | 'follow up' | string;
     user_id?: number;
     type: string;
     title: string;

@@ -3,7 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const { database } = require("../../config");
 const upload = require("../../config/multer"); // adjust path to your multer.js
-const { sendNotificationsToFollowupTeam, sendToUsersByPosition } = require("../../utils/notificationHelper");
+const { sendToUsersByPosition, sendNotificationsToFollowupTeam } = require("../../utils/notificationHelper");
 
 const DB_TABLE = "test_nscslcom_nscsl_dashboard.logbook_endorsement";
 
@@ -35,6 +35,13 @@ const TEAM_CAPTAIN_POSITION = "Team Captain";
 const LAB_MANAGER_POSITION = "Laboratory Manager";
 const QAO_POSITION = "Quality Assurance Officer";
 const NOTIFY_ON_TC_APPROVE_POSITIONS = ["Laboratory Manager", "Quality Assurance Officer"];
+const NOTIFY_ON_LAB_QA_APPROVE_POSITIONS = [
+  "Follow Up Head",
+  "Followup 1",
+  "Followup 2",
+  "Followup 3",
+  "Followup 4",
+];
 
 /** Lab Manager + QAO share `qao` as "lm|qa", legacy QA-only as plain string. */
 function parseLmQaStored(raw) {
@@ -96,9 +103,9 @@ function splitAttachmentPaths(csv) {
 }
 
 /** Follow-up recall when both LM and QAO slots are filled. */
-function sendRecallNotifications(row, endorsementId, createdBy) {
+async function sendRecallNotifications(row, endorsementId, createdBy) {
   const { lm: lmStr, qa: qaStr } = parseLmQaStored(row.qao);
-  if (!lmStr || !qaStr) return;
+  if (!lmStr || !qaStr) return [];
 
   const labnoDisp = plainNotificationText(toShortText(row.labno, FIELD_LIMIT.labno));
   const recallTitle = plainNotificationText(`Recall ready (${labnoDisp})`.slice(0, 120));
@@ -106,7 +113,7 @@ function sendRecallNotifications(row, endorsementId, createdBy) {
     `${labnoDisp}: LM/QAO verified. FUN recall pending.`.slice(0, 240)
   );
 
-  void sendNotificationsToFollowupTeam({
+  return sendNotificationsToFollowupTeam({
     type: "logbook_endorsement_recall",
     title: recallTitle,
     message: recallMessage,
@@ -114,8 +121,6 @@ function sendRecallNotifications(row, endorsementId, createdBy) {
     reference_id: Number(endorsementId),
     reference_type: "logbook_endorsement",
     created_by: plainNotificationText(createdBy),
-  }).catch((err) => {
-    console.error("[approveLabQa] notify Followup error:", err?.message || err);
   });
 }
 
@@ -731,9 +736,9 @@ const approveLabQa = async (req, res) => {
       });
     }
 
-    const prevQao    = row.qao == null ? null : String(row.qao);
+    const prevQao      = row.qao == null ? null : String(row.qao);
     const approverName = toShortText(req.user.name, FIELD_LIMIT.person);
-    const now        = new Date();
+    const now          = new Date();
 
     if (asLabManager) {
       const parsed = parseLmQaStored(row.qao);
@@ -743,9 +748,9 @@ const approveLabQa = async (req, res) => {
           error: "Laboratory Manager signature is already recorded.",
         });
       }
-      const combined = toShortText(
-        buildLmQaStored(approverName, parsed.qa),
-        FIELD_LIMIT.person
+      const combined = buildLmQaStored(
+        toShortText(approverName, FIELD_LIMIT.person),
+        toShortText(parsed.qa,    FIELD_LIMIT.person)
       );
       const [result] = await database.mysqlPool.query(
         `UPDATE ${DB_TABLE}
@@ -767,9 +772,9 @@ const approveLabQa = async (req, res) => {
           error: "Quality Assurance signature is already recorded.",
         });
       }
-      const combined = toShortText(
-        buildLmQaStored(parsed.lm, approverName),
-        FIELD_LIMIT.person
+      const combined = buildLmQaStored(
+        toShortText(parsed.lm,    FIELD_LIMIT.person),
+        toShortText(approverName, FIELD_LIMIT.person)
       );
       const [result] = await database.mysqlPool.query(
         `UPDATE ${DB_TABLE}
@@ -785,12 +790,46 @@ const approveLabQa = async (req, res) => {
       }
     }
 
+    // ── Notify peer role immediately after successful update ──────────────────
+    const labnoDisp    = plainNotificationText(toShortText(row.labno,        FIELD_LIMIT.labno));
+    const patientDisp  = plainNotificationText(toShortText(row.patient_name, FIELD_LIMIT.patient_name));
+    const categoryDisp = plainNotificationText(toShortText(row.category,     FIELD_LIMIT.category));
+    const approverDisp = plainNotificationText(approverName);
+
+    const roleLabel    = asLabManager ? "Laboratory Manager" : "Quality Assurance Officer";
+    const notifyType   = asLabManager ? "logbook_lm_approved" : "logbook_qao_approved";
+    const peerPositions = asLabManager ? [QAO_POSITION] : [LAB_MANAGER_POSITION];
+
+    void sendNotificationsToFollowupTeam({
+      type: notifyType,
+      title: `Approved by ${roleLabel}`,
+      message: `Lab ${labnoDisp}, patient ${patientDisp}. Signed by ${approverDisp}. Category: ${categoryDisp}.`,
+      link: `/dashboard/followup/logbook-endorsement?endorsementId=${id}`,
+      reference_id: Number(id),
+      reference_type: "logbook_endorsement",
+      created_by: approverDisp,
+    }).catch((err) => {
+      console.error(`[approveLabQa] followup notification error:`, err?.message || err);
+    });
+
+    // ── Recall notification (fires only when both LM and QAO slots are filled) ─
     const [afterRows] = await database.mysqlPool.query(
       `SELECT labno, patient_name, category, qao, fun FROM ${DB_TABLE} WHERE id = ?`,
       [id]
     );
+
+    let notificationIds = [];
     if (afterRows.length) {
-      sendRecallNotifications(afterRows[0], id, approverName);
+      console.log("[approveLabQa] qao stored value after update:", afterRows[0]?.qao);
+      try {
+        notificationIds = await sendRecallNotifications(afterRows[0], id, approverName);
+      } catch (err) {
+        console.error("[approveLabQa] notify Followup error:", {
+          message: err?.message || err,
+          endorsementId: id,
+          qao: afterRows[0]?.qao,
+        });
+      }
     }
 
     const [fresh] = await database.mysqlPool.query(
@@ -808,7 +847,9 @@ const approveLabQa = async (req, res) => {
       qao_date: r.qao_date ? new Date(r.qao_date).toISOString() : null,
       fun:      r.fun      ?? null,
       fun_date: r.fun_date ? new Date(r.fun_date).toISOString() : null,
+      notifications_created: notificationIds.length,
     });
+
   } catch (error) {
     console.error("[logbookEndorsementController] approveLabQa error:", {
       message:    error.message,

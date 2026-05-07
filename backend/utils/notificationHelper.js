@@ -9,6 +9,15 @@ function capitalizeFirstLetter(string) {
     return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
 }
 
+const DEPT_DISPLAY_MAP = {
+    'admin':         'Admin',
+    'administrator': 'Administrator',
+    'program':       'Program',
+    'laboratory':    'Laboratory',
+    'followup':      'Follow Up',
+    'follow up':     'Follow Up',
+};
+
 /**
  * Send notification to a department or specific user
  */
@@ -33,24 +42,24 @@ async function sendNotification(options) {
         if (!department || !type || !title || !message || !created_by) {
             const missing = [];
             if (!department) missing.push('department');
-            if (!type) missing.push('type');
-            if (!title) missing.push('title');
-            if (!message) missing.push('message');
+            if (!type)       missing.push('type');
+            if (!title)      missing.push('title');
+            if (!message)    missing.push('message');
             if (!created_by) missing.push('created_by');
-            
+
             console.error('❌ Missing required fields:', missing.join(', '));
             throw new Error(`Missing required notification fields: ${missing.join(', ')}`);
         }
 
         // Validate department
-        const validDepartments = ['admin', 'administrator', 'program', 'laboratory', 'followup'];
+        const validDepartments = ['admin', 'administrator', 'program', 'laboratory', 'followup', 'follow up'];
         if (!validDepartments.includes(department.toLowerCase())) {
             console.error('❌ Invalid department:', department);
             throw new Error(`Invalid department. Valid options: ${validDepartments.join(', ')}`);
         }
 
         const now = new Date();
-        const capitalizedDept = capitalizeFirstLetter(department);
+        const capitalizedDept = DEPT_DISPLAY_MAP[department.toLowerCase()] ?? capitalizeFirstLetter(department);
 
         console.log('✅ Validation passed');
         console.log('📝 Will save with department:', capitalizedDept);
@@ -101,7 +110,7 @@ async function sendNotification(options) {
  */
 async function sendToMultipleDepartments(departments, notificationData) {
     try {
-        const promises = departments.map(dept => 
+        const promises = departments.map(dept =>
             sendNotification({
                 ...notificationData,
                 department: dept
@@ -124,11 +133,11 @@ async function sendToMultipleDepartments(departments, notificationData) {
 function normalizeUserDeptForNotification(dept) {
     if (!dept) return null;
     const d = String(dept).toLowerCase().trim();
-    if (d === 'administrator') return 'administrator';
-    if (d === 'admin') return 'admin';
-    if (d === 'program' || d === 'pdo') return 'program';
-    if (d === 'laboratory' || d === 'lab') return 'laboratory';
-    if (d === 'follow up' || d === 'followup') return 'followup';
+    if (d === 'administrator')                    return 'administrator';
+    if (d === 'admin')                            return 'admin';
+    if (d === 'program' || d === 'pdo')           return 'program';
+    if (d === 'laboratory' || d === 'lab')        return 'laboratory';
+    if (d === 'follow up' || d === 'followup' || d === 'follow-up') return 'follow up';
     return d;
 }
 
@@ -156,7 +165,7 @@ async function sendToUsersByPosition(options) {
             return [];
         }
 
-        const validDepartments = ['admin', 'administrator', 'program', 'laboratory', 'followup'];
+        const validDepartments = ['admin', 'administrator', 'program', 'laboratory', 'followup', 'follow up'];
         const results = [];
 
         for (const user of users) {
@@ -196,7 +205,6 @@ async function sendToAllUsersInDepartment(options) {
 
         console.log(`🔍 Finding users in ${department} department...`);
 
-        // Get all users in the target department (case-insensitive match)
         const [users] = await database.mysqlPool.query(
             `SELECT user_id, name, dept FROM test_nscslcom_nscsl_dashboard.user 
              WHERE LOWER(dept) = LOWER(?)`,
@@ -205,17 +213,17 @@ async function sendToAllUsersInDepartment(options) {
 
         console.log(`👥 Found ${users.length} users in ${department} department:`);
         users.forEach(u => console.log(`   - ${u.name} (ID: ${u.user_id}, Dept: ${u.dept})`));
+
         if (users.length === 0) {
             console.log(`⚠️ No users found in ${department} department`);
             return [];
         }
 
-        // Create individual notification for each user
         const promises = users.map(user => {
             console.log(`📤 Sending to user: ${user.name} (ID: ${user.user_id})`);
             return sendNotification({
                 ...notificationData,
-                department: department,
+                department,
                 user_id: user.user_id
             });
         });
@@ -231,33 +239,21 @@ async function sendToAllUsersInDepartment(options) {
 }
 
 /**
- * All users tied to Follow-up (name variants in DB) — LM/QAO-recall notices.
+ * All users tied to Follow-up — LM/QAO-recall notices.
  */
 async function sendNotificationsToFollowupTeam(notificationData) {
     try {
-        /**
-         * Matches real rows such as dept "Follow Up" and positions
-         * "Follow Up Head", "Followup 1", "Followup 2" (see user table sample).
-         * REGEXP dept: handles "Follow  Up" → still "follow" + whitespace + "up".
-         */
         const [users] = await database.mysqlPool.query(`
             SELECT DISTINCT user_id, name, dept, position
             FROM test_nscslcom_nscsl_dashboard.user
             WHERE user_id IS NOT NULL
-              AND (
-                /* dept e.g. "Follow Up" / "Follow-up" / "Follow  Up" → normalize hyphens to spaces first */
-                   REPLACE(REPLACE(LOWER(TRIM(IFNULL(dept,''))), '-', ' '), '/', ' ')
-                      REGEXP '^follow[[:space:]]+up($|[[:space:]].*)'
-                OR REPLACE(LOWER(TRIM(IFNULL(dept,''))), '-', ' ')
-                      REGEXP '^followup($|[[:space:]].+)'
-               /* Fallback: roster titles ("Follow Up Head", "Followup 1") */
-                OR LOWER(TRIM(IFNULL(position,''))) LIKE 'follow up%'
-                OR LOWER(TRIM(IFNULL(position,''))) REGEXP '^followup[[:space:]]+[[:digit:]]+$'
-               )
+              AND REPLACE(REPLACE(LOWER(TRIM(IFNULL(dept, ''))), '-', ''), ' ', '') = 'followup'
         `);
 
+        console.log(`[sendNotificationsToFollowupTeam] users found: ${users.length}`, users);
+
         if (users.length === 0) {
-            console.log('⚠️ sendNotificationsToFollowupTeam: no users matched follow-up dept variants');
+            console.log('⚠️ sendNotificationsToFollowupTeam: no follow-up users found');
             return [];
         }
 
@@ -266,7 +262,7 @@ async function sendNotificationsToFollowupTeam(notificationData) {
             try {
                 const id = await sendNotification({
                     ...notificationData,
-                    department: 'followup',
+                    department: 'follow up',   // → saved as "Follow Up" via DEPT_DISPLAY_MAP
                     user_id: user.user_id,
                 });
                 results.push(id);
@@ -274,6 +270,7 @@ async function sendNotificationsToFollowupTeam(notificationData) {
                 console.error(`❌ Follow-up recall notification failed for user ${user.user_id}:`, err.message);
             }
         }
+
         console.log(`✅ sendNotificationsToFollowupTeam: ${results.length} notification(s)`);
         return results;
     } catch (error) {
