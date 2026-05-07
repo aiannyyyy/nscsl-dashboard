@@ -7,6 +7,7 @@ import {
 
 const CATEGORY_OPTIONS = ['NFTR', 'METAB', 'HEMOG / GAL', 'ENDOCRINE', 'SPECIAL / MONITORING'] as const;
 const MAX_ATTACHMENTS = 10;
+const CAN_ADD_NOTE_POSITIONS = ['Laboratory Manager', 'Quality Assurance Officer'];
 
 interface DraftTestRow {
   selected: boolean;
@@ -15,46 +16,51 @@ interface DraftTestRow {
   values: string;
 }
 
-const getCurrentUsername = (): string => {
+const getCurrentUser = () => {
   try {
     const user = localStorage.getItem('user');
     if (user) {
       const parsed = JSON.parse(user);
-      return parsed?.name || parsed?.username || parsed?.email || 'SYSTEM';
+      return {
+        name: parsed?.name || parsed?.username || parsed?.email || 'SYSTEM',
+        position: parsed?.position || '',
+      };
     }
-  } catch {
-    // ignore
-  }
+  } catch { /* ignore */ }
   try {
     const currentUser = localStorage.getItem('currentUser');
     if (currentUser) {
       const parsed = JSON.parse(currentUser);
-      return parsed?.username || parsed?.fullName || 'SYSTEM';
+      return {
+        name: parsed?.username || parsed?.fullName || 'SYSTEM',
+        position: parsed?.position || '',
+      };
     }
-  } catch {
-    // ignore
-  }
-  return 'SYSTEM';
+  } catch { /* ignore */ }
+  return { name: 'SYSTEM', position: '' };
 };
 
 export const LogbookModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const currentUser = getCurrentUser();
+  const canAddNote  = CAN_ADD_NOTE_POSITIONS.includes(currentUser.position);
+
   const [labno, setLabno] = useState('');
   const [testRows, setTestRows] = useState<DraftTestRow[]>([]);
   const [form, setForm] = useState({
     patient_name: '',
     facility_code: '',
     category: '',
-    analyst: getCurrentUsername(),
+    analyst: currentUser.name,
   });
   const [note, setNote] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
 
-  const lookupQuery = useLogbookEndorsementLookup(labno, false);
+  const lookupQuery  = useLogbookEndorsementLookup(labno, false);
   const createMutation = useCreateLogbookEndorsement();
 
   const handleLookup = async () => {
     if (!labno.trim()) return;
-    const result = await lookupQuery.refetch();
+    const result  = await lookupQuery.refetch();
     const payload = result.data?.data;
     if (!payload) return;
 
@@ -69,7 +75,7 @@ export const LogbookModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
         selected: true,
         mnemonic: String(test.mnemonic || ''),
         analytes: String(test.testName || '').trim(),
-        values: String(test.value ?? '').trim(),
+        values:   String(test.value ?? '').trim(),
       }))
     );
   };
@@ -89,23 +95,23 @@ export const LogbookModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
       return;
     }
 
-    const uniqueMnemonics = [...new Set(selectedRows.map((r) => r.mnemonic.trim()).filter(Boolean))];
+    const uniqueMnemonics  = [...new Set(selectedRows.map((r) => r.mnemonic.trim()).filter(Boolean))];
     const mnemonicCombined = uniqueMnemonics.length === 0 ? selectedRows[0].mnemonic : uniqueMnemonics.join('+');
     const analytesCombined = selectedRows.map((r) => r.analytes.trim()).join(' | ');
-    const valuesCombined = selectedRows.map((r) => r.values.trim()).join(' | ');
+    const valuesCombined   = selectedRows.map((r) => r.values.trim()).join(' | ');
 
     try {
       await createMutation.mutateAsync({
-        labno: labno.trim(),
-        patient_name: form.patient_name,
+        labno:         labno.trim(),
+        patient_name:  form.patient_name,
         facility_code: form.facility_code,
-        category: form.category,
-        mnemonic: mnemonicCombined,
-        analytes: analytesCombined,
-        values: valuesCombined,
-        analyst: form.analyst,
-        ...(note.trim() ? { note: note.trim() } : {}),
-        ...(attachments.length ? { attachments } : {}),
+        category:      form.category,
+        mnemonic:      mnemonicCombined,
+        analytes:      analytesCombined,
+        values:        valuesCombined,
+        analyst:       form.analyst,
+        ...(canAddNote && note.trim()        ? { note: note.trim() }  : {}),
+        ...(canAddNote && attachments.length ? { attachments }        : {}),
       });
       alert('Endorsement saved successfully.');
       onClose();
@@ -138,14 +144,18 @@ export const LogbookModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Add Endorsement</h3>
-          <button type="button" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
 
-          {/* Lab No. — inline search, Enter triggers lookup */}
+          {/* Lab No. */}
           <div>
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Lab No.</label>
             <div className="flex gap-2 mt-1">
@@ -199,64 +209,6 @@ export const LogbookModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
           )}
 
           {/* Category + Analyst */}
-          <div>
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Note (optional)</label>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={3}
-              placeholder="Context for follow-up staff…"
-              className="mt-1 w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Attachments (optional, max {MAX_ATTACHMENTS})
-            </label>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-3 py-2 text-xs text-gray-600 dark:text-gray-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:border-indigo-500 dark:hover:text-indigo-300 transition-colors">
-                <Upload className="w-3.5 h-3.5" />
-                <span>Choose files</span>
-                <input
-                  type="file"
-                  multiple
-                  className="sr-only"
-                  accept=".pdf,.png,.jpg,.jpeg,.gif,.txt,.doc,.docx,.xls,.xlsx"
-                  disabled={attachments.length >= MAX_ATTACHMENTS}
-                  onChange={(e) => {
-                    const next = Array.from(e.target.files || []);
-                    setAttachments((prev) => [...prev, ...next].slice(0, MAX_ATTACHMENTS));
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-              <span className="text-[11px] text-gray-400">
-                PDF, images, Word/Excel — 10&nbsp;MB each
-              </span>
-            </div>
-            {attachments.length > 0 && (
-              <ul className="mt-2 space-y-1.5">
-                {attachments.map((f, i) => (
-                  <li
-                    key={`${f.name}-${i}-${f.size}`}
-                    className="flex items-center justify-between gap-2 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 px-2 py-1.5"
-                  >
-                    <span className="text-xs text-gray-700 dark:text-gray-200 truncate">{f.name}</span>
-                    <button
-                      type="button"
-                      className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
-                      onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
-                      aria-label={`Remove ${f.name}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Category</label>
@@ -281,6 +233,72 @@ export const LogbookModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
               />
             </div>
           </div>
+
+          {/* Note — LM and QAO only */}
+          {canAddNote && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                Note (optional)
+              </label>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={3}
+                placeholder="Context for follow-up staff…"
+                className="mt-1 w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              />
+            </div>
+          )}
+
+          {/* Attachments — LM and QAO only */}
+          {canAddNote && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                Attachments (optional, max {MAX_ATTACHMENTS})
+              </label>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-3 py-2 text-xs text-gray-600 dark:text-gray-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:border-indigo-500 dark:hover:text-indigo-300 transition-colors">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Choose files</span>
+                  <input
+                    type="file"
+                    multiple
+                    className="sr-only"
+                    accept=".pdf,.png,.jpg,.jpeg,.gif,.txt,.doc,.docx,.xls,.xlsx"
+                    disabled={attachments.length >= MAX_ATTACHMENTS}
+                    onChange={(e) => {
+                      const next = Array.from(e.target.files || []);
+                      setAttachments((prev) => [...prev, ...next].slice(0, MAX_ATTACHMENTS));
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                <span className="text-[11px] text-gray-400">
+                  PDF, images, Word/Excel — 10&nbsp;MB each
+                </span>
+              </div>
+              {attachments.length > 0 && (
+                <ul className="mt-2 space-y-1.5">
+                  {attachments.map((f, i) => (
+                    <li
+                      key={`${f.name}-${i}-${f.size}`}
+                      className="flex items-center justify-between gap-2 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 px-2 py-1.5"
+                    >
+                      <span className="text-xs text-gray-700 dark:text-gray-200 truncate">{f.name}</span>
+                      <button
+                        type="button"
+                        className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
+                        onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+                        aria-label={`Remove ${f.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {/* Results table */}
           <div>
