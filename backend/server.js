@@ -248,6 +248,9 @@ app.use('/api/followup/logbook-endorsement', require('./routes/FollowupRoutes/lo
 // Followup Summary Cards
 app.use('/api/followup/summary-cards', require('./routes/FollowupRoutes/followupSummaryCardsRoutes'));
 
+//Followup CMS Urgent
+app.use('/api/followup/cms-urgent', require('./routes/FollowupRoutes/cmsUrgentRoutes'));
+
 //Patient Information System
 app.use('/api/laboratory/pis', require('./routes/LaboratoryRoutes/pisRoutes'));
 

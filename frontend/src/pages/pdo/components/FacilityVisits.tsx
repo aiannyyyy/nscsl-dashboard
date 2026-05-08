@@ -664,7 +664,11 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                           {visit.facility_name}
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-900 dark:text-gray-300 whitespace-nowrap">
-                          {formatDate(visit.date_visited)}
+                          {visit.date_visited ? new Date(visit.date_visited).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          }) : '—'}
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-900 dark:text-gray-300 whitespace-nowrap">
                           {visit.province}
