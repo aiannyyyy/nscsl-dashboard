@@ -66,6 +66,13 @@ class FacilityVisitsService {
     async create(data: FormData): Promise<any> {
         const response = await api.post('/facility-visits', data, {
             headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 120000, // 2 minutes for large uploads
+            onUploadProgress: (progressEvent) => {
+                const percent = Math.round(
+                    (progressEvent.loaded * 100) / (progressEvent.total ?? 1)
+                );
+                console.log(`Upload progress: ${percent}%`);
+            },
         });
         return response.data;
     }
@@ -73,6 +80,13 @@ class FacilityVisitsService {
     async update(id: number, data: FormData): Promise<any> {
         const response = await api.put(`/facility-visits/${id}`, data, {
             headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 120000,
+            onUploadProgress: (progressEvent) => {
+                const percent = Math.round(
+                    (progressEvent.loaded * 100) / (progressEvent.total ?? 1)
+                );
+                console.log(`Upload progress: ${percent}%`);
+            },
         });
         return response.data;
     }

@@ -14,8 +14,8 @@ const app = express();
 // ============================================
 
 app.use(cors(corsOptions));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: '100mb' }));
+app.use(bodyParser.urlencoded({ limit: '100mb', extended: true, parameterLimit: 100000 }));
 
 // Request logging middleware
 app.use((req, res, next) => {

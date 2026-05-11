@@ -3,28 +3,28 @@ const router = express.Router();
 const { upload } = require('../../config');
 const facilityVisitsController = require('../../controllers/PDOController/facilityVisitsController');
 
-// Facility lookup by code (Oracle) - MUST BE FIRST
+// Multer error handler wrapper
+const handleUpload = (req, res, next) => {
+    upload.array('attachments', 50)(req, res, (err) => {
+        if (err) {
+            console.error('Multer error:', err);
+            return res.status(400).json({
+                error: 'File upload failed',
+                message: err.message
+            });
+        }
+        next();
+    });
+};
+
 router.get('/lookup-facility', facilityVisitsController.getFacilityByCode);
-
-// Get facility status count (for chart) - BEFORE /:id routes
 router.get('/facility-status-count', facilityVisitsController.getStatusCount);
-
-// Get facilities by status - BEFORE /:id routes
 router.get('/facilities-by-status/:status', facilityVisitsController.getFacilitiesByStatus);
-
-// Get all facility visits - BEFORE /:id routes
 router.get('/', facilityVisitsController.getAllVisits);
 
-// Create new facility visit with file upload
-router.post('/', upload.array('attachments'), facilityVisitsController.createVisit);
-
-// Update facility visit with file management - Parameterized route
-router.put('/:id', upload.array('attachments'), facilityVisitsController.updateVisit);
-
-// Delete facility visit - Parameterized route
+router.post('/', handleUpload, facilityVisitsController.createVisit);
+router.put('/:id', handleUpload, facilityVisitsController.updateVisit);
 router.delete('/:id', facilityVisitsController.deleteVisit);
-
-// Update status only - Parameterized route
 router.patch('/:id/status', facilityVisitsController.updateStatus);
 
 module.exports = router;
