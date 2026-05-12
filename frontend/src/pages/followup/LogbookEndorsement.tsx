@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
-import { EndorsementMnemonicChart } from '../followup/component/EndorsementMnemonicChart';
-import { EndorsementCategoryChart } from '../followup/component/EndorsementCategoryChart';
-import { EndorsementToFollowUpTable } from '../followup/component/EndorsementFromLaboratory';
+import { EndorsementMnemonicChart } from '../followup/components/EndorsementMnemonicChart';
+import { EndorsementCategoryChart } from '../followup/components/EndorsementCategoryChart';
+import { EndorsementToFollowUpTable } from '../followup/components/EndorsementFromLaboratory';
 import {
   useLogbookEndorsementRecalledSectionList,
 } from "../../hooks/FollowupHooks/useFunLogbookEndorsements";

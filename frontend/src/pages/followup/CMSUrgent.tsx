@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
-import { CMSResultReport } from "./component/CMSResultReport";
-import { PatientDisorderViewer } from "./component/PatientDisorderViewer";
-import { PDFViewer } from "./component/PDFViewer";
+import { CMSResultReport } from "./components/CMSResultReport";
+import { PatientDisorderViewer } from "./components/PatientDisorderViewer";
+import { PDFViewer } from "./components/PDFViewer";
 
 interface Patient {
   LABNO: string;

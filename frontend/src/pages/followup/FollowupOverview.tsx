@@ -1,10 +1,10 @@
 import React from 'react';
-import { NurseCards } from './component/NurseCards';
-import { FollowupStats } from './component/FollowupStats';
+import { NurseCards } from './components/NurseCards';
+import { FollowupStats } from './components/FollowupStats';
 
 //import { FollowupQueue } from './component/FollowupQueue';
 //import { ActivityFeed } from './component/ActivityFeed';
-import { PatientDetails } from './component/PatientDetails';
+import { PatientDetails } from './components/PatientDetails';
 
 export const FollowupOverview: React.FC = () => {
   return (

@@ -23,6 +23,7 @@ import { LopezQuezonOverview } from './pages/pdo/LopezQuezonOverview';
 import { EndorsementToFollowUp } from './pages/laboratory/EndorsementToFollowUp'
 import { LogbookEndorsement } from './pages/followup/LogbookEndorsement'
 import { CMSUrgent } from './pages/followup/CMSUrgent';
+import { FollowUpPatientInformationSystem } from './pages/followup/FollowUpPatientInformationSystem';
 
 // Create a QueryClient instance
 const queryClient = new QueryClient({
@@ -78,6 +79,7 @@ function App() {
               <Route path="followup" element={<FollowupOverview />} />
               <Route path="followup/logbook-endorsement" element={<LogbookEndorsement />} />
               <Route path="followup/cms-urgent" element={ <CMSUrgent /> } />
+              <Route path="followup/patient-information-system" element={<FollowUpPatientInformationSystem />} />
 
               {/* IT Job Order Routes */}
               <Route path="it-job-order" element={<ITJobOrderOverview />} />
