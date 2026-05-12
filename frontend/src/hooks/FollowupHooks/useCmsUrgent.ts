@@ -1,6 +1,15 @@
-import { useQuery } from '@tanstack/react-query';
-import { getPatientResultTable, getPatientDisorderResultTable } from '../../services/FollowupServices/cmsUrgentServices';
-import type { PatientResultResponse, PatientDisorderResultResponse } from '../../services/FollowupServices/cmsUrgentServices';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import {
+    getPatientResultTable,
+    getPatientDisorderResultTable,
+    generateCMSReport,
+} from '../../services/FollowupServices/cmsUrgentServices';
+import type {
+    PatientResultResponse,
+    PatientDisorderResultResponse,
+    CMSGenerateReportRequest,
+    CMSGenerateReportResponse,
+} from '../../services/FollowupServices/cmsUrgentServices';
 
 const CMS_URGENT_KEYS = {
     all: ['cmsUrgent'] as const,
@@ -29,5 +38,39 @@ export const useGetPatientDisorderResultTable = (labno: string) => {
         refetchOnWindowFocus: false,
         refetchInterval: 1000 * 60 * 5,
         refetchIntervalInBackground: false,
+    });
+};
+
+// ============================================================================
+// CMS REPORT GENERATION
+// ============================================================================
+
+/**
+ * useMutation — does not auto-fire, called manually on Print Preview click.
+ *
+ * Usage in component:
+ *   const { mutate: generateReport, isPending } = useGenerateCMSReport();
+ *   generateReport({ labNo, disorderNames, urgent });
+ *
+ * onSuccess receives the flat single-file response:
+ *   data.hasData  — false means no records matched in either master or archive
+ *   data.fileName — deterministic PDF name to pass into getCMSReportURL()
+ *   data.source   — "master" | "archive" | null (useful for debugging)
+ *
+ * Before (old):
+ *   data.master.hasData / data.master.fileName
+ *   data.archive.hasData / data.archive.fileName
+ *
+ * After (new):
+ *   data.hasData / data.fileName
+ */
+export const useGenerateCMSReport = (
+    onSuccess?: (data: CMSGenerateReportResponse) => void,
+    onError?: (error: Error) => void
+) => {
+    return useMutation<CMSGenerateReportResponse, Error, CMSGenerateReportRequest>({
+        mutationFn: generateCMSReport,
+        onSuccess,
+        onError,
     });
 };

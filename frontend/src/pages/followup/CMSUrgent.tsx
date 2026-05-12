@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { CMSResultReport } from "./component/CMSResultReport";
 import { PatientDisorderViewer } from "./component/PatientDisorderViewer";
 import { PDFViewer } from "./component/PDFViewer";
@@ -15,19 +15,50 @@ interface Patient {
 
 export const CMSUrgent = () => {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [pdfUrl, setPdfUrl] = useState<string | undefined>(undefined);
+  const [reportUrl, setReportUrl]             = useState<string | null>(null);
+  const [source, setSource]                   = useState<"master" | "archive" | null>(null);
+  const [isGenerating, setIsGenerating]       = useState(false);
+
+  const [disorderLabNo, setDisorderLabNo]             = useState("");
+  const [disorderPatientName, setDisorderPatientName] = useState("");
+
+  const pdfRef = useRef<HTMLDivElement>(null);
 
   const handlePatientSelect = (patient: Patient | null) => {
     setSelectedPatient(patient);
-    setPdfUrl(undefined);
+    setReportUrl(null);
+    setSource(null);
+    if (patient) {
+      setDisorderLabNo(patient.LABNO);
+      setDisorderPatientName(`${patient.LNAME}, ${patient.FNAME}`);
+    } else {
+      setDisorderLabNo("");
+      setDisorderPatientName("");
+    }
   };
 
   const handleGenerateReport = (labNo: string) => {
-    console.log("Generating report for:", labNo);
+    setDisorderLabNo(labNo);
+    if (selectedPatient?.LABNO === labNo) {
+      setDisorderPatientName(`${selectedPatient.LNAME}, ${selectedPatient.FNAME}`);
+    } else {
+      setDisorderPatientName(labNo);
+    }
   };
 
-  const handlePrintPreview = (options: { copy: "patient" | "facility"; urgent: boolean }) => {
-    console.log("Print preview:", options);
+  const handleReportGenerated = (url: string | null, reportSource: "master" | "archive" | null) => {
+    setReportUrl(url);
+    setSource(reportSource);
+    setIsGenerating(false);
+    setTimeout(() => {
+      pdfRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  };
+
+  const handleGenerating = () => {
+    setIsGenerating(true);
+    setReportUrl(null);
+    setSource(null);
   };
 
   return (
@@ -44,22 +75,20 @@ export const CMSUrgent = () => {
         </div>
         <div className="w-1/2 h-full">
           <PatientDisorderViewer
-            patientLabNo={selectedPatient?.LABNO}
-            patientName={
-              selectedPatient
-                ? `${selectedPatient.LNAME}, ${selectedPatient.FNAME}`
-                : undefined
-            }
-            onPrintPreview={handlePrintPreview}
+            patientLabNo={disorderLabNo}
+            patientName={disorderPatientName}
+            onReportGenerated={handleReportGenerated}
+            onGenerating={handleGenerating}
           />
         </div>
       </div>
 
       {/* Bottom row — PDF viewer */}
-      <div style={{ height: '700px', flexShrink: 0 }}>
+      <div ref={pdfRef} style={{ height: '1000px', flexShrink: 0 }}>
         <PDFViewer
-          pdfUrl={pdfUrl}
-          title={selectedPatient ? `Report Preview — ${selectedPatient.LABNO}` : "Report Preview"}
+          reportUrl={reportUrl}
+          source={source}
+          isLoading={isGenerating}
         />
       </div>
 

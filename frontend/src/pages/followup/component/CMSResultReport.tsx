@@ -5,6 +5,8 @@ import {
   FileText,
   Users,
   CalendarDays,
+  Search,
+  ClipboardList,
 } from "lucide-react";
 import { useGetPatientResultTable } from "../../../hooks/FollowupHooks/useCmsUrgent";
 import PatientRecordModal, { type SampleRecord } from '../../laboratory/components/PatientRecordModal';
@@ -55,7 +57,6 @@ const formatDisplayDate = (dateStr: string) => {
   return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 };
 
-// Convert Patient to SampleRecord shape for PatientRecordModal
 const toSampleRecord = (p: Patient): SampleRecord => ({
   LABNO:   p.LABNO,
   LABID:   "",
@@ -84,6 +85,7 @@ export const CMSResultReport: React.FC<CMSResultReportProps> = ({
   const [selectedDate, setSelectedDate] = useState(toDateInputValue(today));
   const [fetchDate, setFetchDate] = useState(toDateInputValue(today));
   const [pisRecord, setPisRecord] = useState<SampleRecord | null>(null);
+  const [searchLabNo, setSearchLabNo] = useState("");
 
   const year = today.getFullYear();
   const julianDate = Math.floor(
@@ -93,26 +95,62 @@ export const CMSResultReport: React.FC<CMSResultReportProps> = ({
   const { data, isLoading, isError, error } = useGetPatientResultTable(fetchDate);
   const patients: Patient[] = data?.data ?? [];
 
+  // Option A: row click populates the Lab No. input AND selects the patient
   const handleRowClick = (patient: Patient) => {
     onPatientSelect(patient);
+    setSearchLabNo(patient.LABNO);
   };
 
   const handleLoadPatients = () => {
     setFetchDate(selectedDate);
   };
 
-  const handleViewPIS = () => {
-    if (!selectedPatient) return;
-    onGenerateReport?.(selectedPatient.LABNO);
-    setPisRecord(toSampleRecord(selectedPatient));
+  const handleViewPIS = (labno?: string) => {
+    const targetLabNo = labno ?? selectedPatient?.LABNO;
+    if (!targetLabNo) return;
+
+    const found = patients.find(p => p.LABNO === targetLabNo);
+    if (found) {
+      onPatientSelect(found);
+      setPisRecord(toSampleRecord(found));
+    } else {
+      setPisRecord({
+        LABNO: targetLabNo, LABID: "", LNAME: "", FNAME: "",
+        SUBMID: "", BIRTHDT: "", BIRTHTM: "", DTCOLL: "", TMCOLL: "",
+        DTRECV: "", TMRECV: "", DTRPTD: "", GESTAGE: "", AGECOLL: "", SEX: "",
+      });
+    }
   };
+
+  const handleGenerateReport = () => {
+    const targetLabNo = searchLabNo.trim() || selectedPatient?.LABNO;
+    if (!targetLabNo) return;
+    onGenerateReport?.(targetLabNo);
+  };
+
+  const handleSearchViewPIS = () => {
+    const labno = searchLabNo.trim() || selectedPatient?.LABNO;
+    if (!labno) return;
+    handleViewPIS(labno);
+  };
+
+  // When the user manually clears the input, also deselect the row
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchLabNo(val);
+    if (val === "") {
+      onPatientSelect(null);
+    }
+  };
+
+  const canSearch = !!searchLabNo.trim() || !!selectedPatient;
 
   return (
     <>
       <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden h-full flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
+        <div className="flex items-center px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
               <FlaskConical size={16} className="text-blue-500 dark:text-blue-400" />
@@ -126,17 +164,6 @@ export const CMSResultReport: React.FC<CMSResultReportProps> = ({
                 <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-widest">PRODMSDS</span>
               </div>
             </div>
-          </div>
-
-          {/* Date picker */}
-          <div className="relative flex items-center gap-2">
-            <CalendarDays size={14} className="text-gray-400 pointer-events-none absolute left-3 z-10" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="h-8 pl-8 pr-3 text-xs rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-colors cursor-pointer"
-            />
           </div>
         </div>
 
@@ -229,26 +256,76 @@ export const CMSResultReport: React.FC<CMSResultReportProps> = ({
             </table>
           </div>
 
-          {/* Bottom controls */}
-          <div className="flex gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3.5">
-            <button
-              onClick={handleLoadPatients}
-              disabled={isLoading}
-              className="flex-1 h-9 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-2"
-            >
-              {isLoading ? <RefreshCw size={13} className="animate-spin" /> : <Users size={13} />}
-              Load Elevated Patients
-            </button>
+          {/* ── Bottom Controls: 2 columns ── */}
+          <div className="grid grid-cols-2 gap-3">
 
-            <button
-              onClick={handleViewPIS}
-              disabled={!selectedPatient || isLoading}
-              className="flex-1 h-9 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors flex items-center justify-center gap-2"
-            >
-              <FileText size={13} /> View PIS
-            </button>
+            {/* LEFT — Load Elevated Patients */}
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3.5 flex flex-col gap-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                <CalendarDays size={11} /> Load by Date
+              </p>
+
+              {/* Date picker */}
+              <div className="relative flex items-center">
+                <CalendarDays size={13} className="text-gray-400 pointer-events-none absolute left-2.5 z-10" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full h-8 pl-8 pr-3 text-xs rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-colors cursor-pointer"
+                />
+              </div>
+
+              {/* Load button */}
+              <button
+                onClick={handleLoadPatients}
+                disabled={isLoading}
+                className="w-full h-9 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                {isLoading ? <RefreshCw size={13} className="animate-spin" /> : <Users size={13} />}
+                Load Elevated Patients
+              </button>
+            </div>
+
+            {/* RIGHT — Search Patient */}
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3.5 flex flex-col gap-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                <Search size={11} /> Search Patient
+              </p>
+
+              {/* Lab No input — now auto-populated on row click */}
+              <div className="relative flex items-center">
+                <Search size={13} className="text-gray-400 pointer-events-none absolute left-2.5 z-10" />
+                <input
+                  type="text"
+                  value={searchLabNo}
+                  onChange={handleSearchInputChange}
+                  onKeyDown={(e) => e.key === "Enter" && handleGenerateReport()}
+                  placeholder="Enter or select a Lab No."
+                  className="w-full h-8 pl-8 pr-3 text-xs rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 placeholder-gray-300 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-colors font-mono"
+                />
+              </div>
+
+              {/* Generate Report + View PIS */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleGenerateReport}
+                  disabled={!canSearch}
+                  className="flex-1 h-9 rounded-lg bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <ClipboardList size={13} /> Generate Report
+                </button>
+                <button
+                  onClick={handleSearchViewPIS}
+                  disabled={!canSearch}
+                  className="flex-1 h-9 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <FileText size={13} /> View PIS
+                </button>
+              </div>
+            </div>
+
           </div>
-
         </div>
       </div>
 

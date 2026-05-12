@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { ClipboardList, Printer, AlertTriangle, User, Building2, RefreshCw } from "lucide-react";
-import { useGetPatientDisorderResultTable } from "../../../hooks/FollowupHooks/useCmsUrgent";
-import type { PatientDisorderResultTable, DisorderEntry } from "../../../services/FollowupServices/cmsUrgentServices";
+import { ClipboardList, Printer, AlertTriangle, User, RefreshCw } from "lucide-react";
+import { useGetPatientDisorderResultTable, useGenerateCMSReport } from "../../../hooks/FollowupHooks/useCmsUrgent";
+import { getCMSReportURL } from "../../../services/FollowupServices/cmsUrgentServices";
+import type { PatientDisorderResultTable, DisorderEntry, CMSGenerateReportResponse } from "../../../services/FollowupServices/cmsUrgentServices";
 
 const descriptionBadge = (desc: string, isAbnormal: boolean) => {
     if (isAbnormal)
@@ -20,27 +21,29 @@ const descriptionBadge = (desc: string, isAbnormal: boolean) => {
 interface PatientDisorderViewerProps {
     patientLabNo?: string;
     patientName?: string;
-    onPrintPreview?: (options: { copy: "patient" | "facility"; urgent: boolean }) => void;
+    onReportGenerated?: (reportUrl: string | null, source: "master" | "archive" | null) => void;
+    onGenerating?: () => void;
 }
 
 const INCLUDED = ["Normal", "Preterm", "Monitoring Sample"];
 
 export const PatientDisorderViewer: React.FC<PatientDisorderViewerProps> = ({
     patientLabNo = "",
-    patientName = "",
-    onPrintPreview,
+    patientName  = "",
+    onReportGenerated,
+    onGenerating,
 }) => {
-    const [printCopy, setPrintCopy] = useState<"patient" | "facility">("facility");
-    const [urgent, setUrgent] = useState(true);
+    const [urgent, setUrgent]                 = useState(true);
     const [printOverrides, setPrintOverrides] = useState<Record<string, boolean>>({});
 
     const { data, isLoading, isError, error } = useGetPatientDisorderResultTable(patientLabNo);
-    const rows: PatientDisorderResultTable[] = data?.data ?? [];
+    const rows: PatientDisorderResultTable[]  = data?.data ?? [];
 
-    const totalNormal = rows.reduce(
-        (acc, g) => acc + g.disorders.filter((d) => INCLUDED.includes(d.DESCR1)).length,
-        0
-    );
+    const derivedName = rows.length > 0
+        ? `${rows[0].LNAME}, ${rows[0].FNAME}`.trim().replace(/^,\s*/, "")
+        : patientName;
+
+    const totalNormal   = rows.reduce((acc, g) => acc + g.disorders.filter((d) => INCLUDED.includes(d.DESCR1)).length, 0);
     const totalElevated = rows.reduce((acc, g) => acc + g.disorders.filter(d => d.DESCR1 === "Elevated").length, 0);
 
     React.useEffect(() => {
@@ -60,11 +63,47 @@ export const PatientDisorderViewer: React.FC<PatientDisorderViewerProps> = ({
         return printOverrides[key] ?? defaultPrint;
     };
 
+    const getTickedDisorderNames = (): string[] => {
+        const names: string[] = [];
+        rows.forEach((group) => {
+            group.disorders.forEach((disorder, dIdx) => {
+                const key = `${group.MAILERNAME}-${dIdx}`;
+                if (getPrintValue(key, disorder.RFLAG, disorder.DESCR1)) {
+                    names.push(disorder.NAME);
+                }
+            });
+        });
+        return names;
+    };
+
+    const { mutate: generateReport, isPending: isGenerating } = useGenerateCMSReport(
+        (data: CMSGenerateReportResponse) => {
+            const reportUrl = data.hasData && data.fileName
+                ? getCMSReportURL(data.fileName)
+                : null;
+            onReportGenerated?.(reportUrl, data.source);
+        },
+        (err: Error) => {
+            console.error("Report generation failed:", err.message);
+        }
+    );
+
+    const handlePrintPreview = () => {
+        if (!patientLabNo || isLoading) return;
+        const disorderNames = getTickedDisorderNames();
+        if (disorderNames.length === 0) return;
+        onGenerating?.();
+        generateReport({ labNo: patientLabNo, disorderNames, urgent });
+    };
+
+    const tickedCount = getTickedDisorderNames().length;
+    const canGenerate = !!patientLabNo && !isLoading && tickedCount > 0;
+
     return (
-        <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden h-full flex flex-col">
+        <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col h-full">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
                         <ClipboardList size={16} className="text-blue-500 dark:text-blue-400" />
@@ -84,17 +123,18 @@ export const PatientDisorderViewer: React.FC<PatientDisorderViewerProps> = ({
                 )}
             </div>
 
+            {/* Body */}
             <div className="flex flex-col flex-1 p-5 gap-4 overflow-hidden">
 
                 {/* Patient info card */}
-                <div className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3">
+                <div className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 flex-shrink-0">
                     <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
                         <User size={15} className="text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="min-w-0">
                         {patientLabNo ? (
                             <>
-                                <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{patientName}</p>
+                                <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{derivedName}</p>
                                 <p className="text-[11px] text-gray-400 dark:text-gray-500 font-mono mt-0.5">{patientLabNo}</p>
                             </>
                         ) : (
@@ -162,8 +202,8 @@ export const PatientDisorderViewer: React.FC<PatientDisorderViewerProps> = ({
                             )}
                             {!isLoading && !isError && rows.map((group) =>
                                 group.disorders.map((disorder: DisorderEntry, dIdx: number) => {
-                                    const key = `${group.MAILERNAME}-${dIdx}`;
-                                    const printOn = getPrintValue(key, disorder.RFLAG, disorder.DESCR1);
+                                    const key        = `${group.MAILERNAME}-${dIdx}`;
+                                    const printOn    = getPrintValue(key, disorder.RFLAG, disorder.DESCR1);
                                     const isAbnormal = !INCLUDED.includes(disorder.DESCR1);
                                     return (
                                         <tr
@@ -172,47 +212,26 @@ export const PatientDisorderViewer: React.FC<PatientDisorderViewerProps> = ({
                                                 dIdx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/60"
                                             } hover:bg-blue-50 dark:hover:bg-blue-900/10`}
                                         >
-                                            {/* Disorder Group — only on first row of group */}
                                             <td className="px-3 py-2 border border-gray-200 dark:border-gray-700">
                                                 {dIdx === 0 ? (
-                                                    <span className={`font-medium text-[11px] ${
-                                                        isAbnormal
-                                                            ? "text-red-600 dark:text-red-400"
-                                                            : "text-blue-600 dark:text-blue-400"
-                                                    }`}>
+                                                    <span className={`font-medium text-[11px] ${isAbnormal ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400"}`}>
                                                         {group.MAILERNAME}
                                                     </span>
                                                 ) : null}
                                             </td>
-
-                                            {/* Disorder Name */}
                                             <td className="px-3 py-2 border border-gray-200 dark:border-gray-700">
-                                                <span className={`font-mono text-[11px] font-semibold ${
-                                                    isAbnormal
-                                                        ? "text-red-600 dark:text-red-400"
-                                                        : "text-gray-700 dark:text-gray-300"
-                                                }`}>
+                                                <span className={`font-mono text-[11px] font-semibold ${isAbnormal ? "text-red-600 dark:text-red-400" : "text-gray-700 dark:text-gray-300"}`}>
                                                     {disorder.NAME}
                                                 </span>
                                             </td>
-
-                                            {/* Description badge — now red when abnormal */}
                                             <td className="px-3 py-2 border border-gray-200 dark:border-gray-700">
                                                 {descriptionBadge(disorder.DESCR1, isAbnormal)}
                                             </td>
-
-                                            {/* Release */}
                                             <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-center">
-                                                <span className={`text-[11px] font-semibold ${
-                                                    isAbnormal
-                                                        ? "text-red-600 dark:text-red-400"
-                                                        : "text-gray-700 dark:text-gray-300"
-                                                }`}>
+                                                <span className={`text-[11px] font-semibold ${isAbnormal ? "text-red-600 dark:text-red-400" : "text-gray-700 dark:text-gray-300"}`}>
                                                     {disorder.RFLAG === "S" ? "Yes" : "No"}
                                                 </span>
                                             </td>
-
-                                            {/* Print toggle */}
                                             <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-center">
                                                 <button
                                                     onClick={() => togglePrint(key, disorder.RFLAG, disorder.DESCR1)}
@@ -236,33 +255,7 @@ export const PatientDisorderViewer: React.FC<PatientDisorderViewerProps> = ({
                 </div>
 
                 {/* Footer controls */}
-                <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex flex-col gap-1">
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest">Print copy</p>
-                        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-[11px] font-medium">
-                            <button
-                                onClick={() => setPrintCopy("patient")}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
-                                    printCopy === "patient"
-                                        ? "bg-blue-500 text-white"
-                                        : "bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600"
-                                }`}
-                            >
-                                <User size={10} /> Patient
-                            </button>
-                            <button
-                                onClick={() => setPrintCopy("facility")}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
-                                    printCopy === "facility"
-                                        ? "bg-blue-500 text-white"
-                                        : "bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600"
-                                }`}
-                            >
-                                <Building2 size={10} /> Facility
-                            </button>
-                        </div>
-                    </div>
-
+                <div className="flex items-center gap-3 flex-wrap flex-shrink-0">
                     <div className="flex flex-col gap-1">
                         <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest">Label</p>
                         <button
@@ -278,13 +271,22 @@ export const PatientDisorderViewer: React.FC<PatientDisorderViewerProps> = ({
                         </button>
                     </div>
 
+                    {tickedCount > 0 && (
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                            <span className="font-semibold text-blue-600 dark:text-blue-400">{tickedCount}</span>{" "}
+                            disorder{tickedCount !== 1 ? "s" : ""} selected for print
+                        </span>
+                    )}
+
                     <button
-                        onClick={() => onPrintPreview?.({ copy: printCopy, urgent })}
-                        disabled={!patientLabNo || isLoading}
+                        onClick={handlePrintPreview}
+                        disabled={!canGenerate || isGenerating}
                         className="ml-auto h-9 px-5 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors flex items-center gap-2"
                     >
-                        <Printer size={13} />
-                        Print Preview
+                        {isGenerating
+                            ? <><RefreshCw size={13} className="animate-spin" /> Generating...</>
+                            : <><Printer size={13} /> Print Preview</>
+                        }
                     </button>
                 </div>
             </div>

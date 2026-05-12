@@ -5,4 +5,7 @@ const cmsUrgentController = require('../../controllers/FollowupController/cmsUrg
 router.get('/patient-results', cmsUrgentController.getPatientResultTable);
 router.get('/patient-disorder-results', cmsUrgentController.getPatientDisorderResultTable);
 
+router.post('/generate-report', cmsUrgentController.generateCMSReport);
+router.get('/serve-report/:filename', cmsUrgentController.serveCMSReport);
+
 module.exports = router;
