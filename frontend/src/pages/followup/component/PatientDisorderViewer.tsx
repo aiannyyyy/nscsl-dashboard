@@ -25,7 +25,7 @@ interface PatientDisorderViewerProps {
     onGenerating?: () => void;
 }
 
-const INCLUDED = ["Normal", "Preterm", "Monitoring Sample"];
+const INCLUDED = ["Normal", "Preterm", "Monitoring Sample", "NFTR"];
 
 export const PatientDisorderViewer: React.FC<PatientDisorderViewerProps> = ({
     patientLabNo = "",
