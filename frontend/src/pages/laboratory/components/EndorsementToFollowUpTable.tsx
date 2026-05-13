@@ -937,7 +937,7 @@ const ViewDetailsModal: React.FC<{
 
           <div className="flex flex-wrap justify-end gap-2">
             {/* Save Changes — only visible to LM and QAO, independent of approve */}
-            {canEditNoteAndAttachments && (
+            {canEditNoteAndAttachments && !String(record.qao ?? '').trim() && (
               <button
                 type="button"
                 onClick={() => void onSaveChanges(buildEditPayload())}
@@ -1210,7 +1210,9 @@ export const EndorsementToFollowUpTable: React.FC<EndorsementToFollowUpTableProp
             try {
               await persistEdits(payload);
               await approveTeamCaptainMutation.mutateAsync(viewRecord.id);
-              setViewRecord(null);
+              setViewRecord((prev) =>
+                prev ? { ...prev, tc: user?.name ?? 'TC', tc_date: new Date().toISOString() } : null
+              );
             } catch {
               /* error surfaced via approveErrorMessage */
             }

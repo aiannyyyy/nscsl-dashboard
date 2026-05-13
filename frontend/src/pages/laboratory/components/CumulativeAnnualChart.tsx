@@ -352,13 +352,13 @@ export const CumulativeAnnualChart: React.FC<Props> = ({ expanded, onExpand }) =
               <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
 
               {/* ✅ bar1 always shown (test_6 / screened / initial depending on type) */}
-              <Bar dataKey="bar1" stackId="a" fill="#60a5fa" name={barLabels.bar1} radius={[0, 0, 0, 0]}>
+              <Bar dataKey="bar1" stackId="a" fill="#3b82f6" name={barLabels.bar1} radius={[0, 0, 0, 0]}>
                 <LabelList dataKey="bar1" content={renderBarLabel} position="top" />
               </Bar>
 
               {/* ✅ bar2 (ENBS) only shown for received */}
               {censusType === 'received' && (
-                <Bar dataKey="bar2" stackId="a" fill="#f472b6" name="ENBS" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="bar2" stackId="a" fill="#fffb00" name="ENBS" radius={[4, 4, 0, 0]}>
                   <LabelList dataKey="bar2" content={renderBarLabel} position="top" />
                 </Bar>
               )}
