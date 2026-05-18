@@ -5,14 +5,26 @@ import type { FacilityVisit } from '../../../services/PDOServices/facilityVisits
 import { FacilityVisitModal } from './FacilityVisitModal';
 import { ExportModal } from './ExportModal';
 import { useAuth } from '../../../hooks/useAuth';
-import { usePermissions } from '../../../hooks/usePermission'; // ✅ Import the hook
+import { usePermissions } from '../../../hooks/usePermission';
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
 
 interface FacilityVisitsProps {
   onDataChange?: () => void;
+  selectedProvince: string;
+  selectedMonth: string;
+  selectedYear: string;
 }
 
-export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) => {
+export const FacilityVisits: React.FC<FacilityVisitsProps> = ({
+  onDataChange,
+  selectedProvince,
+  selectedMonth,
+  selectedYear,
+}) => {
   const [visits, setVisits] = useState<FacilityVisit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,30 +36,12 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
   const [selectedVisit, setSelectedVisit] = useState<FacilityVisit | null>(null);
   const [editingVisit, setEditingVisit] = useState<FacilityVisit | null>(null);
   const [viewingFile, setViewingFile] = useState<{ path: string; name: string; type: string } | null>(null);
-  
-  const [selectedProvince, setSelectedProvince] = useState<string>('all');
+
+  // Local status filter only — province/month/year come from chart
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  
+
   const { user } = useAuth();
-
-  // ✅ Add permission check - Change 'Program' to match your department
-  // Allow BOTH 'program' and 'administrator' to have full CRUD
   const { canCreate, canEdit, canDelete, canExport } = usePermissions(['program', 'administrator']);
-
-  // ✅ CRITICAL DEBUG
-  useEffect(() => {
-    console.log('╔════════════════════════════════════╗');
-    console.log('║   FACILITY VISITS PERMISSION DEBUG  ║');
-    console.log('╚════════════════════════════════════╝');
-    console.log('📦 Raw User Object:', JSON.stringify(user, null, 2));
-    console.log('🏢 User Department:', user?.department);
-    console.log('🔤 Department Type:', typeof user?.department);
-    console.log('📏 Department Length:', user?.department?.length);
-    console.log('🎯 Target Department: Program');
-    console.log('🔍 Exact Match?:', user?.department === 'program');
-    console.log('✅ Permissions:', { canCreate, canEdit, canDelete, canExport });
-    console.log('═══════════════════════════════════════');
-  }, [user, canCreate, canEdit, canDelete, canExport]);
 
   useEffect(() => {
     fetchVisits();
@@ -59,10 +53,7 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
     try {
       const data = await facilityVisitsService.getAll();
       setVisits(data);
-      
-      if (onDataChange) {
-        onDataChange();
-      }
+      if (onDataChange) onDataChange();
     } catch (err: any) {
       console.error('Error fetching visits:', err);
       setError(err.message || 'Failed to fetch facility visits');
@@ -71,18 +62,32 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
     }
   };
 
-  const provinces = useMemo(() => {
-    const uniqueProvinces = Array.from(new Set(visits.map(v => v.province).filter(Boolean)));
-    return uniqueProvinces.sort();
-  }, [visits]);
-
+  // Filter by province + month + year (from chart) AND local status filter
   const filteredVisits = useMemo(() => {
-    return visits.filter(visit => {
-      const matchesProvince = selectedProvince === 'all' || visit.province === selectedProvince;
+    const monthIndex = MONTHS.indexOf(selectedMonth);
+    const yearNum = parseInt(selectedYear);
+
+    return visits.filter((visit) => {
+      // Province filter
+      const matchesProvince =
+        selectedProvince === 'All Provinces' || visit.province === selectedProvince;
+
+      // Date filter — match visits within the selected month + year
+      const matchesDate = (() => {
+        if (!visit.date_visited) return false;
+        const visitDate = new Date(visit.date_visited);
+        return (
+          visitDate.getFullYear() === yearNum &&
+          visitDate.getMonth() === monthIndex
+        );
+      })();
+
+      // Status filter (local)
       const matchesStatus = selectedStatus === 'all' || visit.status === selectedStatus;
-      return matchesProvince && matchesStatus;
+
+      return matchesProvince && matchesDate && matchesStatus;
     });
-  }, [visits, selectedProvince, selectedStatus]);
+  }, [visits, selectedProvince, selectedMonth, selectedYear, selectedStatus]);
 
   const handleView = (visit: FacilityVisit) => {
     setSelectedVisit(visit);
@@ -95,10 +100,7 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this facility visit?')) {
-      return;
-    }
-
+    if (!window.confirm('Are you sure you want to delete this facility visit?')) return;
     try {
       await facilityVisitsService.delete(id);
       await fetchVisits();
@@ -109,14 +111,13 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
   };
 
   const handleViewAttachments = (attachmentPath: string) => {
-    const files = attachmentPath.split(',').map(f => f.trim());
+    const files = attachmentPath.split(',').map((f) => f.trim());
     setSelectedAttachments(files);
     setShowAttachmentModal(true);
   };
 
   const handleDownloadFile = (filePath: string) => {
     const downloadUrl = `http://localhost:5000/${filePath}`;
-    
     const link = document.createElement('a');
     link.href = downloadUrl;
     link.download = filePath.split('/').pop() || 'download';
@@ -128,19 +129,12 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
   const handleViewFile = (filePath: string) => {
     const fileName = filePath.split('/').pop() || 'Unknown file';
     const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
-    
     const downloadOnlyTypes = ['doc', 'docx', 'xls', 'xlsx', 'xlsm', 'ppt', 'pptx', 'csv', 'zip', 'rar'];
-    
     if (downloadOnlyTypes.includes(fileExtension)) {
       handleDownloadFile(filePath);
       return;
     }
-    
-    setViewingFile({
-      path: filePath,
-      name: fileName,
-      type: fileExtension
-    });
+    setViewingFile({ path: filePath, name: fileName, type: fileExtension });
   };
 
   const handleModalClose = () => {
@@ -150,11 +144,6 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
 
   const handleModalSuccess = () => {
     fetchVisits();
-  };
-
-  const handleClearFilters = () => {
-    setSelectedProvince('all');
-    setSelectedStatus('all');
   };
 
   const getStatusBadge = (status: string) => {
@@ -178,18 +167,18 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
           </span>
         );
       default:
-        return <span className="text-gray-400">Unknown</span>;
+        return <span className="text-gray-400 text-xs">Unknown</span>;
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
     if (!dateString) return '—';
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
@@ -197,7 +186,6 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
     if (!name && !date) return '—';
     if (!name) return formatDate(date!);
     if (!date) return name;
-    
     return (
       <div className="text-xs">
         <div className="font-medium text-gray-900 dark:text-white">{name}</div>
@@ -206,7 +194,7 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
     );
   };
 
-  const truncateText = (text: string | null, maxLength: number = 50) => {
+  const truncateText = (text: string | null, maxLength = 60) => {
     if (!text) return 'No remarks';
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
@@ -234,39 +222,29 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
               <X size={20} />
             </button>
           </div>
-          
+
           <div className="p-6 overflow-y-auto flex-1">
             <div className="space-y-6">
               {/* Basic Information */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <div className="w-1 h-4 bg-blue-500 rounded"></div>
+                  <div className="w-1 h-4 bg-blue-500 rounded" />
                   Basic Information
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Facility Code</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {selectedVisit.facility_code}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Province</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {selectedVisit.province}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Date Visited</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {formatDate(selectedVisit.date_visited)}
-                    </p>
-                  </div>
+                  {[
+                    { label: 'Facility Code', value: selectedVisit.facility_code },
+                    { label: 'Province', value: selectedVisit.province },
+                    { label: 'Date Visited', value: formatDate(selectedVisit.date_visited) },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{value}</p>
+                    </div>
+                  ))}
                   <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Status</p>
-                    <div className="mt-1">
-                      {getStatusBadge(selectedVisit.status)}
-                    </div>
+                    <div className="mt-1">{getStatusBadge(selectedVisit.status)}</div>
                   </div>
                 </div>
               </div>
@@ -274,20 +252,18 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
               {/* Facility Name */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <div className="w-1 h-4 bg-blue-500 rounded"></div>
+                  <div className="w-1 h-4 bg-blue-500 rounded" />
                   Facility Name
                 </h4>
                 <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                  <p className="text-sm text-gray-900 dark:text-white">
-                    {selectedVisit.facility_name}
-                  </p>
+                  <p className="text-sm text-gray-900 dark:text-white">{selectedVisit.facility_name}</p>
                 </div>
               </div>
 
               {/* Remarks */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <div className="w-1 h-4 bg-blue-500 rounded"></div>
+                  <div className="w-1 h-4 bg-blue-500 rounded" />
                   Remarks
                 </h4>
                 <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
@@ -301,14 +277,13 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
               {selectedVisit.attachment_path && (
                 <div>
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                    <div className="w-1 h-4 bg-blue-500 rounded"></div>
+                    <div className="w-1 h-4 bg-blue-500 rounded" />
                     Attachments ({selectedVisit.attachment_path.split(',').length})
                   </h4>
                   <div className="space-y-2">
                     {selectedVisit.attachment_path.split(',').map((filePath, index) => {
                       const fileName = filePath.trim().split('/').pop() || 'Unknown file';
                       const fileExtension = fileName.split('.').pop()?.toLowerCase();
-                      
                       return (
                         <div
                           key={index}
@@ -317,12 +292,8 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <FileText size={18} className="text-blue-500 flex-shrink-0" />
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                {fileName}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {fileExtension?.toUpperCase()} file
-                              </p>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{fileName}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{fileExtension?.toUpperCase()} file</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 ml-3">
@@ -353,7 +324,7 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
               {/* Audit Information */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <div className="w-1 h-4 bg-blue-500 rounded"></div>
+                  <div className="w-1 h-4 bg-blue-500 rounded" />
                   Audit Information
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
@@ -370,7 +341,6 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
             </div>
           </div>
 
-          {/* ✅ HIDE Edit button if no permission */}
           <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 flex justify-end gap-2">
             {canEdit && (
               <button
@@ -400,11 +370,10 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
     if (!viewingFile) return null;
 
     const fileUrl = `http://localhost:5000/${viewingFile.path}`;
-    
     const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
     const pdfTypes = ['pdf'];
     const downloadOnlyTypes = ['doc', 'docx', 'xls', 'xlsx', 'xlsm', 'ppt', 'pptx', 'csv', 'zip', 'rar'];
-    
+
     const isImage = imageTypes.includes(viewingFile.type);
     const isPdf = pdfTypes.includes(viewingFile.type);
     const isDownloadOnly = downloadOnlyTypes.includes(viewingFile.type);
@@ -422,12 +391,8 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
             <div className="flex items-center gap-3">
               <FileText size={20} className="text-blue-500" />
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {viewingFile.name}
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {viewingFile.type.toUpperCase()} file
-                </p>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{viewingFile.name}</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{viewingFile.type.toUpperCase()} file</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -467,12 +432,8 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <FileText size={64} className="text-gray-400 mb-4" />
-                <p className="text-gray-600 dark:text-gray-400 mb-2">
-                  Preview not available for this file type
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-                  {viewingFile.name}
-                </p>
+                <p className="text-gray-600 dark:text-gray-400 mb-2">Preview not available for this file type</p>
+                <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">{viewingFile.name}</p>
                 {canExport && (
                   <button
                     onClick={() => handleDownloadFile(viewingFile.path)}
@@ -510,46 +471,34 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
     );
   }
 
-  const hasActiveFilters = selectedProvince !== 'all' || selectedStatus !== 'all';
-
   return (
     <>
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 transition-colors h-[600px] max-h-[600px] flex flex-col">
-        {/* Header - Fixed */}
+
+        {/* Header */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
           <div className="flex justify-between items-center gap-4">
-            <h4 className="text-base font-semibold text-gray-900 dark:text-white whitespace-nowrap">
-              Facility Visits
-              {hasActiveFilters && (
-                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                  ({filteredVisits.length} of {visits.length})
+            <div>
+              <h4 className="text-base font-semibold text-gray-900 dark:text-white whitespace-nowrap">
+                Facility Visits
+              </h4>
+              {/* Showing applied filters as read-only context */}
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                {selectedMonth} {selectedYear}
+                {selectedProvince !== 'All Provinces' && ` · ${selectedProvince}`}
+                {' '}·{' '}
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  {filteredVisits.length} record{filteredVisits.length !== 1 ? 's' : ''}
                 </span>
-              )}
-            </h4>
-            
-            <div className="flex items-center gap-2 flex-1 justify-end flex-wrap">
-              {/* Filters */}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {/* Status filter — the only local filter remaining */}
               <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
                 <Filter size={14} />
-                <span className="font-medium">Filters:</span>
+                <span className="font-medium">Status:</span>
               </div>
-              
-              <select
-                value={selectedProvince}
-                onChange={(e) => setSelectedProvince(e.target.value)}
-                className="h-8 px-2 text-xs rounded-lg border
-                  bg-white dark:bg-gray-800
-                  border-gray-300 dark:border-gray-600
-                  text-gray-800 dark:text-gray-100
-                  focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Provinces</option>
-                {provinces.map((province) => (
-                  <option key={province} value={province}>
-                    {province}
-                  </option>
-                ))}
-              </select>
 
               <select
                 value={selectedStatus}
@@ -566,18 +515,17 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                 <option value="2">Closed</option>
               </select>
 
-              {hasActiveFilters && (
+              {selectedStatus !== 'all' && (
                 <button
-                  onClick={handleClearFilters}
+                  onClick={() => setSelectedStatus('all')}
                   className="h-8 px-2 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                 >
-                  Clear filters
+                  Clear
                 </button>
               )}
 
-              {/* ✅ HIDE Action Buttons based on permissions */}
-              <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
-              
+              <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1" />
+
               {canCreate && (
                 <button
                   onClick={() => setShowAddModal(true)}
@@ -587,7 +535,7 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                   Add Visit
                 </button>
               )}
-              
+
               {canExport && (
                 <button
                   onClick={() => setShowExportModal(true)}
@@ -601,40 +549,31 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
           </div>
         </div>
 
-        {/* Table Container */}
+        {/* Table */}
         <div className="flex-1 overflow-hidden p-4">
           <div className="h-full border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
             <div className="overflow-x-auto overflow-y-auto h-full">
               <table className="w-full text-xs relative">
                 <thead className="bg-gray-50 dark:bg-gray-800/50 sticky top-0 z-10">
                   <tr className="border-b border-gray-200 dark:border-gray-800">
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap w-24">
-                      Code
-                    </th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap w-48">
-                      Facility Name
-                    </th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap w-36">
-                      Date Visited
-                    </th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap w-28">
-                      Province
-                    </th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider w-64">
-                      Remarks
-                    </th>
-                    <th className="px-3 py-2 text-center text-[10px] font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap w-16">
-                      File
-                    </th>
-                    <th className="px-3 py-2 text-center text-[10px] font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap w-20">
-                      Status
-                    </th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap w-32">
-                      Created
-                    </th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap w-32">
-                      Modified
-                    </th>
+                    {[
+                      { label: 'Code', className: 'w-24' },
+                      { label: 'Facility Name', className: 'w-48' },
+                      { label: 'Date Visited', className: 'w-36' },
+                      { label: 'Province', className: 'w-28' },
+                      { label: 'Remarks', className: 'w-64' },
+                      { label: 'File', className: 'w-16 text-center' },
+                      { label: 'Status', className: 'w-20 text-center' },
+                      { label: 'Created', className: 'w-32' },
+                      { label: 'Modified', className: 'w-32' },
+                    ].map(({ label, className }) => (
+                      <th
+                        key={label}
+                        className={`px-3 py-2 text-left text-[10px] font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap ${className}`}
+                      >
+                        {label}
+                      </th>
+                    ))}
                     <th className="px-3 py-2 text-center text-[10px] font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap sticky right-0 bg-gray-50 dark:bg-gray-800/50 shadow-[-2px_0_4px_rgba(0,0,0,0.05)] w-28">
                       Actions
                     </th>
@@ -644,7 +583,8 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                   {filteredVisits.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="px-3 py-8 text-center text-xs text-gray-500 dark:text-gray-400">
-                        {hasActiveFilters ? 'No facility visits found matching the filters' : 'No facility visits found'}
+                        No facility visits found for {selectedMonth} {selectedYear}
+                        {selectedProvince !== 'All Provinces' && ` in ${selectedProvince}`}
                       </td>
                     </tr>
                   ) : (
@@ -652,8 +592,8 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                       <tr
                         key={visit.id}
                         className={`transition-colors ${
-                          index % 2 === 0 
-                            ? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50' 
+                          index % 2 === 0
+                            ? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50'
                             : 'bg-gray-50/50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/60'
                         }`}
                       >
@@ -664,11 +604,13 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                           {visit.facility_name}
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-900 dark:text-gray-300 whitespace-nowrap">
-                          {visit.date_visited ? new Date(visit.date_visited).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                          }) : '—'}
+                          {visit.date_visited
+                            ? new Date(visit.date_visited).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                              })
+                            : '—'}
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-900 dark:text-gray-300 whitespace-nowrap">
                           {visit.province}
@@ -680,7 +622,7 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                         </td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           {visit.attachment_path ? (
-                            <button 
+                            <button
                               onClick={() => handleViewAttachments(visit.attachment_path!)}
                               className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 p-1 rounded transition-colors"
                               title="View attachments"
@@ -700,13 +642,13 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                         <td className="px-3 py-2 whitespace-nowrap">
                           {formatCreatedModified(visit.modified_by, visit.modified_at)}
                         </td>
-                        
-                        {/* ✅ HIDE Edit/Delete buttons based on permissions */}
-                        <td className={`px-3 py-2 whitespace-nowrap sticky right-0 shadow-[-2px_0_4px_rgba(0,0,0,0.05)] ${
-                          index % 2 === 0 
-                            ? 'bg-white dark:bg-gray-900' 
-                            : 'bg-gray-50/50 dark:bg-gray-800/30'
-                        }`}>
+                        <td
+                          className={`px-3 py-2 whitespace-nowrap sticky right-0 shadow-[-2px_0_4px_rgba(0,0,0,0.05)] ${
+                            index % 2 === 0
+                              ? 'bg-white dark:bg-gray-900'
+                              : 'bg-gray-50/50 dark:bg-gray-800/30'
+                          }`}
+                        >
                           <div className="flex items-center justify-center gap-1">
                             <button
                               onClick={() => handleView(visit)}
@@ -715,7 +657,6 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                             >
                               <Eye size={14} />
                             </button>
-                            
                             {canEdit && (
                               <button
                                 onClick={() => handleEdit(visit)}
@@ -725,7 +666,6 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                                 <Edit size={14} />
                               </button>
                             )}
-                            
                             {canDelete && (
                               <button
                                 onClick={() => visit.id && handleDelete(visit.id)}
@@ -776,13 +716,11 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                 <X size={20} />
               </button>
             </div>
-            
             <div className="p-5 overflow-y-auto">
               <div className="space-y-2">
                 {selectedAttachments.map((filePath, index) => {
                   const fileName = filePath.split('/').pop() || 'Unknown file';
                   const fileExtension = fileName.split('.').pop()?.toLowerCase();
-                  
                   return (
                     <div
                       key={index}
@@ -791,12 +729,8 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({ onDataChange }) 
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <FileText size={20} className="text-blue-500 flex-shrink-0" />
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                            {fileName}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {fileExtension?.toUpperCase()} file
-                          </p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{fileName}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{fileExtension?.toUpperCase()} file</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-3">
