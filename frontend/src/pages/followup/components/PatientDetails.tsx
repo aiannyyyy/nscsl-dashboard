@@ -7,6 +7,8 @@ import {
 import { usePatientDetails } from '../../../hooks/FollowupHooks/usePatientDetails';
 import { downloadChart } from '../../../utils/chartDownloadUtils';
 import type { PatientDetail } from '../../../services/FollowupServices/patientDetailsService';
+import PatientRecordModal from './PatientRecordModal';
+import type { SampleRecord } from './PatientRecordModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,6 +69,26 @@ const sexBadgeColor = (val?: string | null): BadgeColor => {
     return 'amber';
 };
 
+// ─── Map PatientDetail → SampleRecord ────────────────────────────────────────
+
+const toSampleRecord = (p: PatientDetail): SampleRecord => ({
+    LABNO:   p.LABNO            ?? '',
+    LABID:   '',                         // not available in PatientDetail
+    LNAME:   p.LNAME            ?? '',
+    FNAME:   p.FNAME            ?? '',
+    SUBMID:  p.SUBMID           ?? '',
+    BIRTHDT: p.BIRTHDT          ?? '',
+    BIRTHTM: p.BIRTHTM          ?? '',
+    DTCOLL:  p.CURRENT_DTCOLL   ?? '',
+    TMCOLL:  p.CURRENT_TMCOLL   ?? '',
+    DTRECV:  p.DTRECV           ?? '',
+    TMRECV:  p.TMRECV           ?? '',
+    DTRPTD:  '',                         // not available in PatientDetail
+    GESTAGE: p.GESTAGE          ?? '',
+    AGECOLL: '',                         // not available in PatientDetail
+    SEX:     p.SEX              ?? '',
+});
+
 // ─── Badge ────────────────────────────────────────────────────────────────────
 
 const BADGE_STYLES = {
@@ -91,7 +113,8 @@ const DetailModal: React.FC<{
     patient: PatientDetail | null;
     matched: boolean;
     onClose: () => void;
-}> = ({ patient, matched, onClose }) => {
+    onViewPIS: () => void;
+}> = ({ patient, matched, onClose, onViewPIS }) => {
     useEffect(() => {
         if (!patient) return;
         const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -194,7 +217,16 @@ const DetailModal: React.FC<{
                 </div>
 
                 {/* Footer */}
-                <div className="shrink-0 px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 rounded-b-2xl flex justify-end">
+                <div className="shrink-0 px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 rounded-b-2xl flex items-center justify-between gap-2">
+                    {/* View PIS button */}
+                    <button
+                        onClick={onViewPIS}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white transition-colors shadow-sm shadow-blue-200 dark:shadow-none"
+                    >
+                        <FlaskConical size={13} />
+                        View PIS
+                    </button>
+
                     <button
                         onClick={onClose}
                         className="px-4 py-2 text-sm font-medium rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
@@ -261,7 +293,7 @@ const ExportMenu: React.FC<{
 // ─── Test Codes ───────────────────────────────────────────────────────────────
 // 'ALL' = show records matching every code in this list combined
 // Individual entries = filter to that single code only
- 
+
 const TEST_CODES = [
     'ALL',
     'TSH1', 'TSH2',
@@ -292,7 +324,7 @@ const TEST_CODES = [
     'FE', 'F', 'FAEB', 'FAES', 'FEA', 'FS', 'FDA',
     'BTS1',
 ] as const;
- 
+
 
 // ─── Table Column Config ──────────────────────────────────────────────────────
 
@@ -317,7 +349,7 @@ const COLUMNS: ColDef[] = [
     { key: 'CURRENT_DTCOLL', label: 'Curr. Collection'},
     { key: 'LINKED_DTCOLL',  label: 'Linked Collection'},
     { key: 'PHYSID',         label: 'Physician ID'    },
-    { key: 'SUBMID',         label: 'Facility Code'    },
+    { key: 'SUBMID',         label: 'Facility Code'   },
     { key: 'CLINSTAT',       label: 'Clin. Status'    },
     { key: 'COUNTY',         label: 'Province/County' },
 ];
@@ -341,8 +373,11 @@ export const PatientDetails: React.FC = () => {
     });
     const handleGenerate = () => setCommitted({ dateFrom, dateTo, testCode });
 
-    // ── Modal state — store both patient and whether it's matched
+    // ── Detail modal state — store both patient and whether it's matched
     const [selected, setSelected] = useState<{ patient: PatientDetail; matched: boolean } | null>(null);
+
+    // ── PIS modal state
+    const [pisRecord, setPisRecord] = useState<SampleRecord | null>(null);
 
     // ── Data fetching — auto-loads on mount with current month, refreshes on Generate
     const { data, isLoading, isError, error, isFetching } = usePatientDetails(committed);
@@ -381,24 +416,24 @@ export const PatientDetails: React.FC = () => {
             format: 'excel',
             sheetName: 'Patient Details',
             data: filtered.map(r => ({
-                'Lab No.':           r.LABNO,
-                'Last Name':         r.LNAME,
-                'First Name':        r.FNAME,
-                'Mnemonic':          r.MNEMONIC,
-                'Test Code':         r.TESTCODE,
-                'Value':             r.VALUE,
-                'Date Received':     fmtStr(r.DTRECV),
-                'Current Collection':fmtStr(r.CURRENT_DTCOLL),
-                'Linked Collection': fmtStr(r.LINKED_DTCOLL),
-                'Last Modified':     fmtStr(r.LASTMOD),
-                'Clinical Status':   r.CLINSTAT,
-                'Physician ID':      r.PHYSID,
+                'Lab No.':            r.LABNO,
+                'Last Name':          r.LNAME,
+                'First Name':         r.FNAME,
+                'Mnemonic':           r.MNEMONIC,
+                'Test Code':          r.TESTCODE,
+                'Value':              r.VALUE,
+                'Date Received':      fmtStr(r.DTRECV),
+                'Current Collection': fmtStr(r.CURRENT_DTCOLL),
+                'Linked Collection':  fmtStr(r.LINKED_DTCOLL),
+                'Last Modified':      fmtStr(r.LASTMOD),
+                'Clinical Status':    r.CLINSTAT,
+                'Physician ID':       r.PHYSID,
                 'Facility Code':      r.SUBMID,
-                'Sex':               r.SEX,
-                'Birth Date':        fmtStr(r.BIRTHDT),
-                'Birth Weight':      r.BIRTHWT,
-                'Gestational Age':   r.GESTAGE,
-                'County':            r.COUNTY,
+                'Sex':                r.SEX,
+                'Birth Date':         fmtStr(r.BIRTHDT),
+                'Birth Weight':       r.BIRTHWT,
+                'Gestational Age':    r.GESTAGE,
+                'County':             r.COUNTY,
             })),
         });
     };
@@ -412,13 +447,38 @@ export const PatientDetails: React.FC = () => {
         });
     };
 
+    // Open PIS modal - keep selected intact so DetailModal returns when PIS closes
+    const handleViewPIS = () => {
+        if (selected?.patient) {
+            setPisRecord(toSampleRecord(selected.patient));
+            // do NOT clear selected here
+        }
+    };
+
+    // Close PIS - pisRecord goes null, selected is still set so DetailModal reappears
+    const handleClosePIS = () => {
+        setPisRecord(null);
+    };
+
     return (
         <>
-            <DetailModal
-                patient={selected?.patient ?? null}
-                matched={selected?.matched ?? false}
-                onClose={() => setSelected(null)}
-            />
+            {/* Detail modal - hidden while PIS is open, reappears when PIS closes */}
+            {!pisRecord && (
+                <DetailModal
+                    patient={selected?.patient ?? null}
+                    matched={selected?.matched ?? false}
+                    onClose={() => setSelected(null)}
+                    onViewPIS={handleViewPIS}
+                />
+            )}
+
+            {/* PIS modal */}
+            {pisRecord && (
+                <PatientRecordModal
+                    record={pisRecord}
+                    onClose={handleClosePIS}
+                />
+            )}
 
             <div
                 id="patient-details-card"
@@ -485,7 +545,7 @@ export const PatientDetails: React.FC = () => {
                             ))}
                         </select>
 
-                        {/* Generate Button — now blue */}
+                        {/* Generate Button */}
                         <button
                             onClick={handleGenerate}
                             disabled={isLoading}
@@ -631,7 +691,7 @@ export const PatientDetails: React.FC = () => {
                                         <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                             {row.COUNTY ?? '—'}
                                         </td>
-                                        {/* Action — View button now blue */}
+                                        {/* Action — View button */}
                                         <td className="px-4 py-2.5 whitespace-nowrap sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/10 transition-colors">
                                             <button
                                                 onClick={() => setSelected({ patient: row, matched: isMatched(row) })}

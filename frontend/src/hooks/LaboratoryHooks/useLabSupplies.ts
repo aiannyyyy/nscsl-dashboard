@@ -4,7 +4,7 @@ import { getLabSupplies } from '../../services/LaboratoryServices/labSuppliesSer
 export const useLabSupplies = () => {
   return useQuery({
     queryKey: ['lab-supplies'],
-    queryFn: getLabSupplies,
+    queryFn:  getLabSupplies,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 1,
   });
