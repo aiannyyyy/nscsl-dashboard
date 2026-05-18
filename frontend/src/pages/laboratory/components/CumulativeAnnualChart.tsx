@@ -68,7 +68,8 @@ type ExportFormat = typeof EXPORT_FORMATS[number];
 
 export const CumulativeAnnualChart: React.FC<Props> = ({ expanded, onExpand }) => {
   const [censusType, setCensusType] = useState<CensusType>('received');
-  const [monthRange, setMonthRange]   = useState('January');
+  const currentMonthLabel = MONTH_RANGES[new Date().getMonth()].label;
+  const [monthRange, setMonthRange] = useState(currentMonthLabel);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   const { data, isLoading, error, refetch } = useCumulativeAnnualCensus();

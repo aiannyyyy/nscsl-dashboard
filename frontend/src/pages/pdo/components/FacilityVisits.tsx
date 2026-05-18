@@ -68,9 +68,11 @@ export const FacilityVisits: React.FC<FacilityVisitsProps> = ({
     const yearNum = parseInt(selectedYear);
 
     return visits.filter((visit) => {
-      // Province filter
+      // Province filter — trim spaces and uppercase both sides
+      // DB stores values like "BATANGAS            " so we normalize before comparing
       const matchesProvince =
-        selectedProvince === 'All Provinces' || visit.province === selectedProvince;
+        selectedProvince === 'All Provinces' ||
+        visit.province?.trim().toUpperCase() === selectedProvince.trim().toUpperCase();
 
       // Date filter — match visits within the selected month + year
       const matchesDate = (() => {
