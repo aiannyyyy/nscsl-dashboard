@@ -38,7 +38,7 @@ export const NotebookSearchModal: React.FC<NotebookSearchModalProps> = ({
         setCriteria(newCriteria);
 
         // Check if any field has input
-        const hasAnyInput = Object.values(newCriteria).some(value => value.trim() !== '');
+        const hasAnyInput = Object.values(newCriteria).some(value => value?.trim() !== '');
         setHasInput(hasAnyInput);
     };
 
@@ -48,8 +48,8 @@ export const NotebookSearchModal: React.FC<NotebookSearchModalProps> = ({
         // Filter out empty values
         const filteredCriteria: SearchCriteria = {};
         Object.entries(criteria).forEach(([key, value]) => {
-            if (value.trim() !== '') {
-                filteredCriteria[key as keyof SearchCriteria] = value.trim();
+            if (value?.trim() !== '') {
+                filteredCriteria[key as keyof SearchCriteria] = value?.trim();
             }
         });
 

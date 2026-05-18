@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Eye, ArrowLeft } from 'lucide-react';
+import { usePermissions } from '../../../hooks/usePermission';
 
 interface PatientResult {
     labno: string;
@@ -29,6 +30,8 @@ export const NotebookResultsModal: React.FC<NotebookResultsModalProps> = ({
     results,
     loading = false
 }) => {
+    const { canCreate } = usePermissions(['program', 'administrator']);
+
     if (!isOpen) return null;
 
     const formatDate = (dateString: string) => {
