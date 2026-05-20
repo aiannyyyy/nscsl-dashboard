@@ -303,7 +303,7 @@ const addCar = async (req, res) => {
         const values = [
             safeTrim(case_no, 25),           // VARCHAR(25)
             date_endorsed || null,            // datetime
-            safeTrim(endorsed_by, 25),        // VARCHAR(25)
+            safeTrim(endorsed_by, 100),        // VARCHAR(25)
             safeTrim(facility_code, 4),       // VARCHAR(4)
             safeTrim(facility_name, 50),      // VARCHAR(50)
             safeTrim(city, 25),               // VARCHAR(25)
@@ -320,7 +320,7 @@ const addCar = async (req, res) => {
             safeTrim(remarks, 100),           // VARCHAR(100)
             safeTrim(frc, 10),                // VARCHAR(10)
             safeTrim(wrc, 10),                // VARCHAR(10)
-            safeTrim(prepared_by, 15),        // VARCHAR(15)
+            safeTrim(prepared_by, 100),        // VARCHAR(15)
             followup_on || null,              // VARCHAR(15) - date field
             reviewed_on || null,              // VARCHAR(15) - date field
             closed_on || null,                // datetime
@@ -556,7 +556,7 @@ const updateCar = async (req, res) => {
         const values = [
             safeTrim(case_no, 25),
             date_endorsed || null,
-            safeTrim(endorsed_by, 25),
+            safeTrim(endorsed_by, 100),
             safeTrim(facility_code, 4),
             safeTrim(facility_name, 50),
             safeTrim(city, 25),
@@ -573,7 +573,7 @@ const updateCar = async (req, res) => {
             safeTrim(remarks, 100),
             safeTrim(frc, 10),
             safeTrim(wrc, 10),
-            safeTrim(prepared_by, 15),
+            safeTrim(prepared_by, 100),
             followup_on || null,
             reviewed_on || null,
             closed_on || null,

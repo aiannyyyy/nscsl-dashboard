@@ -126,7 +126,6 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
 
   const handleSaveDocument = async (formData: AddCarFormData) => {
     try {
-      // ⭐ Add username to form data
       const dataWithUser = {
         ...formData,
         userName: user?.name || 'Unknown User'
@@ -134,14 +133,11 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
       
       let result;
       
-      // Check if we're editing (editingRecord has an id)
       if (editingRecord?.id) {
-        // UPDATE mode
         result = await updateCar(editingRecord.id, dataWithUser);
         console.log("Document updated successfully:", result);
         alert("Document updated successfully!");
       } else {
-        // ADD mode
         result = await addCar(dataWithUser);
         console.log("Document saved successfully:", result);
         alert("Document added successfully!");
@@ -163,7 +159,6 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
     if (!selectedRecord) return;
 
     try {
-      // ⭐ Pass username to track modification
       const result = await updateCarStatus(
         selectedRecord.id, 
         status, 
@@ -208,10 +203,8 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
     }
   };
 
-  // ⭐ NEW: Export to Excel function
   const handleExportToExcel = () => {
     try {
-      // Prepare data for export
       const exportData = filteredCarList.map(record => ({
         'Case No': record.case_no,
         'Date Endorsed': formatDateForExcel(record.date_endorsed),
@@ -222,6 +215,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
         'Province': record.province,
         'Status': record.status?.toUpperCase() || '',
         'Lab No': record.labno || '',
+        'Repeat': record.repeat_field || '',
         'Number Sample': record.number_sample || '',
         'Case Code': record.case_code || '',
         'Sub Code 1': record.sub_code1 || '',
@@ -241,10 +235,8 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
         'Modified At': formatDateForExcel(record.modified_at),
       }));
 
-      // Create worksheet
       const ws = XLSX.utils.json_to_sheet(exportData);
 
-      // Set column widths
       const colWidths = [
         { wch: 20 }, // Case No
         { wch: 18 }, // Date Endorsed
@@ -255,6 +247,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
         { wch: 15 }, // Province
         { wch: 10 }, // Status
         { wch: 15 }, // Lab No
+        { wch: 15 }, // Repeat
         { wch: 12 }, // Number Sample
         { wch: 12 }, // Case Code
         { wch: 25 }, // Sub Code 1
@@ -275,17 +268,14 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
       ];
       ws['!cols'] = colWidths;
 
-      // Create workbook
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'CAR List');
 
-      // Generate filename with timestamp and filter info
       const timestamp = new Date().toISOString().slice(0, 10);
       const provinceFilter = selectedProvince !== 'all' ? `_${selectedProvince}` : '';
       const searchFilter = searchQuery ? `_search` : '';
       const filename = `CAR_List_${timestamp}${provinceFilter}${searchFilter}.xlsx`;
 
-      // Save file
       XLSX.writeFile(wb, filename);
 
       alert(`Exported ${filteredCarList.length} records to ${filename}`);
@@ -509,6 +499,13 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Lab No</p>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
                       {selectedRecord.labno || '—'}
+                    </p>
+                  </div>
+                  {/* ✅ ADDED: Repeat field in details modal */}
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Repeat</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {selectedRecord.repeat_field || '—'}
                     </p>
                   </div>
                   <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
@@ -916,8 +913,8 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
             </div>
           )}
 
-          {/* HORIZONTAL SCROLL WRAPPER */}
-          <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+          {/* ✅ TABLE WRAPPER: max-h-[600px] with vertical scroll, horizontal scroll inside */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-xl max-h-[600px] overflow-y-auto">
             {isLoading ? (
               <div className="bg-gray-50 dark:bg-gray-800 py-20 text-center">
                 <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
@@ -940,7 +937,8 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                  {/* ✅ STICKY HEADER so it stays visible while scrolling vertically */}
+                  <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
                     <tr>
                       <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">Case No</th>
                       <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">Date Endorsed</th>
@@ -951,6 +949,8 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
                       <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">Province</th>
                       <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">Status</th>
                       <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">Lab No</th>
+                      {/* ✅ ADDED: Repeat column after Lab No */}
+                      <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">Repeat</th>
                       <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">Number Sample</th>
                       <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">Case Code</th>
                       <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">Sub Code 1</th>
@@ -1005,6 +1005,10 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
                         </td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
                           {record.labno || '-'}
+                        </td>
+                        {/* ✅ ADDED: Repeat cell after Lab No */}
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                          {record.repeat_field || '-'}
                         </td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
                           {record.number_sample || '-'}
@@ -1123,7 +1127,6 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
                 {searchQuery && ` (filtered by "${searchQuery}")`}
               </div>
               
-              {/* Export to Excel Button */}
               {canExport && (
                 <button
                   onClick={handleExportToExcel}
@@ -1143,6 +1146,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({ onDataChange }) => {
         onClose={handleModalClose}
         onSave={handleSaveDocument}
         editData={editingRecord}
+        currentUser={user}
       />
 
       <StatusChangeModal

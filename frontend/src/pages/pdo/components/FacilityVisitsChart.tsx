@@ -26,6 +26,27 @@ const YEARS = [
 
 const PROVINCES = ['All Provinces', 'Cavite', 'Laguna', 'Batangas', 'Rizal', 'Quezon'];
 
+/**
+ * Build a "YYYY-MM-DD" string from year/month/day WITHOUT using new Date().
+ * new Date(year, month, day) would work locally, but toISOString() converts to UTC,
+ * which can shift the date backward by up to 8 hours in UTC+8 (PH time).
+ * We just format the parts manually to guarantee the correct local-calendar date.
+ */
+const toLocalDateString = (year: number, month: number, day: number): string => {
+  const mm = String(month + 1).padStart(2, '0'); // month is 0-based
+  const dd = String(day).padStart(2, '0');
+  return `${year}-${mm}-${dd}`;
+};
+
+/**
+ * Returns the last day of a given month/year without timezone issues.
+ * month is 0-based (0 = January).
+ */
+const lastDayOfMonth = (year: number, month: number): number => {
+  // Day 0 of the next month = last day of this month
+  return new Date(year, month + 1, 0).getDate();
+};
+
 export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({
   refreshTrigger,
   selectedProvince,
@@ -42,7 +63,7 @@ export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({
   // useCallback so the function is recreated whenever any filter prop changes,
   // which then triggers the useEffect below — no stale closure possible.
   const fetchStatusData = useCallback(async () => {
-    const monthIndex = MONTHS.indexOf(selectedMonth);
+    const monthIndex = MONTHS.indexOf(selectedMonth); // 0-based
     const yearNum = parseInt(selectedYear);
 
     if (monthIndex === -1) {
@@ -53,10 +74,12 @@ export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({
 
     setLoading(true);
     try {
-      const firstDay = new Date(yearNum, monthIndex, 1);
-      const lastDay = new Date(yearNum, monthIndex + 1, 0, 23, 59, 59);
-      const dateFrom = firstDay.toISOString().split('T')[0];
-      const dateTo = lastDay.toISOString().split('T')[0];
+      // FIX: Build date strings from parts instead of using toISOString() on a
+      // local Date object. new Date(year, month, 1).toISOString() in UTC+8 returns
+      // the previous day's date (e.g. "2025-03-31" for April 1), causing the API
+      // to receive the wrong date range and returning extra/wrong records.
+      const dateFrom = toLocalDateString(yearNum, monthIndex, 1);
+      const dateTo = toLocalDateString(yearNum, monthIndex, lastDayOfMonth(yearNum, monthIndex));
 
       // Pass undefined when 'All Provinces' so the API returns everything.
       // Uppercase to match how provinces are stored in the DB (e.g. 'BATANGAS')
