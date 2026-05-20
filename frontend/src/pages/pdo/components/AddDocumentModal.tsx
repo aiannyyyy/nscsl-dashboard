@@ -11,7 +11,6 @@ interface Props {
   currentUser?: { name?: string } | null;
 }
 
-// Province code mapping
 const PROVINCE_CODES: { [key: string]: string } = {
   'CAVITE': 'CAV',
   'LAGUNA': 'LAG',
@@ -20,7 +19,6 @@ const PROVINCE_CODES: { [key: string]: string } = {
   'QUEZON': 'QUE',
 };
 
-// ── Attachment constants ──────────────────────────────────────────────────────
 const MAX_FILE_BYTES  = 10 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 const ALLOWED_TYPES = [
@@ -31,6 +29,15 @@ const ALLOWED_TYPES = [
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/plain',
+];
+
+// ✅ All valid Prepared By options
+const PREPARED_BY_OPTIONS = [
+  "Erika Jane U. Tarray, RPM",
+  "Mancy F. Barrago, RN",
+  "Marc Kevin U. Estolas, RMT",
+  "Patrick Charls O. Reyes",
+  "Shirleen O. Micosa, RN, LPT",
 ];
 
 const fmt = (bytes: number) => {
@@ -53,12 +60,12 @@ const FileIcon: React.FC<{ name: string }> = ({ name }) => {
   return <File size={14} className="text-gray-400 flex-shrink-0" />;
 };
 
-// ── Component ─────────────────────────────────────────────────────────────────
 export const AddDocumentModal: React.FC<Props> = ({
   show,
   onClose,
   onSave,
   editData,
+  currentUser,
 }) => {
   const [formData, setFormData] = useState<any>({});
   const [isLoadingFacility, setIsLoadingFacility] = useState(false);
@@ -66,7 +73,6 @@ export const AddDocumentModal: React.FC<Props> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingCaseNo, setIsGeneratingCaseNo] = useState(false);
 
-  // ── Attachment state ──────────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [newFiles,    setNewFiles]    = useState<File[]>([]);
   const [fileWarning, setFileWarning] = useState<string | null>(null);
@@ -79,7 +85,13 @@ export const AddDocumentModal: React.FC<Props> = ({
     usedPct >= 65 ? 'bg-amber-500' :
     'bg-blue-500';
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ✅ Match logged-in user to a Prepared By option (case-insensitive)
+  const matchedPreparedBy = PREPARED_BY_OPTIONS.find(
+    (opt) => currentUser?.name && opt.toLowerCase().includes(currentUser.name.toLowerCase())
+  ) ?? "";
+  const isPreparedByLocked = !!matchedPreparedBy;
+
+  // ✅ Format datetime for input — keep full datetime for saving, only hide time in display via input type
   const formatDateTimeLocal = (dateString: string | null | undefined): string => {
     if (!dateString) return "";
     try {
@@ -94,7 +106,21 @@ export const AddDocumentModal: React.FC<Props> = ({
     }
   };
 
-  // ── File validation ───────────────────────────────────────────────────────
+  // ✅ Format date-only for display (no time shown in UI)
+  const formatDateOnly = (dateString: string | null | undefined): string => {
+    if (!dateString) return "";
+    try {
+      const normalized = dateString.toString().replace(" ", "T");
+      const date = new Date(normalized);
+      if (isNaN(date.getTime())) return "";
+      return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 10); // YYYY-MM-DD only
+    } catch {
+      return "";
+    }
+  };
+
   const addFiles = useCallback((incoming: FileList | File[]) => {
     setFileWarning(null);
     const arr = Array.from(incoming);
@@ -118,7 +144,6 @@ export const AddDocumentModal: React.FC<Props> = ({
 
     if (accepted.length) {
       setNewFiles(prev => [...prev, ...accepted]);
-      // keep first file in formData.attachment for backend compatibility
       setFormData((prev: any) => ({ ...prev, attachment: accepted[0] }));
     }
     if (rejected.length) setFileWarning(
@@ -136,14 +161,14 @@ export const AddDocumentModal: React.FC<Props> = ({
     setFileWarning(null);
   };
 
-  // ── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (show) {
       if (editData) {
         setFormData({
           id:           editData.id,
           caseNo:       editData.case_no       || "",
-          endorsedDate: formatDateTimeLocal(editData.date_endorsed),
+          // ✅ Store full datetime internally; input type="date" hides time in UI
+          endorsedDate: formatDateOnly(editData.date_endorsed),
           endorsedBy:   editData.endorsed_by   || "",
           facilityCode: editData.facility_code || "",
           facilityName: editData.facility_name || "",
@@ -163,19 +188,26 @@ export const AddDocumentModal: React.FC<Props> = ({
           caseCode:     editData.case_code     || "",
           frc:          editData.frc           || "",
           wrc:          editData.wrc           || "",
-          preparedBy:   editData.prepared_by   || "",
-          followupOn:   formatDateTimeLocal(editData.followup_on),
-          reviewedOn:   formatDateTimeLocal(editData.reviewed_on),
-          closedOn:     formatDateTimeLocal(editData.closed_on),
+          // ✅ preparedBy: locked to logged-in user if matched, else fall back to DB value
+          preparedBy:   isPreparedByLocked ? matchedPreparedBy : (editData.prepared_by || ""),
+          // ✅ followupOn: date only (no time in UI)
+          followupOn:   formatDateOnly(editData.followup_on),
+          reviewedOn:   formatDateOnly(editData.reviewed_on),
+          closedOn:     formatDateOnly(editData.closed_on),
         });
         setNewFiles([]);
         setFileWarning(null);
       } else {
-        const now = new Date();
-        const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+        // ADD MODE — date only for endorsed date, no time shown
+        const today = new Date();
+        const localDate = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
           .toISOString()
-          .slice(0, 16);
-        setFormData({ endorsedDate: localDateTime });
+          .slice(0, 10); // YYYY-MM-DD
+
+        setFormData({
+          endorsedDate: localDate,
+          preparedBy:   matchedPreparedBy, // ✅ pre-fill from logged-in user
+        });
         setNewFiles([]);
         setFileWarning(null);
       }
@@ -187,15 +219,13 @@ export const AddDocumentModal: React.FC<Props> = ({
     }
   }, [show, editData]);
 
-  // Facility code lookup (ADD mode only)
   useEffect(() => {
     if (!show || editData) return;
 
     const facilityCode = formData.facilityCode;
     if (!facilityCode || facilityCode.length < 2) {
       setFormData((prev: any) => ({
-        ...prev,
-        facilityName: "", city: "", province: "", caseNo: "",
+        ...prev, facilityName: "", city: "", province: "", caseNo: "",
       }));
       setFacilityError("");
       return;
@@ -223,16 +253,14 @@ export const AddDocumentModal: React.FC<Props> = ({
           }
         } else {
           setFormData((prev: any) => ({
-            ...prev,
-            facilityName: "", city: "", province: "", caseNo: "",
+            ...prev, facilityName: "", city: "", province: "", caseNo: "",
           }));
           setFacilityError("Facility not found");
         }
       } catch {
         setFacilityError("Error loading facility details");
         setFormData((prev: any) => ({
-          ...prev,
-          facilityName: "", city: "", province: "", caseNo: "",
+          ...prev, facilityName: "", city: "", province: "", caseNo: "",
         }));
       } finally {
         setIsLoadingFacility(false);
@@ -301,10 +329,8 @@ export const AddDocumentModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
-      {/* Modal */}
       <div
         className="relative w-full max-w-6xl bg-white rounded shadow-lg"
         onClick={(e) => e.stopPropagation()}
@@ -314,9 +340,7 @@ export const AddDocumentModal: React.FC<Props> = ({
           <h5 className="text-base font-medium">
             {isEditMode ? 'Edit Document' : 'Add Document'}
           </h5>
-          <button onClick={onClose} className="text-gray-500 text-xl leading-none">
-            ×
-          </button>
+          <button onClick={onClose} className="text-gray-500 text-xl leading-none">×</button>
         </div>
 
         {/* Body */}
@@ -330,9 +354,7 @@ export const AddDocumentModal: React.FC<Props> = ({
 
             {/* ── Case No ── */}
             <div className="col-span-12 md:col-span-3">
-              <label className={label}>
-                Case No. <span className="text-red-500">*</span>
-              </label>
+              <label className={label}>Case No. <span className="text-red-500">*</span></label>
               <div className="relative">
                 <input
                   name="caseNo"
@@ -350,13 +372,11 @@ export const AddDocumentModal: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* ── Date Endorsed ── */}
+            {/* ── Date Endorsed — type="date" hides time in UI, value stored as date string ── */}
             <div className="col-span-12 md:col-span-3">
-              <label className={label}>
-                Date Endorsed <span className="text-red-500">*</span>
-              </label>
+              <label className={label}>Date Endorsed <span className="text-red-500">*</span></label>
               <input
-                type="datetime-local"
+                type="date"
                 name="endorsedDate"
                 className={input}
                 required
@@ -364,19 +384,14 @@ export const AddDocumentModal: React.FC<Props> = ({
                 value={formData.endorsedDate || ""}
               />
               {!isEditMode && (
-                <p className="text-xs text-gray-500 mt-0.5">Auto-filled with current time</p>
+                <p className="text-xs text-gray-500 mt-0.5">Auto-filled with today's date</p>
               )}
             </div>
 
             {/* ── Endorsed By ── */}
             <div className="col-span-12 md:col-span-3">
               <label className={label}>Endorsed By</label>
-              <select
-                name="endorsedBy"
-                className={select}
-                onChange={handleChange}
-                value={formData.endorsedBy || ""}
-              >
+              <select name="endorsedBy" className={select} onChange={handleChange} value={formData.endorsedBy || ""}>
                 <option value=""> -- Select -- </option>
                 <option value="Abigail Morfe">Abigail Morfe</option>
                 <option value="Angelica B. Brutas">Angelica B. Brutas</option>
@@ -386,7 +401,6 @@ export const AddDocumentModal: React.FC<Props> = ({
                 <option value="Marc Kevin U. Estolas">Marc Kevin U. Estolas</option>
                 <option value="Mary Rose R. Gomez">Mary Rose R. Gomez</option>
                 <option value="Mia Carla Garcia, RN">Mia Carla Garcia, RN</option>
-                <option value="Shirleen O. Micosa, RN, LPT">Shirleen O. Micosa, RN, LPT</option>
                 <option value="Vivien Marie M. Wagan">Vivien Marie M. Wagan</option>
                 <option value="Milyne P. Macayanan">Milyne P. Macayanan</option>
               </select>
@@ -394,9 +408,7 @@ export const AddDocumentModal: React.FC<Props> = ({
 
             {/* ── Facility Code ── */}
             <div className="col-span-12 md:col-span-3">
-              <label className={label}>
-                Facility Code <span className="text-red-500">*</span>
-              </label>
+              <label className={label}>Facility Code <span className="text-red-500">*</span></label>
               <div className="relative">
                 <input
                   name="facilityCode"
@@ -421,67 +433,37 @@ export const AddDocumentModal: React.FC<Props> = ({
             {/* ── Facility Name ── */}
             <div className="col-span-12 md:col-span-4">
               <label className={label}>Facility Name</label>
-              <input
-                name="facilityName"
-                className={`${input} bg-gray-100`}
-                readOnly
-                value={formData.facilityName || ""}
-              />
+              <input name="facilityName" className={`${input} bg-gray-100`} readOnly value={formData.facilityName || ""} />
             </div>
 
             {/* ── City ── */}
             <div className="col-span-12 md:col-span-4">
               <label className={label}>City</label>
-              <input
-                name="city"
-                className={`${input} bg-gray-100`}
-                readOnly
-                value={formData.city || ""}
-              />
+              <input name="city" className={`${input} bg-gray-100`} readOnly value={formData.city || ""} />
             </div>
 
             {/* ── Province ── */}
             <div className="col-span-12 md:col-span-4">
               <label className={label}>Province</label>
-              <input
-                name="province"
-                className={`${input} bg-gray-100`}
-                readOnly
-                value={formData.province || ""}
-              />
+              <input name="province" className={`${input} bg-gray-100`} readOnly value={formData.province || ""} />
             </div>
 
             {/* ── Lab No ── */}
             <div className="col-span-12 md:col-span-3">
               <label className={label}>Laboratory Number</label>
-              <input
-                name="labNo"
-                className={input}
-                onChange={handleChange}
-                value={formData.labNo || ""}
-              />
+              <input name="labNo" className={input} onChange={handleChange} value={formData.labNo || ""} />
             </div>
 
             {/* ── Repeat ── */}
             <div className="col-span-12 md:col-span-3">
               <label className={label}>Repeat</label>
-              <input
-                name="repeat"
-                className={input}
-                onChange={handleChange}
-                value={formData.repeat || ""}
-              />
+              <input name="repeat" className={input} onChange={handleChange} value={formData.repeat || ""} />
             </div>
 
             {/* ── Status ── */}
             <div className="col-span-12 md:col-span-3">
               <label className={label}>Status</label>
-              <select
-                name="status"
-                className={select}
-                onChange={handleChange}
-                value={formData.status || ""}
-              >
+              <select name="status" className={select} onChange={handleChange} value={formData.status || ""}>
                 <option value=""> -- Select -- </option>
                 <option value="open">Open</option>
                 <option value="closed">Closed</option>
@@ -492,12 +474,7 @@ export const AddDocumentModal: React.FC<Props> = ({
             {/* ── Number of Samples ── */}
             <div className="col-span-12 md:col-span-3">
               <label className={label}>Number of Samples</label>
-              <select
-                name="numSamples"
-                className={select}
-                onChange={handleChange}
-                value={formData.numSamples || ""}
-              >
+              <select name="numSamples" className={select} onChange={handleChange} value={formData.numSamples || ""}>
                 <option value=""> -- Select -- </option>
                 <option value="1">1</option>
                 <option value="2">2</option>
@@ -534,76 +511,65 @@ export const AddDocumentModal: React.FC<Props> = ({
             ))}
 
             {/* ── Remarks ── */}
-            <div className="col-span-12 md:col-span-6">
+            <div className="col-span-12">
               <label className={label}>Remarks</label>
-              <textarea
-                name="remarks"
-                className={`${input} h-20`}
-                onChange={handleChange}
-                value={formData.remarks || ""}
-              />
+              <textarea name="remarks" className={`${input} h-20`} onChange={handleChange} value={formData.remarks || ""} />
             </div>
 
             {/* ── Case Code ── */}
-            <div className="col-span-12 md:col-span-6">
+            <div className="col-span-12 md:col-span-3">
               <label className={label}>Case Code</label>
-              <select
-                name="caseCode"
-                className={select}
-                onChange={handleChange}
-                value={formData.caseCode || ""}
-              >
+              <select name="caseCode" className={select} onChange={handleChange} value={formData.caseCode || ""}>
                 <option value=""> -- Select -- </option>
                 <option value="UNSAT">UNSAT</option>
                 <option value="OTHERS">OTHERS</option>
               </select>
             </div>
 
-            {/* ── FRC ── */}
+            {/* ── FRC — hidden from UI but field kept for DB ──
             <div className="col-span-12 md:col-span-4">
               <label className={label}>FRC</label>
-              <input
-                name="frc"
-                className={input}
-                onChange={handleChange}
-                value={formData.frc || ""}
-              />
+              <input name="frc" className={input} onChange={handleChange} value={formData.frc || ""} />
             </div>
+            */}
 
-            {/* ── WRC ── */}
+            {/* ── WRC — hidden from UI but field kept for DB ──
             <div className="col-span-12 md:col-span-4">
               <label className={label}>WRC</label>
-              <input
-                name="wrc"
-                className={input}
-                onChange={handleChange}
-                value={formData.wrc || ""}
-              />
+              <input name="wrc" className={input} onChange={handleChange} value={formData.wrc || ""} />
             </div>
+            */}
 
-            {/* ── Prepared By ── */}
-            <div className="col-span-12 md:col-span-4">
-              <label className={label}>Prepared By</label>
+            {/* ── Prepared By — locked to logged-in user if matched ── */}
+            <div className="col-span-12 md:col-span-3">
+              <label className={label}>
+                Prepared By
+                {isPreparedByLocked && (
+                  <span className="ml-2 text-xs text-teal-600 font-normal">(auto-filled)</span>
+                )}
+              </label>
               <select
                 name="preparedBy"
-                className={select}
+                className={`${select} ${isPreparedByLocked ? "bg-gray-100 cursor-not-allowed" : ""}`}
                 onChange={handleChange}
                 value={formData.preparedBy || ""}
+                disabled={isPreparedByLocked}
               >
                 <option value=""> -- Select -- </option>
-                <option value="Erika Jane U. Tarray, RPM">Erika Jane U. Tarray, RPM</option>
-                <option value="Mancy F. Barrago, RN">Mancy F. Barrago, RN</option>
-                <option value="Marc Kevin U. Estolas, RMT">Marc Kevin U. Estolas, RMT</option>
-                <option value="Patrick Charls O. Reyes">Patrick Charls O. Reyes</option>
-                <option value="Shirleen O. Micosa, RN, LPT">Shirleen O. Micosa, RN, LPT</option>
+                {PREPARED_BY_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
               </select>
+              {isPreparedByLocked && (
+                <p className="text-xs text-gray-500 mt-0.5">Locked to your account</p>
+              )}
             </div>
 
-            {/* ── Follow Up On ── */}
-            <div className="col-span-12 md:col-span-2">
+            {/* ── Follow Up On — type="date" hides time in UI ── */}
+            <div className="col-span-12 md:col-span-3">
               <label className={label}>Follow Up On</label>
               <input
-                type="datetime-local"
+                type="date"
                 name="followupOn"
                 className={input}
                 onChange={handleChange}
@@ -611,7 +577,7 @@ export const AddDocumentModal: React.FC<Props> = ({
               />
             </div>
 
-            {/* ── Reviewed On ── */}
+            {/* ── Reviewed On — hidden from UI but field kept for DB ──
             <div className="col-span-12 md:col-span-2">
               <label className={label}>Reviewed On</label>
               <input
@@ -622,12 +588,13 @@ export const AddDocumentModal: React.FC<Props> = ({
                 value={formData.reviewedOn || ""}
               />
             </div>
+            */}
 
             {/* ── Closed On ── */}
-            <div className="col-span-12 md:col-span-2">
+            <div className="col-span-12 md:col-span-3">
               <label className={label}>Closed On</label>
               <input
-                type="datetime-local"
+                type="date"
                 name="closedOn"
                 className={input}
                 onChange={handleChange}
@@ -646,7 +613,6 @@ export const AddDocumentModal: React.FC<Props> = ({
                 )}
               </div>
 
-              {/* Info banner */}
               <div className="flex items-start gap-1.5 px-3 py-2 mb-2 rounded-md bg-blue-50 border border-blue-100">
                 <Info size={12} className="text-blue-500 flex-shrink-0 mt-px" />
                 <p className="text-[11px] text-blue-700 leading-relaxed">
@@ -659,21 +625,17 @@ export const AddDocumentModal: React.FC<Props> = ({
                 </p>
               </div>
 
-              {/* Existing attachment (edit mode) */}
               {isEditMode && existingAttachmentName && newFiles.length === 0 && (
                 <div className="mb-2">
                   <p className="text-xs font-medium text-gray-600 mb-1.5">Current Attachment</p>
                   <div className="flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded-md">
                     <FileIcon name={existingAttachmentName} />
-                    <span className="text-xs text-gray-700 truncate flex-1">
-                      {existingAttachmentName}
-                    </span>
+                    <span className="text-xs text-gray-700 truncate flex-1">{existingAttachmentName}</span>
                     <span className="text-[10px] text-gray-400 flex-shrink-0">Existing</span>
                   </div>
                 </div>
               )}
 
-              {/* Drop zone */}
               <div
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
@@ -681,10 +643,7 @@ export const AddDocumentModal: React.FC<Props> = ({
                 onClick={() => fileInputRef.current?.click()}
                 className={`
                   flex justify-center px-4 py-5 border-2 border-dashed rounded-md cursor-pointer transition-colors
-                  ${isDragging
-                    ? 'border-teal-500 bg-teal-50'
-                    : 'border-gray-300 hover:border-teal-400 hover:bg-gray-50'
-                  }
+                  ${isDragging ? 'border-teal-500 bg-teal-50' : 'border-gray-300 hover:border-teal-400 hover:bg-gray-50'}
                 `}
               >
                 <div className="text-center">
@@ -695,9 +654,7 @@ export const AddDocumentModal: React.FC<Props> = ({
                     </span>
                     <span>or drag and drop</span>
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-0.5">
-                    PDF, Images, Word, Excel, TXT · max 10 MB
-                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">PDF, Images, Word, Excel, TXT · max 10 MB</p>
                 </div>
                 <input
                   ref={fileInputRef}
@@ -710,7 +667,6 @@ export const AddDocumentModal: React.FC<Props> = ({
                 />
               </div>
 
-              {/* Size meter */}
               {newFiles.length > 0 && (
                 <div className="mt-2">
                   <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
@@ -720,15 +676,11 @@ export const AddDocumentModal: React.FC<Props> = ({
                     </span>
                   </div>
                   <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-300 ${meterColor}`}
-                      style={{ width: `${usedPct}%` }}
-                    />
+                    <div className={`h-full rounded-full transition-all duration-300 ${meterColor}`} style={{ width: `${usedPct}%` }} />
                   </div>
                 </div>
               )}
 
-              {/* File warning */}
               {fileWarning && (
                 <div className="mt-2 flex items-start gap-1.5 p-2 bg-amber-50 border border-amber-200 rounded-md">
                   <AlertCircle size={13} className="text-amber-500 flex-shrink-0 mt-0.5" />
@@ -736,24 +688,16 @@ export const AddDocumentModal: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* New files list */}
               {newFiles.length > 0 && (
                 <div className="mt-2 space-y-1.5">
                   {newFiles.map((file, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded-md"
-                    >
+                    <div key={index} className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded-md">
                       <div className="flex items-center gap-2 min-w-0">
                         <FileIcon name={file.name} />
                         <span className="text-xs text-gray-700 truncate">{file.name}</span>
                         <span className="text-[10px] text-gray-400 flex-shrink-0">{fmt(file.size)}</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeNewFile(index)}
-                        className="text-red-400 hover:text-red-600 flex-shrink-0 ml-2"
-                      >
+                      <button type="button" onClick={() => removeNewFile(index)} className="text-red-400 hover:text-red-600 flex-shrink-0 ml-2">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -761,7 +705,6 @@ export const AddDocumentModal: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Summary */}
               <div className="mt-2 flex items-center gap-1 text-[11px]">
                 {newFiles.length > 0 ? (
                   <>
@@ -775,26 +718,18 @@ export const AddDocumentModal: React.FC<Props> = ({
                   </>
                 ) : (
                   <span className="text-gray-400">
-                    {isEditMode && existingAttachmentName
-                      ? 'Existing attachment will be kept'
-                      : 'No file selected'}
+                    {isEditMode && existingAttachmentName ? 'Existing attachment will be kept' : 'No file selected'}
                   </span>
                 )}
               </div>
             </div>
-            {/* ── END Attachment ── */}
 
           </div>
         </form>
 
         {/* Footer */}
         <div className="flex justify-end gap-2 px-4 py-2 border-t">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 text-sm border rounded disabled:opacity-50"
-            disabled={isSaving}
-          >
+          <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm border rounded disabled:opacity-50" disabled={isSaving}>
             Cancel
           </button>
           <button
@@ -803,9 +738,7 @@ export const AddDocumentModal: React.FC<Props> = ({
             className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             disabled={isSaving}
           >
-            {isSaving && (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            )}
+            {isSaving && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
             {isSaving ? "Saving..." : isEditMode ? "Update" : "Save"}
           </button>
         </div>

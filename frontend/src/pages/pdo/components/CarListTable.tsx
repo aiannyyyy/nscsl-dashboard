@@ -51,12 +51,10 @@ export const CarListTable: React.FC<CarListTableProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>("");
 
-  // ── Fetch on mount and whenever month/year changes ─────────────────────────
   useEffect(() => {
     fetchCarList();
   }, [month, year]);
 
-  // ── Derive unique provinces and bubble them up ─────────────────────────────
   useEffect(() => {
     const uniqueProvinces = Array.from(
       new Set(
@@ -65,29 +63,27 @@ export const CarListTable: React.FC<CarListTableProps> = ({
           .filter((p): p is string => !!p && p.trim() !== '')
       )
     ).sort();
-
     if (onProvincesLoaded) onProvincesLoaded(uniqueProvinces);
   }, [carList]);
 
-  // ── Apply province + status + search filters ───────────────────────────────
   useEffect(() => {
     let filtered = carList;
 
     if (selectedProvince !== "all") {
       filtered = filtered.filter(
-        r => (r.province ?? '').toLowerCase() === selectedProvince.toLowerCase() // ✅ null-safe
+        r => (r.province ?? '').toLowerCase() === selectedProvince.toLowerCase()
       );
     }
 
     if (selectedStatus) {
       filtered = filtered.filter(
-        r => (r.status ?? '').toLowerCase() === selectedStatus.toLowerCase() // ✅ null-safe
+        r => (r.status ?? '').toLowerCase() === selectedStatus.toLowerCase()
       );
     }
 
     if (searchQuery.trim() !== "") {
       filtered = filtered.filter(r =>
-        (r.case_no ?? '').toLowerCase().includes(searchQuery.toLowerCase()) // ✅ null-safe
+        (r.case_no ?? '').toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -99,8 +95,6 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     setError("");
     try {
       const data = await getAllCarList();
-
-      // ── Client-side month/year filter ─────────────────────────────────────
       const dateRange = getMonthDateRange(month, year);
       const filtered = dateRange
         ? data.filter(r => {
@@ -109,10 +103,8 @@ export const CarListTable: React.FC<CarListTableProps> = ({
             return d >= new Date(dateRange.start) && d <= new Date(dateRange.end);
           })
         : data;
-
       setCarList(filtered);
       setFilteredCarList(filtered);
-
       if (onDataChange) onDataChange();
     } catch (err) {
       setError(getErrorMessage(err));
@@ -128,7 +120,6 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     return () => { document.body.style.overflow = "unset"; };
   }, [showAddModal, showStatusModal, showFileModal, showDetailsModal]);
 
-  // ── CRUD handlers ──────────────────────────────────────────────────────────
   const handleSaveDocument = async (formData: AddCarFormData) => {
     try {
       const dataWithUser = { ...formData, userName: user?.name || 'Unknown User' };
@@ -170,12 +161,11 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     }
   };
 
-  // ── Export ─────────────────────────────────────────────────────────────────
   const handleExportToExcel = () => {
     try {
       const exportData = filteredCarList.map(record => ({
         'Case No': record.case_no,
-        'Date Endorsed': formatDateForExcel(record.date_endorsed),
+        'Date Endorsed': formatDateOnly(record.date_endorsed),   // ✅ date only in export too
         'Endorsed By': record.endorsed_by || '',
         'Facility Code': record.facility_code,
         'Facility Name': record.facility_name,
@@ -191,12 +181,16 @@ export const CarListTable: React.FC<CarListTableProps> = ({
         'Sub Code 3': record.sub_code3 || '',
         'Sub Code 4': record.sub_code4 || '',
         'Remarks': record.remarks || '',
+        /*
         'FRC': record.frc || '',
         'WRC': record.wrc || '',
+        */
         'Prepared By': record.prepared_by || '',
-        'Follow Up On': formatDateForExcel(record.followup_on),
+        'Follow Up On': formatDateOnly(record.followup_on),      // ✅ date only
+        /*
         'Reviewed On': formatDateForExcel(record.reviewed_on),
-        'Closed On': formatDateForExcel(record.closed_on),
+        */
+        'Closed On': formatDateOnly(record.closed_on),
         'Created By': record.created_by || '',
         'Created At': formatDateForExcel(record.created_at),
         'Modified By': record.modified_by || '',
@@ -205,12 +199,11 @@ export const CarListTable: React.FC<CarListTableProps> = ({
 
       const ws = XLSX.utils.json_to_sheet(exportData);
       ws['!cols'] = [
-        { wch: 20 }, { wch: 18 }, { wch: 20 }, { wch: 12 }, { wch: 30 },
+        { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 12 }, { wch: 30 },
         { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 },
         { wch: 12 }, { wch: 12 }, { wch: 25 }, { wch: 25 }, { wch: 25 },
-        { wch: 25 }, { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 20 },
-        { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 18 },
-        { wch: 20 }, { wch: 18 },
+        { wch: 25 }, { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 18 },
+        { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 20 }, { wch: 18 },
       ];
 
       const wb = XLSX.utils.book_new();
@@ -221,7 +214,6 @@ export const CarListTable: React.FC<CarListTableProps> = ({
       const statusPart   = selectedStatus ? `_${selectedStatus}` : '';
       const searchPart   = searchQuery ? `_search` : '';
       XLSX.writeFile(wb, `CAR_List_${timestamp}${provincePart}${statusPart}${searchPart}.xlsx`);
-
       alert(`Exported ${filteredCarList.length} records.`);
     } catch (error) {
       console.error('Error exporting to Excel:', error);
@@ -229,15 +221,11 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     }
   };
 
-  // ── File helpers ───────────────────────────────────────────────────────────
   const handleViewFile = (filePath: string) => {
     const fileName = filePath.split('/').pop() || 'Unknown file';
     const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
     const downloadOnlyTypes = ['doc', 'docx', 'xls', 'xlsx', 'xlsm', 'ppt', 'pptx', 'csv', 'zip', 'rar'];
-    if (downloadOnlyTypes.includes(fileExtension)) {
-      handleDownloadFile(filePath);
-      return;
-    }
+    if (downloadOnlyTypes.includes(fileExtension)) { handleDownloadFile(filePath); return; }
     setViewingFile({ path: filePath, name: fileName, type: fileExtension });
   };
 
@@ -251,7 +239,15 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     document.body.removeChild(link);
   };
 
-  // ── Formatters ─────────────────────────────────────────────────────────────
+  // ✅ Date only — no time shown in UI
+  const formatDateOnly = (dateString: string | null | undefined) => {
+    if (!dateString) return "—";
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric',
+    });
+  };
+
+  // Full datetime — for fields that still show time (closed on, created, modified)
   const formatDateForExcel = (dateString: string | null | undefined) => {
     if (!dateString) return "";
     return new Date(dateString).toLocaleString('en-US', {
@@ -278,15 +274,10 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     );
   };
 
-  // ✅ null-safe status badge
   const getStatusBadge = (status: string | undefined) => {
-    if (!status) {
-      return (
-        <span className="px-2 py-1 text-xs rounded-full font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-          —
-        </span>
-      );
-    }
+    if (!status) return (
+      <span className="px-2 py-1 text-xs rounded-full font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">—</span>
+    );
     const statusColors: Record<string, string> = {
       open:    "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200",
       closed:  "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
@@ -299,10 +290,9 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     );
   };
 
-  // ── Active filter label ────────────────────────────────────────────────────
   const activeFilterParts: string[] = [];
-  if (selectedProvince !== "all")  activeFilterParts.push(`Province: ${selectedProvince}`);
-  if (selectedStatus)              activeFilterParts.push(`Status: ${selectedStatus.charAt(0).toUpperCase() + selectedStatus.slice(1)}`);
+  if (selectedProvince !== "all") activeFilterParts.push(`Province: ${selectedProvince}`);
+  if (selectedStatus)             activeFilterParts.push(`Status: ${selectedStatus.charAt(0).toUpperCase() + selectedStatus.slice(1)}`);
   activeFilterParts.push(`${month} ${year}`);
   const activeFilterLabel = activeFilterParts.join(" · ");
 
@@ -324,6 +314,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
 
           <div className="p-6 overflow-y-auto flex-1">
             <div className="space-y-6">
+
               {/* Basic Information */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
@@ -331,13 +322,14 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   {[
-                    ['Case No', selectedRecord.case_no],
-                    ['Date Endorsed', formatDate(selectedRecord.date_endorsed)],
-                    ['Endorsed By', selectedRecord.endorsed_by || '—'],
-                  ].map(([label, value]) => (
-                    <div key={label} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{value}</p>
+                    ['Case No',       selectedRecord.case_no],
+                    // ✅ Date only — no time in details modal
+                    ['Date Endorsed', formatDateOnly(selectedRecord.date_endorsed)],
+                    ['Endorsed By',   selectedRecord.endorsed_by || '—'],
+                  ].map(([lbl, val]) => (
+                    <div key={lbl} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{lbl}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{val}</p>
                     </div>
                   ))}
                   <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
@@ -356,12 +348,12 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                   {[
                     ['Facility Code', selectedRecord.facility_code],
                     ['Facility Name', selectedRecord.facility_name],
-                    ['City', selectedRecord.city],
-                    ['Province', selectedRecord.province],
-                  ].map(([label, value]) => (
-                    <div key={label} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{value}</p>
+                    ['City',          selectedRecord.city],
+                    ['Province',      selectedRecord.province],
+                  ].map(([lbl, val]) => (
+                    <div key={lbl} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{lbl}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{val}</p>
                     </div>
                   ))}
                 </div>
@@ -374,14 +366,14 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                 </h4>
                 <div className="grid grid-cols-3 gap-4">
                   {[
-                    ['Lab No', selectedRecord.labno || '—'],
-                    ['Repeat', selectedRecord.repeat_field || '—'],
+                    ['Lab No',        selectedRecord.labno || '—'],
+                    ['Repeat',        selectedRecord.repeat_field || '—'],
                     ['Number Sample', selectedRecord.number_sample?.toString() || '—'],
-                    ['Case Code', selectedRecord.case_code || '—'],
-                  ].map(([label, value]) => (
-                    <div key={label} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{value}</p>
+                    ['Case Code',     selectedRecord.case_code || '—'],
+                  ].map(([lbl, val]) => (
+                    <div key={lbl} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{lbl}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{val}</p>
                     </div>
                   ))}
                 </div>
@@ -398,29 +390,31 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                     ['Sub Code 2', selectedRecord.sub_code2 || '—'],
                     ['Sub Code 3', selectedRecord.sub_code3 || '—'],
                     ['Sub Code 4', selectedRecord.sub_code4 || '—'],
-                  ].map(([label, value]) => (
-                    <div key={label} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{value}</p>
+                  ].map(([lbl, val]) => (
+                    <div key={lbl} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{lbl}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{val}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Additional */}
+              {/* Additional — FRC/WRC hidden from UI */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                   <div className="w-1 h-4 bg-blue-500 rounded"></div>Additional Information
                 </h4>
                 <div className="grid grid-cols-3 gap-4">
+                  {/*
+                  ['FRC', selectedRecord.frc || '—'],
+                  ['WRC', selectedRecord.wrc || '—'],
+                  */}
                   {[
-                    ['FRC', selectedRecord.frc || '—'],
-                    ['WRC', selectedRecord.wrc || '—'],
                     ['Prepared By', selectedRecord.prepared_by || '—'],
-                  ].map(([label, value]) => (
-                    <div key={label} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{value}</p>
+                  ].map(([lbl, val]) => (
+                    <div key={lbl} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{lbl}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{val}</p>
                     </div>
                   ))}
                 </div>
@@ -432,28 +426,31 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                   <div className="w-1 h-4 bg-blue-500 rounded"></div>Remarks
                 </h4>
                 <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                  <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">
-                    {selectedRecord.remarks || 'No remarks'}
-                  </p>
+                  <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{selectedRecord.remarks || 'No remarks'}</p>
                 </div>
               </div>
 
-              {/* Dates */}
+              {/* Important Dates — Reviewed On hidden */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                   <div className="w-1 h-4 bg-blue-500 rounded"></div>Important Dates
                 </h4>
                 <div className="grid grid-cols-3 gap-4">
-                  {[
-                    ['Follow Up On', formatDate(selectedRecord.followup_on)],
-                    ['Reviewed On',  formatDate(selectedRecord.reviewed_on)],
-                    ['Closed On',    formatDate(selectedRecord.closed_on)],
-                  ].map(([label, value]) => (
-                    <div key={label} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{value}</p>
-                    </div>
-                  ))}
+                  {/* ✅ Follow Up On — date only */}
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Follow Up On</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDateOnly(selectedRecord.followup_on)}</p>
+                  </div>
+                  {/*
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Reviewed On</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(selectedRecord.reviewed_on)}</p>
+                  </div>
+                  */}
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Closed On</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(selectedRecord.closed_on)}</p>
+                  </div>
                 </div>
               </div>
 
@@ -502,6 +499,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                   </div>
                 </div>
               </div>
+
             </div>
           </div>
 
@@ -526,10 +524,8 @@ export const CarListTable: React.FC<CarListTableProps> = ({
   const renderFileViewer = () => {
     if (!viewingFile) return null;
     const fileUrl = `${(import.meta.env.VITE_API_URL || 'http://localhost:5000').replace('/api', '')}${viewingFile.path}`;
-    const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
-    const isImage = imageTypes.includes(viewingFile.type);
+    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(viewingFile.type);
     const isPdf   = viewingFile.type === 'pdf';
-
     return (
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -585,46 +581,32 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     <>
       <div className="rounded-2xl bg-white dark:bg-gray-900 shadow-lg">
         <div className="p-5">
-          {/* Table toolbar */}
           <div className="flex justify-between items-center mb-4 gap-4 flex-wrap">
             <div className="flex gap-2 items-center flex-wrap">
               {canCreate && (
-                <button
-                  className="h-9 px-4 text-sm rounded-lg bg-blue-500 text-white hover:bg-blue-600 font-medium"
-                  onClick={() => setShowAddModal(true)}
-                >
+                <button className="h-9 px-4 text-sm rounded-lg bg-blue-500 text-white hover:bg-blue-600 font-medium" onClick={() => setShowAddModal(true)}>
                   Add Document
                 </button>
               )}
-
               <button
                 onClick={fetchCarList}
                 disabled={isLoading}
-                className="h-9 px-4 text-sm rounded-lg border border-gray-300 dark:border-gray-600
-                           bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200
-                           hover:bg-gray-50 dark:hover:bg-gray-700 font-medium flex items-center gap-2"
+                className="h-9 px-4 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium flex items-center gap-2"
               >
                 {isLoading && <div className="w-4 h-4 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />}
                 Refresh
               </button>
-
-              {/* Active-filter pill */}
               <span className="h-9 px-3 flex items-center text-xs rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-medium gap-1.5">
                 <span className="opacity-60">Filters:</span> {activeFilterLabel}
               </span>
             </div>
-
-            {/* Search */}
             <div className="min-w-[250px]">
               <input
                 type="text"
                 placeholder="Search by Case No..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-9 px-4 text-sm rounded-lg border border-gray-300 dark:border-gray-600
-                           bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200
-                           placeholder-gray-400 dark:placeholder-gray-500
-                           focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-9 px-4 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -633,7 +615,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
           )}
 
-          {/* Table */}
+          {/* ✅ Table — FRC, WRC, Reviewed On columns removed from UI */}
           <div className="border border-gray-200 dark:border-gray-700 rounded-xl max-h-[600px] overflow-y-auto">
             {isLoading ? (
               <div className="bg-gray-50 dark:bg-gray-800 py-20 text-center">
@@ -650,102 +632,110 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                 </p>
               </div>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
-                  <tr>
-                    {[
-                      'Case No','Date Endorsed','Endorsed By','Facility Code','Facility Name',
-                      'City','Province','Status','Lab No','Repeat','Number Sample','Case Code',
-                      'Sub Code 1','Sub Code 2','Sub Code 3','Sub Code 4','Remarks',
-                      'FRC','WRC','Prepared By','Follow Up On','Reviewed On','Closed On',
-                      'Created','Modified',
-                    ].map(h => (
-                      <th key={h} className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">
-                        {h}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+                    <tr>
+                      {[
+                        'Case No', 'Date Endorsed', 'Endorsed By', 'Facility Code', 'Facility Name',
+                        'City', 'Province', 'Status', 'Lab No', 'Repeat', 'Number Sample', 'Case Code',
+                        'Sub Code 1', 'Sub Code 2', 'Sub Code 3', 'Sub Code 4', 'Remarks',
+                        /* 'FRC', 'WRC', — hidden from UI */
+                        'Prepared By',
+                        'Follow Up On',
+                        /* 'Reviewed On', — hidden from UI */
+                        'Closed On', 'Created', 'Modified',
+                      ].map(h => (
+                        <th key={h} className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">{h}</th>
+                      ))}
+                      <th className="px-4 py-3 text-center font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs sticky right-0 bg-gray-50 dark:bg-gray-800 shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">
+                        Actions
                       </th>
-                    ))}
-                    <th className="px-4 py-3 text-center font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs sticky right-0 bg-gray-50 dark:bg-gray-800 shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredCarList.map((record, index) => (
-                    <tr
-                      key={record.id}
-                      className={`transition-colors ${
-                        index % 2 === 0
-                          ? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                          : 'bg-gray-50/50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/60'
-                      }`}
-                    >
-                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium whitespace-nowrap">{record.case_no ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDate(record.date_endorsed)}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.endorsed_by || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.facility_code ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.facility_name ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.city ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.province ?? '—'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{getStatusBadge(record.status)}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.labno || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.repeat_field || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.number_sample || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.case_code || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code1 || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code2 || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code3 || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code4 || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap max-w-xs truncate" title={record.remarks ?? ''}>{record.remarks || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.frc || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.wrc || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.prepared_by || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDate(record.followup_on)}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDate(record.reviewed_on)}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDate(record.closed_on)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{formatCreatedModified(record.created_by, record.created_at)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{formatCreatedModified(record.modified_by, record.modified_at)}</td>
-                      <td className={`px-4 py-3 whitespace-nowrap sticky right-0 shadow-[-2px_0_4px_rgba(0,0,0,0.05)] ${
-                        index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'
-                      }`}>
-                        <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => { setSelectedRecord(record); setShowDetailsModal(true); }}
-                            className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors" title="View Details">
-                            <Eye size={16} />
-                          </button>
-                          {canEdit && (
-                            <button onClick={() => { setEditingRecord(record); setShowAddModal(true); }}
-                              className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" title="Edit">
-                              <Edit size={16} />
-                            </button>
-                          )}
-                          {canEdit && (
-                            <button onClick={() => { setSelectedRecord(record); setShowStatusModal(true); }}
-                              className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors" title="Change Status">
-                              <FileText size={16} />
-                            </button>
-                          )}
-                          {record.attachment_path && (
-                            <button onClick={() => handleViewFile(record.attachment_path!)}
-                              className="p-1.5 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded transition-colors" title="View File">
-                              <FileText size={16} />
-                            </button>
-                          )}
-                          {canDelete && (
-                            <button onClick={() => handleDelete(record)}
-                              className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Delete">
-                              <Trash2 size={16} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {filteredCarList.map((record, index) => (
+                      <tr
+                        key={record.id}
+                        className={`transition-colors ${
+                          index % 2 === 0
+                            ? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                            : 'bg-gray-50/50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/60'
+                        }`}
+                      >
+                        <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium whitespace-nowrap">{record.case_no ?? '—'}</td>
+                        {/* ✅ Date only — no time */}
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(record.date_endorsed)}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.endorsed_by || '-'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.facility_code ?? '—'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.facility_name ?? '—'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.city ?? '—'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.province ?? '—'}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">{getStatusBadge(record.status)}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.labno || '-'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.repeat_field || '-'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.number_sample || '-'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.case_code || '-'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code1 || '-'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code2 || '-'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code3 || '-'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code4 || '-'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap max-w-xs truncate" title={record.remarks ?? ''}>{record.remarks || '-'}</td>
+                        {/*
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.frc || '-'}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.wrc || '-'}</td>
+                        */}
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.prepared_by || '-'}</td>
+                        {/* ✅ Follow Up On — date only */}
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(record.followup_on)}</td>
+                        {/*
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDate(record.reviewed_on)}</td>
+                        */}
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDate(record.closed_on)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">{formatCreatedModified(record.created_by, record.created_at)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">{formatCreatedModified(record.modified_by, record.modified_at)}</td>
+                        <td className={`px-4 py-3 whitespace-nowrap sticky right-0 shadow-[-2px_0_4px_rgba(0,0,0,0.05)] ${
+                          index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'
+                        }`}>
+                          <div className="flex items-center justify-center gap-1">
+                            <button onClick={() => { setSelectedRecord(record); setShowDetailsModal(true); }}
+                              className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors" title="View Details">
+                              <Eye size={16} />
+                            </button>
+                            {canEdit && (
+                              <button onClick={() => { setEditingRecord(record); setShowAddModal(true); }}
+                                className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" title="Edit">
+                                <Edit size={16} />
+                              </button>
+                            )}
+                            {canEdit && (
+                              <button onClick={() => { setSelectedRecord(record); setShowStatusModal(true); }}
+                                className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors" title="Change Status">
+                                <FileText size={16} />
+                              </button>
+                            )}
+                            {record.attachment_path && (
+                              <button onClick={() => handleViewFile(record.attachment_path!)}
+                                className="p-1.5 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded transition-colors" title="View File">
+                                <FileText size={16} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button onClick={() => handleDelete(record)}
+                                className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Delete">
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 
-          {/* Stats + Export */}
           {!isLoading && filteredCarList.length > 0 && (
             <div className="mt-4 flex justify-between items-center">
               <div className="text-sm text-gray-600 dark:text-gray-400">
