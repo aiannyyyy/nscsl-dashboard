@@ -449,7 +449,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                   */}
                   <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Closed On</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(selectedRecord.closed_on)}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDateOnly(selectedRecord.closed_on)}</p>
                   </div>
                 </div>
               </div>
@@ -691,7 +691,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                         {/*
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDate(record.reviewed_on)}</td>
                         */}
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDate(record.closed_on)}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(record.closed_on)}</td>
                         <td className="px-4 py-3 whitespace-nowrap">{formatCreatedModified(record.created_by, record.created_at)}</td>
                         <td className="px-4 py-3 whitespace-nowrap">{formatCreatedModified(record.modified_by, record.modified_at)}</td>
                         <td className={`px-4 py-3 whitespace-nowrap sticky right-0 shadow-[-2px_0_4px_rgba(0,0,0,0.05)] ${
