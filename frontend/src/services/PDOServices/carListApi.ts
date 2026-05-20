@@ -203,7 +203,8 @@ export const getFilteredCarList = async (
 export const getCarListGroupedByProvince = async (
   status?: string,
   dateStart?: string,
-  dateEnd?: string
+  dateEnd?: string,
+  province?: string
 ): Promise<GroupedByProvince[]> => {
   try {
     const response = await axiosInstance.get<ApiResponse<GroupedByProvince[]>>(
@@ -213,6 +214,7 @@ export const getCarListGroupedByProvince = async (
           status: status || '',
           date_start: dateStart,
           date_end: dateEnd,
+          province: province || '',
         },
       }
     );
@@ -226,9 +228,14 @@ export const getCarListGroupedByProvince = async (
 /**
  * Get car list grouped by sub_code1 (for pie chart)
  */
+/**
+ * Get car list grouped by sub_code1 (for pie chart)
+ */
 export const getCarListGrouped = async (
   from?: string,
-  to?: string
+  to?: string,
+  province?: string,
+  status?: string   // ← add
 ): Promise<GroupedBySubCode[]> => {
   try {
     const response = await axiosInstance.get<ApiResponse<GroupedBySubCode[]>>(
@@ -237,6 +244,8 @@ export const getCarListGrouped = async (
         params: {
           from,
           to,
+          province: province || '',
+          status: status || '',   // ← add
         },
       }
     );

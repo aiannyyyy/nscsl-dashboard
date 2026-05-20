@@ -68,7 +68,7 @@ const getFilteredCarList = async (req, res) => {
 // Get car list grouped by province
 const getCarListGroupedByProvince = async (req, res) => {
     try {
-        const { status, date_start, date_end } = req.query;
+        const { status, date_start, date_end, province } = req.query;
 
         let query = `
             SELECT province, COUNT(DISTINCT id) as count
@@ -89,10 +89,13 @@ const getCarListGroupedByProvince = async (req, res) => {
             params.push(date_end);
         }
 
-        query += ` GROUP BY province ORDER BY count DESC`;
+        // ← add this block
+        if (province && province !== '') {
+            query += ` AND LOWER(province) = LOWER(?)`;
+            params.push(province);
+        }
 
-        console.log('Query:', query);
-        console.log('Params:', params);
+        query += ` GROUP BY province ORDER BY count DESC`;
 
         const [results] = await mysqlPool.query(query, params);
 
@@ -114,32 +117,39 @@ const getCarListGroupedByProvince = async (req, res) => {
 // Get car list grouped by sub_code1 (for pie chart with date range filter)
 const getCarListGrouped = async (req, res) => {
     try {
-        const { from, to } = req.query;
+        const { from, to, province, status } = req.query;
 
         let query = `
             SELECT sub_code1, COUNT(*) as count
             FROM test_nscslcom_nscsl_dashboard.list_car
         `;
         const params = [];
+        const conditions = [];
 
         if (from && to) {
-            query += ` WHERE date_endorsed BETWEEN ? AND ?`;
+            conditions.push(`date_endorsed BETWEEN ? AND ?`);
             params.push(from, to);
+        }
+
+        if (province && province !== '') {
+            conditions.push(`LOWER(province) = LOWER(?)`);
+            params.push(province);
+        }
+
+        if (status && status !== '') {
+            conditions.push(`LOWER(status) = LOWER(?)`);
+            params.push(status);
+        }
+
+        if (conditions.length > 0) {
+            query += ` WHERE ` + conditions.join(' AND ');
         }
 
         query += ` GROUP BY sub_code1 ORDER BY count DESC`;
 
-        console.log('Executing query:', query);
-        console.log('With params:', params);
-
         const [results] = await mysqlPool.query(query, params);
 
-        console.log('Query results:', results);
-
-        res.json({
-            success: true,
-            data: results
-        });
+        res.json({ success: true, data: results });
     } catch (err) {
         console.error("MySQL query error:", err);
         return res.status(500).json({ 

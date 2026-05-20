@@ -388,6 +388,7 @@ export const AddDocumentModal: React.FC<Props> = ({
                 <option value="Mia Carla Garcia, RN">Mia Carla Garcia, RN</option>
                 <option value="Shirleen O. Micosa, RN, LPT">Shirleen O. Micosa, RN, LPT</option>
                 <option value="Vivien Marie M. Wagan">Vivien Marie M. Wagan</option>
+                <option value="Milyne P. Macayanan">Milyne P. Macayanan</option>
               </select>
             </div>
 
