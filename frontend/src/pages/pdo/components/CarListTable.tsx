@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Trash2, FileDown, Eye, Edit, FileText, X, Download } from "lucide-react";
 import { AddDocumentModal } from "./AddDocumentModal";
 import { StatusChangeModal } from "./StatusChangeModal";
@@ -6,25 +6,23 @@ import { FileViewerModal } from "./FileViewerModal";
 import { useAuth } from "../../../hooks/useAuth";
 import { usePermissions } from "../../../hooks/usePermission";
 import {
-  getAllCarList,
-  addCar,
-  updateCar,
-  updateCarStatus,
-  deleteCarRecord,
-  getErrorMessage,
-  getMonthDateRange,
-} from "../../../services/PDOServices/carListApi";
-import type { CarRecord } from "../../../services/PDOServices/carListApi";
-import type { AddCarFormData } from "../../../services/PDOServices/carListApi";
+  useCarList,
+  useAddCar,
+  useUpdateCar,
+  useUpdateCarStatus,
+  useDeleteCar,
+} from "../../../hooks/PDOHooks/useCarList";
+import { getErrorMessage } from "../../../services/PDOServices/carListApi";
+import type { CarRecord, AddCarFormData } from "../../../services/PDOServices/carListApi";
 import * as XLSX from 'xlsx';
 
 interface CarListTableProps {
-  onDataChange?: () => void;
-  onProvincesLoaded?: (provinces: string[]) => void;
-  selectedProvince: string;
-  selectedStatus: string;
-  month: string;
-  year: string;
+  onDataChange?:       () => void;
+  onProvincesLoaded?:  (provinces: string[]) => void;
+  selectedProvince:    string;
+  selectedStatus:      string;
+  month:               string;
+  year:                string;
 }
 
 export const CarListTable: React.FC<CarListTableProps> = ({
@@ -35,38 +33,37 @@ export const CarListTable: React.FC<CarListTableProps> = ({
   month,
   year,
 }) => {
-  const { user } = useAuth();
-  const { canCreate, canEdit, canDelete, canExport } = usePermissions(['program', 'administrator']);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
-  const [showFileModal, setShowFileModal] = useState(false);
+  const { user }                                          = useAuth();
+  const { canCreate, canEdit, canDelete, canExport }      = usePermissions(['program', 'administrator']);
+
+  const [showAddModal,     setShowAddModal]     = useState(false);
+  const [showStatusModal,  setShowStatusModal]  = useState(false);
+  const [showFileModal,    setShowFileModal]    = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<CarRecord | null>(null);
-  const [editingRecord, setEditingRecord] = useState<CarRecord | null>(null);
-  const [selectedFileUrl, setSelectedFileUrl] = useState<string>("");
-  const [viewingFile, setViewingFile] = useState<{ path: string; name: string; type: string } | null>(null);
-  const [carList, setCarList] = useState<CarRecord[]>([]);
-  const [filteredCarList, setFilteredCarList] = useState<CarRecord[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string>("");
+  const [selectedRecord,   setSelectedRecord]   = useState<CarRecord | null>(null);
+  const [editingRecord,    setEditingRecord]    = useState<CarRecord | null>(null);
+  const [selectedFileUrl,  setSelectedFileUrl]  = useState<string>("");
+  const [viewingFile,      setViewingFile]      = useState<{ path: string; name: string; type: string } | null>(null);
+  const [searchQuery,      setSearchQuery]      = useState("");
 
-  useEffect(() => {
-    fetchCarList();
-  }, [month, year]);
+  // ─── Query & Mutations ────────────────────────────────────────────────────
+  const { data: carList = [], isLoading, isError, error } = useCarList(month, year);
+  const addCarMutation          = useAddCar();
+  const updateCarMutation       = useUpdateCar();
+  const updateStatusMutation    = useUpdateCarStatus();
+  const deleteCarMutation       = useDeleteCar();
 
+  // ─── Notify parent of unique provinces whenever data changes ─────────────
   useEffect(() => {
     const uniqueProvinces = Array.from(
-      new Set(
-        carList
-          .map(r => r.province)
-          .filter((p): p is string => !!p && p.trim() !== '')
-      )
+      new Set(carList.map(r => r.province).filter((p): p is string => !!p && p.trim() !== ''))
     ).sort();
     if (onProvincesLoaded) onProvincesLoaded(uniqueProvinces);
+    if (onDataChange)      onDataChange();
   }, [carList]);
 
-  useEffect(() => {
+  // ─── Client-side filtering ────────────────────────────────────────────────
+  const filteredCarList = useMemo(() => {
     let filtered = carList;
 
     if (selectedProvince !== "all") {
@@ -74,64 +71,38 @@ export const CarListTable: React.FC<CarListTableProps> = ({
         r => (r.province ?? '').toLowerCase() === selectedProvince.toLowerCase()
       );
     }
-
     if (selectedStatus) {
       filtered = filtered.filter(
         r => (r.status ?? '').toLowerCase() === selectedStatus.toLowerCase()
       );
     }
-
     if (searchQuery.trim() !== "") {
       filtered = filtered.filter(r =>
         (r.case_no ?? '').toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    setFilteredCarList(filtered);
-  }, [searchQuery, selectedProvince, selectedStatus, carList]);
+    return filtered;
+  }, [carList, selectedProvince, selectedStatus, searchQuery]);
 
-  const fetchCarList = async () => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const data = await getAllCarList();
-      const dateRange = getMonthDateRange(month, year);
-      const filtered = dateRange
-        ? data.filter(r => {
-            if (!r.date_endorsed) return false;
-            const d = new Date(r.date_endorsed);
-            return d >= new Date(dateRange.start) && d <= new Date(dateRange.end);
-          })
-        : data;
-      setCarList(filtered);
-      setFilteredCarList(filtered);
-      if (onDataChange) onDataChange();
-    } catch (err) {
-      setError(getErrorMessage(err));
-      console.error("Error fetching car list:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // ─── Body scroll lock ─────────────────────────────────────────────────────
   useEffect(() => {
     document.body.style.overflow =
       showAddModal || showStatusModal || showFileModal || showDetailsModal ? "hidden" : "unset";
     return () => { document.body.style.overflow = "unset"; };
   }, [showAddModal, showStatusModal, showFileModal, showDetailsModal]);
 
+  // ─── Handlers ────────────────────────────────────────────────────────────
   const handleSaveDocument = async (formData: AddCarFormData) => {
     try {
       const dataWithUser = { ...formData, userName: user?.name || 'Unknown User' };
       if (editingRecord?.id) {
-        await updateCar(editingRecord.id, dataWithUser);
+        await updateCarMutation.mutateAsync({ id: editingRecord.id, formData: dataWithUser });
         alert("Document updated successfully!");
       } else {
-        await addCar(dataWithUser);
+        await addCarMutation.mutateAsync(dataWithUser);
         alert("Document added successfully!");
       }
-      await fetchCarList();
-      if (onDataChange) onDataChange();
     } catch (err) {
       throw new Error(getErrorMessage(err));
     }
@@ -140,9 +111,11 @@ export const CarListTable: React.FC<CarListTableProps> = ({
   const handleStatusChange = async (status: "open" | "closed" | "pending") => {
     if (!selectedRecord) return;
     try {
-      await updateCarStatus(selectedRecord.id, status, user?.name || 'Unknown User');
-      await fetchCarList();
-      if (onDataChange) onDataChange();
+      await updateStatusMutation.mutateAsync({
+        id:       selectedRecord.id,
+        status,
+        userName: user?.name || 'Unknown User',
+      });
       alert(`Status updated to ${status} successfully!`);
     } catch (err) {
       alert(`Failed to update status: ${getErrorMessage(err)}`);
@@ -152,9 +125,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
   const handleDelete = async (record: CarRecord) => {
     if (!window.confirm(`Are you sure you want to delete case "${record.case_no}"? This action cannot be undone.`)) return;
     try {
-      await deleteCarRecord(record.id);
-      await fetchCarList();
-      if (onDataChange) onDataChange();
+      await deleteCarMutation.mutateAsync(record.id);
       alert("Record deleted successfully!");
     } catch (err) {
       alert(`Failed to delete record: ${getErrorMessage(err)}`);
@@ -164,37 +135,30 @@ export const CarListTable: React.FC<CarListTableProps> = ({
   const handleExportToExcel = () => {
     try {
       const exportData = filteredCarList.map(record => ({
-        'Case No': record.case_no,
-        'Date Endorsed': formatDateOnly(record.date_endorsed),   // ✅ date only in export too
-        'Endorsed By': record.endorsed_by || '',
+        'Case No':       record.case_no,
+        'Date Endorsed': formatDateOnly(record.date_endorsed),
+        'Endorsed By':   record.endorsed_by || '',
         'Facility Code': record.facility_code,
         'Facility Name': record.facility_name,
-        'City': record.city,
-        'Province': record.province,
-        'Status': record.status?.toUpperCase() || '',
-        'Lab No': record.labno || '',
-        'Repeat': record.repeat_field || '',
+        'City':          record.city,
+        'Province':      record.province,
+        'Status':        record.status?.toUpperCase() || '',
+        'Lab No':        record.labno || '',
+        'Repeat':        record.repeat_field || '',
         'Number Sample': record.number_sample || '',
-        'Case Code': record.case_code || '',
-        'Sub Code 1': record.sub_code1 || '',
-        'Sub Code 2': record.sub_code2 || '',
-        'Sub Code 3': record.sub_code3 || '',
-        'Sub Code 4': record.sub_code4 || '',
-        'Remarks': record.remarks || '',
-        /*
-        'FRC': record.frc || '',
-        'WRC': record.wrc || '',
-        */
-        'Prepared By': record.prepared_by || '',
-        'Follow Up On': formatDateOnly(record.followup_on),      // ✅ date only
-        /*
-        'Reviewed On': formatDateForExcel(record.reviewed_on),
-        */
-        'Closed On': formatDateOnly(record.closed_on),
-        'Created By': record.created_by || '',
-        'Created At': formatDateForExcel(record.created_at),
-        'Modified By': record.modified_by || '',
-        'Modified At': formatDateForExcel(record.modified_at),
+        'Case Code':     record.case_code || '',
+        'Sub Code 1':    record.sub_code1 || '',
+        'Sub Code 2':    record.sub_code2 || '',
+        'Sub Code 3':    record.sub_code3 || '',
+        'Sub Code 4':    record.sub_code4 || '',
+        'Remarks':       record.remarks || '',
+        'Prepared By':   record.prepared_by || '',
+        'Follow Up On':  formatDateOnly(record.followup_on),
+        'Closed On':     formatDateOnly(record.closed_on),
+        'Created By':    record.created_by || '',
+        'Created At':    formatDateForExcel(record.created_at),
+        'Modified By':   record.modified_by || '',
+        'Modified At':   formatDateForExcel(record.modified_at),
       }));
 
       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -209,57 +173,50 @@ export const CarListTable: React.FC<CarListTableProps> = ({
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'CAR List');
 
-      const timestamp = new Date().toISOString().slice(0, 10);
+      const timestamp    = new Date().toISOString().slice(0, 10);
       const provincePart = selectedProvince !== 'all' ? `_${selectedProvince}` : '';
       const statusPart   = selectedStatus ? `_${selectedStatus}` : '';
       const searchPart   = searchQuery ? `_search` : '';
       XLSX.writeFile(wb, `CAR_List_${timestamp}${provincePart}${statusPart}${searchPart}.xlsx`);
       alert(`Exported ${filteredCarList.length} records.`);
-    } catch (error) {
-      console.error('Error exporting to Excel:', error);
+    } catch (err) {
+      console.error('Error exporting to Excel:', err);
       alert('Failed to export to Excel. Please try again.');
     }
   };
 
   const handleViewFile = (filePath: string) => {
-    const fileName = filePath.split('/').pop() || 'Unknown file';
+    const fileName      = filePath.split('/').pop() || 'Unknown file';
     const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
-    const downloadOnlyTypes = ['doc', 'docx', 'xls', 'xlsx', 'xlsm', 'ppt', 'pptx', 'csv', 'zip', 'rar'];
-    if (downloadOnlyTypes.includes(fileExtension)) { handleDownloadFile(filePath); return; }
+    const downloadOnly  = ['doc', 'docx', 'xls', 'xlsx', 'xlsm', 'ppt', 'pptx', 'csv', 'zip', 'rar'];
+    if (downloadOnly.includes(fileExtension)) { handleDownloadFile(filePath); return; }
     setViewingFile({ path: filePath, name: fileName, type: fileExtension });
   };
 
   const handleDownloadFile = (filePath: string) => {
-    const downloadUrl = `${(import.meta.env.VITE_API_URL || 'http://localhost:5000').replace('/api', '')}${filePath}`;
+    const base = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace('/api', '');
     const link = document.createElement('a');
-    link.href = downloadUrl;
+    link.href     = `${base}${filePath}`;
     link.download = filePath.split('/').pop() || 'download';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // ✅ Date only — no time shown in UI
-  const formatDateOnly = (dateString: string | null | undefined) => {
-    if (!dateString) return "—";
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric', month: 'short', day: 'numeric',
-    });
+  // ─── Formatters ───────────────────────────────────────────────────────────
+  const formatDateOnly = (d: string | null | undefined) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  // Full datetime — for fields that still show time (closed on, created, modified)
-  const formatDateForExcel = (dateString: string | null | undefined) => {
-    if (!dateString) return "";
-    return new Date(dateString).toLocaleString('en-US', {
-      year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    });
+  const formatDateForExcel = (d: string | null | undefined) => {
+    if (!d) return "";
+    return new Date(d).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "—";
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    });
+  const formatDate = (d: string | null | undefined) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   const formatCreatedModified = (name: string | null | undefined, date: string | null | undefined) => {
@@ -278,13 +235,13 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     if (!status) return (
       <span className="px-2 py-1 text-xs rounded-full font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">—</span>
     );
-    const statusColors: Record<string, string> = {
+    const colors: Record<string, string> = {
       open:    "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200",
       closed:  "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
       pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200",
     };
     return (
-      <span className={`px-2 py-1 text-xs rounded-full font-medium ${statusColors[status.toLowerCase()] || 'bg-gray-100 text-gray-800'}`}>
+      <span className={`px-2 py-1 text-xs rounded-full font-medium ${colors[status.toLowerCase()] || 'bg-gray-100 text-gray-800'}`}>
         {status.toUpperCase()}
       </span>
     );
@@ -296,7 +253,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
   activeFilterParts.push(`${month} ${year}`);
   const activeFilterLabel = activeFilterParts.join(" · ");
 
-  // ── Details Modal ──────────────────────────────────────────────────────────
+  // ─── Details Modal ────────────────────────────────────────────────────────
   const renderDetailsModal = () => {
     if (!selectedRecord) return null;
     return (
@@ -314,16 +271,14 @@ export const CarListTable: React.FC<CarListTableProps> = ({
 
           <div className="p-6 overflow-y-auto flex-1">
             <div className="space-y-6">
-
               {/* Basic Information */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <div className="w-1 h-4 bg-blue-500 rounded"></div>Basic Information
+                  <div className="w-1 h-4 bg-blue-500 rounded" /> Basic Information
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   {[
                     ['Case No',       selectedRecord.case_no],
-                    // ✅ Date only — no time in details modal
                     ['Date Endorsed', formatDateOnly(selectedRecord.date_endorsed)],
                     ['Endorsed By',   selectedRecord.endorsed_by || '—'],
                   ].map(([lbl, val]) => (
@@ -339,10 +294,10 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                 </div>
               </div>
 
-              {/* Facility Information */}
+              {/* Facility */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <div className="w-1 h-4 bg-blue-500 rounded"></div>Facility Information
+                  <div className="w-1 h-4 bg-blue-500 rounded" /> Facility Information
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   {[
@@ -362,7 +317,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
               {/* Lab & Sample */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <div className="w-1 h-4 bg-blue-500 rounded"></div>Lab & Sample Information
+                  <div className="w-1 h-4 bg-blue-500 rounded" /> Lab & Sample Information
                 </h4>
                 <div className="grid grid-cols-3 gap-4">
                   {[
@@ -382,7 +337,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
               {/* Sub Codes */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <div className="w-1 h-4 bg-blue-500 rounded"></div>Sub Codes
+                  <div className="w-1 h-4 bg-blue-500 rounded" /> Sub Codes
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   {[
@@ -399,19 +354,13 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                 </div>
               </div>
 
-              {/* Additional — FRC/WRC hidden from UI */}
+              {/* Additional */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <div className="w-1 h-4 bg-blue-500 rounded"></div>Additional Information
+                  <div className="w-1 h-4 bg-blue-500 rounded" /> Additional Information
                 </h4>
                 <div className="grid grid-cols-3 gap-4">
-                  {/*
-                  ['FRC', selectedRecord.frc || '—'],
-                  ['WRC', selectedRecord.wrc || '—'],
-                  */}
-                  {[
-                    ['Prepared By', selectedRecord.prepared_by || '—'],
-                  ].map(([lbl, val]) => (
+                  {[['Prepared By', selectedRecord.prepared_by || '—']].map(([lbl, val]) => (
                     <div key={lbl} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{lbl}</p>
                       <p className="text-sm font-medium text-gray-900 dark:text-white">{val}</p>
@@ -423,34 +372,28 @@ export const CarListTable: React.FC<CarListTableProps> = ({
               {/* Remarks */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <div className="w-1 h-4 bg-blue-500 rounded"></div>Remarks
+                  <div className="w-1 h-4 bg-blue-500 rounded" /> Remarks
                 </h4>
                 <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
                   <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{selectedRecord.remarks || 'No remarks'}</p>
                 </div>
               </div>
 
-              {/* Important Dates — Reviewed On hidden */}
+              {/* Important Dates */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <div className="w-1 h-4 bg-blue-500 rounded"></div>Important Dates
+                  <div className="w-1 h-4 bg-blue-500 rounded" /> Important Dates
                 </h4>
                 <div className="grid grid-cols-3 gap-4">
-                  {/* ✅ Follow Up On — date only */}
-                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Follow Up On</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDateOnly(selectedRecord.followup_on)}</p>
-                  </div>
-                  {/*
-                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Reviewed On</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(selectedRecord.reviewed_on)}</p>
-                  </div>
-                  */}
-                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Closed On</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDateOnly(selectedRecord.closed_on)}</p>
-                  </div>
+                  {[
+                    ['Follow Up On', formatDateOnly(selectedRecord.followup_on)],
+                    ['Closed On',    formatDateOnly(selectedRecord.closed_on)],
+                  ].map(([lbl, val]) => (
+                    <div key={lbl} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{lbl}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{val}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -458,7 +401,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
               {selectedRecord.attachment_path && (
                 <div>
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                    <div className="w-1 h-4 bg-blue-500 rounded"></div>Attachment
+                    <div className="w-1 h-4 bg-blue-500 rounded" /> Attachment
                   </h4>
                   <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -468,13 +411,11 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                       </p>
                     </div>
                     <div className="flex items-center gap-2 ml-3">
-                      <button onClick={() => handleViewFile(selectedRecord.attachment_path!)}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs">
+                      <button onClick={() => handleViewFile(selectedRecord.attachment_path!)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs">
                         <Eye size={14} /> View
                       </button>
                       {canExport && (
-                        <button onClick={() => handleDownloadFile(selectedRecord.attachment_path!)}
-                          className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs">
+                        <button onClick={() => handleDownloadFile(selectedRecord.attachment_path!)} className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs">
                           <Download size={14} /> Download
                         </button>
                       )}
@@ -486,7 +427,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
               {/* Audit */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <div className="w-1 h-4 bg-blue-500 rounded"></div>Audit Information
+                  <div className="w-1 h-4 bg-blue-500 rounded" /> Audit Information
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
@@ -499,19 +440,16 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                   </div>
                 </div>
               </div>
-
             </div>
           </div>
 
           <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 flex justify-end gap-2">
             {canEdit && (
-              <button onClick={() => { setShowDetailsModal(false); setEditingRecord(selectedRecord); setShowAddModal(true); }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium">
+              <button onClick={() => { setShowDetailsModal(false); setEditingRecord(selectedRecord); setShowAddModal(true); }} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium">
                 <Edit size={16} /> Edit
               </button>
             )}
-            <button onClick={() => setShowDetailsModal(false)}
-              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-sm font-medium">
+            <button onClick={() => setShowDetailsModal(false)} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-sm font-medium">
               Close
             </button>
           </div>
@@ -520,10 +458,11 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     );
   };
 
-  // ── File Viewer ────────────────────────────────────────────────────────────
+  // ─── File Viewer ──────────────────────────────────────────────────────────
   const renderFileViewer = () => {
     if (!viewingFile) return null;
-    const fileUrl = `${(import.meta.env.VITE_API_URL || 'http://localhost:5000').replace('/api', '')}${viewingFile.path}`;
+    const base    = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace('/api', '');
+    const fileUrl = `${base}${viewingFile.path}`;
     const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(viewingFile.type);
     const isPdf   = viewingFile.type === 'pdf';
     return (
@@ -539,13 +478,11 @@ export const CarListTable: React.FC<CarListTableProps> = ({
             </div>
             <div className="flex items-center gap-2">
               {canExport && (
-                <button onClick={() => handleDownloadFile(viewingFile.path)}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs">
+                <button onClick={() => handleDownloadFile(viewingFile.path)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs">
                   <Download size={14} /> Download
                 </button>
               )}
-              <button onClick={() => setViewingFile(null)}
-                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors">
+              <button onClick={() => setViewingFile(null)} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -563,8 +500,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                 <p className="text-gray-600 dark:text-gray-400 mb-2">Preview not available for this file type</p>
                 <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">{viewingFile.name}</p>
                 {canExport && (
-                  <button onClick={() => handleDownloadFile(viewingFile.path)}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2">
+                  <button onClick={() => handleDownloadFile(viewingFile.path)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2">
                     <Download size={16} /> Download File
                   </button>
                 )}
@@ -576,7 +512,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     );
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <>
       <div className="rounded-2xl bg-white dark:bg-gray-900 shadow-lg">
@@ -584,21 +520,20 @@ export const CarListTable: React.FC<CarListTableProps> = ({
           <div className="flex justify-between items-center mb-4 gap-4 flex-wrap">
             <div className="flex gap-2 items-center flex-wrap">
               {canCreate && (
-                <button className="h-9 px-4 text-sm rounded-lg bg-blue-500 text-white hover:bg-blue-600 font-medium" onClick={() => setShowAddModal(true)}>
+                <button
+                  className="h-9 px-4 text-sm rounded-lg bg-blue-500 text-white hover:bg-blue-600 font-medium"
+                  onClick={() => setShowAddModal(true)}
+                >
                   Add Document
                 </button>
               )}
-              <button
-                onClick={fetchCarList}
-                disabled={isLoading}
-                className="h-9 px-4 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium flex items-center gap-2"
-              >
-                {isLoading && <div className="w-4 h-4 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />}
-                Refresh
-              </button>
+              {/* Refresh button removed — React Query auto-refreshes every 30s */}
               <span className="h-9 px-3 flex items-center text-xs rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-medium gap-1.5">
                 <span className="opacity-60">Filters:</span> {activeFilterLabel}
               </span>
+              {isLoading && (
+                <div className="w-4 h-4 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+              )}
             </div>
             <div className="min-w-[250px]">
               <input
@@ -611,13 +546,14 @@ export const CarListTable: React.FC<CarListTableProps> = ({
             </div>
           </div>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+          {isError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              {(error as any)?.message ?? 'Failed to fetch CAR records'}
+            </div>
           )}
 
-          {/* ✅ Table — FRC, WRC, Reviewed On columns removed from UI */}
           <div className="border border-gray-200 dark:border-gray-700 rounded-xl max-h-[600px] overflow-y-auto">
-            {isLoading ? (
+            {isLoading && carList.length === 0 ? (
               <div className="bg-gray-50 dark:bg-gray-800 py-20 text-center">
                 <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-gray-600 dark:text-gray-400">Loading records...</p>
@@ -640,11 +576,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                         'Case No', 'Date Endorsed', 'Endorsed By', 'Facility Code', 'Facility Name',
                         'City', 'Province', 'Status', 'Lab No', 'Repeat', 'Number Sample', 'Case Code',
                         'Sub Code 1', 'Sub Code 2', 'Sub Code 3', 'Sub Code 4', 'Remarks',
-                        /* 'FRC', 'WRC', — hidden from UI */
-                        'Prepared By',
-                        'Follow Up On',
-                        /* 'Reviewed On', — hidden from UI */
-                        'Closed On', 'Created', 'Modified',
+                        'Prepared By', 'Follow Up On', 'Closed On', 'Created', 'Modified',
                       ].map(h => (
                         <th key={h} className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">{h}</th>
                       ))}
@@ -664,7 +596,6 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                         }`}
                       >
                         <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium whitespace-nowrap">{record.case_no ?? '—'}</td>
-                        {/* ✅ Date only — no time */}
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(record.date_endorsed)}</td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.endorsed_by || '-'}</td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.facility_code ?? '—'}</td>
@@ -681,16 +612,8 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code3 || '-'}</td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code4 || '-'}</td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap max-w-xs truncate" title={record.remarks ?? ''}>{record.remarks || '-'}</td>
-                        {/*
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.frc || '-'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.wrc || '-'}</td>
-                        */}
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.prepared_by || '-'}</td>
-                        {/* ✅ Follow Up On — date only */}
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(record.followup_on)}</td>
-                        {/*
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDate(record.reviewed_on)}</td>
-                        */}
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(record.closed_on)}</td>
                         <td className="px-4 py-3 whitespace-nowrap">{formatCreatedModified(record.created_by, record.created_at)}</td>
                         <td className="px-4 py-3 whitespace-nowrap">{formatCreatedModified(record.modified_by, record.modified_at)}</td>
@@ -698,31 +621,26 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                           index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'
                         }`}>
                           <div className="flex items-center justify-center gap-1">
-                            <button onClick={() => { setSelectedRecord(record); setShowDetailsModal(true); }}
-                              className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors" title="View Details">
+                            <button onClick={() => { setSelectedRecord(record); setShowDetailsModal(true); }} className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors" title="View Details">
                               <Eye size={16} />
                             </button>
                             {canEdit && (
-                              <button onClick={() => { setEditingRecord(record); setShowAddModal(true); }}
-                                className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" title="Edit">
+                              <button onClick={() => { setEditingRecord(record); setShowAddModal(true); }} className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" title="Edit">
                                 <Edit size={16} />
                               </button>
                             )}
                             {canEdit && (
-                              <button onClick={() => { setSelectedRecord(record); setShowStatusModal(true); }}
-                                className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors" title="Change Status">
+                              <button onClick={() => { setSelectedRecord(record); setShowStatusModal(true); }} className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors" title="Change Status">
                                 <FileText size={16} />
                               </button>
                             )}
                             {record.attachment_path && (
-                              <button onClick={() => handleViewFile(record.attachment_path!)}
-                                className="p-1.5 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded transition-colors" title="View File">
+                              <button onClick={() => handleViewFile(record.attachment_path!)} className="p-1.5 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded transition-colors" title="View File">
                                 <FileText size={16} />
                               </button>
                             )}
                             {canDelete && (
-                              <button onClick={() => handleDelete(record)}
-                                className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Delete">
+                              <button onClick={() => handleDelete(record)} className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Delete">
                                 <Trash2 size={16} />
                               </button>
                             )}
@@ -745,8 +663,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                 {searchQuery && ` (filtered by "${searchQuery}")`}
               </div>
               {canExport && (
-                <button onClick={handleExportToExcel}
-                  className="h-9 px-4 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 font-medium flex items-center gap-2 transition-colors">
+                <button onClick={handleExportToExcel} className="h-9 px-4 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 font-medium flex items-center gap-2 transition-colors">
                   <FileDown size={16} /> Export to Excel
                 </button>
               )}
