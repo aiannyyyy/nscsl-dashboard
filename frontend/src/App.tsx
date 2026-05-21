@@ -24,6 +24,7 @@ import { EndorsementToFollowUp } from './pages/laboratory/EndorsementToFollowUp'
 import { LogbookEndorsement } from './pages/followup/LogbookEndorsement'
 import { CMSUrgent } from './pages/followup/CMSUrgent';
 import { FollowUpPatientInformationSystem } from './pages/followup/FollowUpPatientInformationSystem';
+import { NSFDatabase } from './pages/pdo/NSFDatabase';
 
 // Create a QueryClient instance
 const queryClient = new QueryClient({
@@ -56,6 +57,7 @@ function App() {
 
               {/* PDO Routes */}
               <Route path="pdo" element={<PDOOverview />} />
+              <Route path="pdo/nsf-database" element={< NSFDatabase />} />
               <Route path="pdo/sample-received" element={<SampleReceived />} />
               <Route path="pdo/sample-screened" element={<SampleScreened />} />
               <Route path="pdo/unsatisfactory" element={<Unsatisfactory />} />

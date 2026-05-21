@@ -43,6 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed })
       icon: <Package size={20} />,
       subItems: [
         { title: 'Overview', path: '/dashboard/pdo' },
+        { title: 'NSF Database', path: '/dashboard/pdo/nsf-database'},
         { title: 'Sample Received', path: '/dashboard/pdo/sample-received' },
         { title: 'Sample Screened', path: '/dashboard/pdo/sample-screened' },
         { title: 'Unsatisfactory', path: '/dashboard/pdo/unsatisfactory' },
@@ -124,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed })
       'IT': 'IT JOB ORDER',
       'Information Technology': 'IT JOB ORDER',
       
-      'all': 'PDO',  // Default for super users
+      'all': 'PDO',
       'All': 'PDO',
       'ALL': 'PDO',
     };

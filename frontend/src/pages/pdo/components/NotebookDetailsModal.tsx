@@ -22,7 +22,7 @@ interface NotebookDetailsModalProps {
     onBackToSearch:   () => void;
     patient:          PatientDetails | null;
     loading:          boolean;
-    // onNotebookAdded removed — cache invalidation handles the refresh automatically
+  
 }
 
 interface GroupedEntry {

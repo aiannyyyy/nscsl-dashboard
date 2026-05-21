@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+// src/pages/PDO/components/CarListTable.tsx
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Trash2, FileDown, Eye, Edit, FileText, X, Download } from "lucide-react";
 import { AddDocumentModal } from "./AddDocumentModal";
 import { StatusChangeModal } from "./StatusChangeModal";
@@ -17,7 +18,6 @@ import type { CarRecord, AddCarFormData } from "../../../services/PDOServices/ca
 import * as XLSX from 'xlsx';
 
 interface CarListTableProps {
-  onDataChange?:       () => void;
   onProvincesLoaded?:  (provinces: string[]) => void;
   selectedProvince:    string;
   selectedStatus:      string;
@@ -26,15 +26,14 @@ interface CarListTableProps {
 }
 
 export const CarListTable: React.FC<CarListTableProps> = ({
-  onDataChange,
   onProvincesLoaded,
   selectedProvince,
   selectedStatus,
   month,
   year,
 }) => {
-  const { user }                                          = useAuth();
-  const { canCreate, canEdit, canDelete, canExport }      = usePermissions(['program', 'administrator']);
+  const { user }                                     = useAuth();
+  const { canCreate, canEdit, canDelete, canExport } = usePermissions(['program', 'administrator']);
 
   const [showAddModal,     setShowAddModal]     = useState(false);
   const [showStatusModal,  setShowStatusModal]  = useState(false);
@@ -48,19 +47,33 @@ export const CarListTable: React.FC<CarListTableProps> = ({
 
   // ─── Query & Mutations ────────────────────────────────────────────────────
   const { data: carList = [], isLoading, isError, error } = useCarList(month, year);
-  const addCarMutation          = useAddCar();
-  const updateCarMutation       = useUpdateCar();
-  const updateStatusMutation    = useUpdateCarStatus();
-  const deleteCarMutation       = useDeleteCar();
+  const addCarMutation       = useAddCar();
+  const updateCarMutation    = useUpdateCar();
+  const updateStatusMutation = useUpdateCarStatus();
+  const deleteCarMutation    = useDeleteCar();
 
-  // ─── Notify parent of unique provinces whenever data changes ─────────────
+  // ─── Notify parent of unique provinces only when the list actually changes ─
+  const prevProvincesRef = useRef<string[]>([]);
+
   useEffect(() => {
     const uniqueProvinces = Array.from(
-      new Set(carList.map(r => r.province).filter((p): p is string => !!p && p.trim() !== ''))
+      new Set(
+        carList
+          .map(r => r.province)
+          .filter((p): p is string => !!p && p.trim() !== '')
+      )
     ).sort();
-    if (onProvincesLoaded) onProvincesLoaded(uniqueProvinces);
-    if (onDataChange)      onDataChange();
-  }, [carList]);
+
+    const prev    = prevProvincesRef.current;
+    const changed =
+      prev.length !== uniqueProvinces.length ||
+      uniqueProvinces.some((p, i) => p !== prev[i]);
+
+    if (changed) {
+      prevProvincesRef.current = uniqueProvinces;
+      if (onProvincesLoaded) onProvincesLoaded(uniqueProvinces);
+    }
+  }, [carList, onProvincesLoaded]);
 
   // ─── Client-side filtering ────────────────────────────────────────────────
   const filteredCarList = useMemo(() => {
@@ -88,11 +101,13 @@ export const CarListTable: React.FC<CarListTableProps> = ({
   // ─── Body scroll lock ─────────────────────────────────────────────────────
   useEffect(() => {
     document.body.style.overflow =
-      showAddModal || showStatusModal || showFileModal || showDetailsModal ? "hidden" : "unset";
+      showAddModal || showStatusModal || showFileModal || showDetailsModal
+        ? "hidden"
+        : "unset";
     return () => { document.body.style.overflow = "unset"; };
   }, [showAddModal, showStatusModal, showFileModal, showDetailsModal]);
 
-  // ─── Handlers ────────────────────────────────────────────────────────────
+  // ─── Handlers ─────────────────────────────────────────────────────────────
   const handleSaveDocument = async (formData: AddCarFormData) => {
     try {
       const dataWithUser = { ...formData, userName: user?.name || 'Unknown User' };
@@ -123,7 +138,9 @@ export const CarListTable: React.FC<CarListTableProps> = ({
   };
 
   const handleDelete = async (record: CarRecord) => {
-    if (!window.confirm(`Are you sure you want to delete case "${record.case_no}"? This action cannot be undone.`)) return;
+    if (!window.confirm(
+      `Are you sure you want to delete case "${record.case_no}"? This action cannot be undone.`
+    )) return;
     try {
       await deleteCarMutation.mutateAsync(record.id);
       alert("Record deleted successfully!");
@@ -206,20 +223,31 @@ export const CarListTable: React.FC<CarListTableProps> = ({
   // ─── Formatters ───────────────────────────────────────────────────────────
   const formatDateOnly = (d: string | null | undefined) => {
     if (!d) return "—";
-    return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(d).toLocaleDateString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric',
+    });
   };
 
   const formatDateForExcel = (d: string | null | undefined) => {
     if (!d) return "";
-    return new Date(d).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(d).toLocaleString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
   };
 
   const formatDate = (d: string | null | undefined) => {
     if (!d) return "—";
-    return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(d).toLocaleDateString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
   };
 
-  const formatCreatedModified = (name: string | null | undefined, date: string | null | undefined) => {
+  const formatCreatedModified = (
+    name: string | null | undefined,
+    date: string | null | undefined
+  ) => {
     if (!name && !date) return '—';
     if (!name) return formatDate(date);
     if (!date) return name;
@@ -241,7 +269,9 @@ export const CarListTable: React.FC<CarListTableProps> = ({
       pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200",
     };
     return (
-      <span className={`px-2 py-1 text-xs rounded-full font-medium ${colors[status.toLowerCase()] || 'bg-gray-100 text-gray-800'}`}>
+      <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+        colors[status.toLowerCase()] || 'bg-gray-100 text-gray-800'
+      }`}>
         {status.toUpperCase()}
       </span>
     );
@@ -252,6 +282,11 @@ export const CarListTable: React.FC<CarListTableProps> = ({
   if (selectedStatus)             activeFilterParts.push(`Status: ${selectedStatus.charAt(0).toUpperCase() + selectedStatus.slice(1)}`);
   activeFilterParts.push(`${month} ${year}`);
   const activeFilterLabel = activeFilterParts.join(" · ");
+
+  // Shared class for hidden columns
+  const H = "hidden"; // hidden
+  const V = "px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs"; // visible th
+  const VH = `${H} px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs`; // hidden th
 
   // ─── Details Modal ────────────────────────────────────────────────────────
   const renderDetailsModal = () => {
@@ -264,13 +299,17 @@ export const CarListTable: React.FC<CarListTableProps> = ({
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">CAR Details</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Case No: {selectedRecord.case_no}</p>
             </div>
-            <button onClick={() => setShowDetailsModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-white dark:hover:bg-gray-700 p-2 rounded-lg transition-colors">
+            <button
+              onClick={() => setShowDetailsModal(false)}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-white dark:hover:bg-gray-700 p-2 rounded-lg transition-colors"
+            >
               <X size={20} />
             </button>
           </div>
 
           <div className="p-6 overflow-y-auto flex-1">
             <div className="space-y-6">
+
               {/* Basic Information */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
@@ -375,7 +414,9 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                   <div className="w-1 h-4 bg-blue-500 rounded" /> Remarks
                 </h4>
                 <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                  <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{selectedRecord.remarks || 'No remarks'}</p>
+                  <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">
+                    {selectedRecord.remarks || 'No remarks'}
+                  </p>
                 </div>
               </div>
 
@@ -411,11 +452,17 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                       </p>
                     </div>
                     <div className="flex items-center gap-2 ml-3">
-                      <button onClick={() => handleViewFile(selectedRecord.attachment_path!)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs">
+                      <button
+                        onClick={() => handleViewFile(selectedRecord.attachment_path!)}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs"
+                      >
                         <Eye size={14} /> View
                       </button>
                       {canExport && (
-                        <button onClick={() => handleDownloadFile(selectedRecord.attachment_path!)} className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs">
+                        <button
+                          onClick={() => handleDownloadFile(selectedRecord.attachment_path!)}
+                          className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs"
+                        >
                           <Download size={14} /> Download
                         </button>
                       )}
@@ -440,16 +487,27 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                   </div>
                 </div>
               </div>
+
             </div>
           </div>
 
           <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 flex justify-end gap-2">
             {canEdit && (
-              <button onClick={() => { setShowDetailsModal(false); setEditingRecord(selectedRecord); setShowAddModal(true); }} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium">
+              <button
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  setEditingRecord(selectedRecord);
+                  setShowAddModal(true);
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium"
+              >
                 <Edit size={16} /> Edit
               </button>
             )}
-            <button onClick={() => setShowDetailsModal(false)} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-sm font-medium">
+            <button
+              onClick={() => setShowDetailsModal(false)}
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-sm font-medium"
+            >
               Close
             </button>
           </div>
@@ -465,6 +523,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     const fileUrl = `${base}${viewingFile.path}`;
     const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(viewingFile.type);
     const isPdf   = viewingFile.type === 'pdf';
+
     return (
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -478,11 +537,17 @@ export const CarListTable: React.FC<CarListTableProps> = ({
             </div>
             <div className="flex items-center gap-2">
               {canExport && (
-                <button onClick={() => handleDownloadFile(viewingFile.path)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs">
+                <button
+                  onClick={() => handleDownloadFile(viewingFile.path)}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs"
+                >
                   <Download size={14} /> Download
                 </button>
               )}
-              <button onClick={() => setViewingFile(null)} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors">
+              <button
+                onClick={() => setViewingFile(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -490,17 +555,28 @@ export const CarListTable: React.FC<CarListTableProps> = ({
           <div className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-950 p-4">
             {isImage ? (
               <div className="flex items-center justify-center h-full">
-                <img src={fileUrl} alt={viewingFile.name} className="max-w-full max-h-full object-contain rounded-lg shadow-lg" />
+                <img
+                  src={fileUrl}
+                  alt={viewingFile.name}
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                />
               </div>
             ) : isPdf ? (
-              <iframe src={fileUrl} className="w-full h-full min-h-[600px] rounded-lg shadow-lg bg-white" title={viewingFile.name} />
+              <iframe
+                src={fileUrl}
+                className="w-full h-full min-h-[600px] rounded-lg shadow-lg bg-white"
+                title={viewingFile.name}
+              />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <FileText size={64} className="text-gray-400 mb-4" />
                 <p className="text-gray-600 dark:text-gray-400 mb-2">Preview not available for this file type</p>
                 <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">{viewingFile.name}</p>
                 {canExport && (
-                  <button onClick={() => handleDownloadFile(viewingFile.path)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2">
+                  <button
+                    onClick={() => handleDownloadFile(viewingFile.path)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                  >
                     <Download size={16} /> Download File
                   </button>
                 )}
@@ -517,6 +593,7 @@ export const CarListTable: React.FC<CarListTableProps> = ({
     <>
       <div className="rounded-2xl bg-white dark:bg-gray-900 shadow-lg">
         <div className="p-5">
+
           <div className="flex justify-between items-center mb-4 gap-4 flex-wrap">
             <div className="flex gap-2 items-center flex-wrap">
               {canCreate && (
@@ -527,7 +604,6 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                   Add Document
                 </button>
               )}
-              {/* Refresh button removed — React Query auto-refreshes every 30s */}
               <span className="h-9 px-3 flex items-center text-xs rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-medium gap-1.5">
                 <span className="opacity-60">Filters:</span> {activeFilterLabel}
               </span>
@@ -561,10 +637,14 @@ export const CarListTable: React.FC<CarListTableProps> = ({
             ) : filteredCarList.length === 0 ? (
               <div className="bg-gray-50 dark:bg-gray-800 py-20 text-center">
                 <h5 className="text-gray-800 dark:text-gray-200 font-semibold text-lg mb-1">
-                  {searchQuery || selectedProvince !== 'all' || selectedStatus ? "No matching records found" : "No records found"}
+                  {searchQuery || selectedProvince !== 'all' || selectedStatus
+                    ? "No matching records found"
+                    : "No records found"}
                 </h5>
                 <p className="text-gray-500 dark:text-gray-400 text-sm">
-                  {searchQuery ? `No records match "${searchQuery}"` : "Try adjusting your filters."}
+                  {searchQuery
+                    ? `No records match "${searchQuery}"`
+                    : "Try adjusting your filters."}
                 </p>
               </div>
             ) : (
@@ -572,14 +652,30 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
                     <tr>
-                      {[
-                        'Case No', 'Date Endorsed', 'Endorsed By', 'Facility Code', 'Facility Name',
-                        'City', 'Province', 'Status', 'Lab No', 'Repeat', 'Number Sample', 'Case Code',
-                        'Sub Code 1', 'Sub Code 2', 'Sub Code 3', 'Sub Code 4', 'Remarks',
-                        'Prepared By', 'Follow Up On', 'Closed On', 'Created', 'Modified',
-                      ].map(h => (
-                        <th key={h} className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">{h}</th>
-                      ))}
+                      {/* ✅ Visible columns */}
+                      <th className={V}>Case No</th>
+                      <th className={V}>Date Endorsed</th>
+                      <th className={V}>Endorsed By</th>
+                      <th className={V}>Facility Code</th>
+                      <th className={V}>Facility Name</th>
+                      <th className={V}>Status</th>
+                      {/* ✅ Hidden columns — all data still exported to Excel */}
+                      <th className={VH}>City</th>
+                      <th className={VH}>Province</th>
+                      <th className={VH}>Lab No</th>
+                      <th className={VH}>Repeat</th>
+                      <th className={VH}>Number Sample</th>
+                      <th className={VH}>Case Code</th>
+                      <th className={VH}>Sub Code 1</th>
+                      <th className={VH}>Sub Code 2</th>
+                      <th className={VH}>Sub Code 3</th>
+                      <th className={VH}>Sub Code 4</th>
+                      <th className={VH}>Remarks</th>
+                      <th className={VH}>Prepared By</th>
+                      <th className={VH}>Follow Up On</th>
+                      <th className={VH}>Closed On</th>
+                      <th className={VH}>Created</th>
+                      <th className={VH}>Modified</th>
                       <th className="px-4 py-3 text-center font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs sticky right-0 bg-gray-50 dark:bg-gray-800 shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">
                         Actions
                       </th>
@@ -595,52 +691,76 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                             : 'bg-gray-50/50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/60'
                         }`}
                       >
+                        {/* ✅ Visible cells */}
                         <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium whitespace-nowrap">{record.case_no ?? '—'}</td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(record.date_endorsed)}</td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.endorsed_by || '-'}</td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.facility_code ?? '—'}</td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.facility_name ?? '—'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.city ?? '—'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.province ?? '—'}</td>
                         <td className="px-4 py-3 whitespace-nowrap">{getStatusBadge(record.status)}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.labno || '-'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.repeat_field || '-'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.number_sample || '-'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.case_code || '-'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code1 || '-'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code2 || '-'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code3 || '-'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code4 || '-'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap max-w-xs truncate" title={record.remarks ?? ''}>{record.remarks || '-'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.prepared_by || '-'}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(record.followup_on)}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(record.closed_on)}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">{formatCreatedModified(record.created_by, record.created_at)}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">{formatCreatedModified(record.modified_by, record.modified_at)}</td>
+                        {/* ✅ Hidden cells — must match hidden th order exactly */}
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.city ?? '—'}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.province ?? '—'}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.labno || '-'}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.repeat_field || '-'}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.number_sample || '-'}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.case_code || '-'}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code1 || '-'}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code2 || '-'}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code3 || '-'}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.sub_code4 || '-'}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap max-w-xs truncate" title={record.remarks ?? ''}>{record.remarks || '-'}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{record.prepared_by || '-'}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(record.followup_on)}</td>
+                        <td className="hidden px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(record.closed_on)}</td>
+                        <td className="hidden px-4 py-3 whitespace-nowrap">{formatCreatedModified(record.created_by, record.created_at)}</td>
+                        <td className="hidden px-4 py-3 whitespace-nowrap">{formatCreatedModified(record.modified_by, record.modified_at)}</td>
                         <td className={`px-4 py-3 whitespace-nowrap sticky right-0 shadow-[-2px_0_4px_rgba(0,0,0,0.05)] ${
-                          index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'
+                          index % 2 === 0
+                            ? 'bg-white dark:bg-gray-900'
+                            : 'bg-gray-50/50 dark:bg-gray-800/30'
                         }`}>
                           <div className="flex items-center justify-center gap-1">
-                            <button onClick={() => { setSelectedRecord(record); setShowDetailsModal(true); }} className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors" title="View Details">
+                            <button
+                              onClick={() => { setSelectedRecord(record); setShowDetailsModal(true); }}
+                              className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
+                              title="View Details"
+                            >
                               <Eye size={16} />
                             </button>
                             {canEdit && (
-                              <button onClick={() => { setEditingRecord(record); setShowAddModal(true); }} className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" title="Edit">
+                              <button
+                                onClick={() => { setEditingRecord(record); setShowAddModal(true); }}
+                                className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                title="Edit"
+                              >
                                 <Edit size={16} />
                               </button>
                             )}
                             {canEdit && (
-                              <button onClick={() => { setSelectedRecord(record); setShowStatusModal(true); }} className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors" title="Change Status">
+                              <button
+                                onClick={() => { setSelectedRecord(record); setShowStatusModal(true); }}
+                                className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                                title="Change Status"
+                              >
                                 <FileText size={16} />
                               </button>
                             )}
                             {record.attachment_path && (
-                              <button onClick={() => handleViewFile(record.attachment_path!)} className="p-1.5 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded transition-colors" title="View File">
+                              <button
+                                onClick={() => handleViewFile(record.attachment_path!)}
+                                className="p-1.5 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded transition-colors"
+                                title="View File"
+                              >
                                 <FileText size={16} />
                               </button>
                             )}
                             {canDelete && (
-                              <button onClick={() => handleDelete(record)} className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Delete">
+                              <button
+                                onClick={() => handleDelete(record)}
+                                className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                title="Delete"
+                              >
                                 <Trash2 size={16} />
                               </button>
                             )}
@@ -663,12 +783,16 @@ export const CarListTable: React.FC<CarListTableProps> = ({
                 {searchQuery && ` (filtered by "${searchQuery}")`}
               </div>
               {canExport && (
-                <button onClick={handleExportToExcel} className="h-9 px-4 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 font-medium flex items-center gap-2 transition-colors">
+                <button
+                  onClick={handleExportToExcel}
+                  className="h-9 px-4 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 font-medium flex items-center gap-2 transition-colors"
+                >
                   <FileDown size={16} /> Export to Excel
                 </button>
               )}
             </div>
           )}
+
         </div>
       </div>
 
@@ -689,7 +813,11 @@ export const CarListTable: React.FC<CarListTableProps> = ({
         show={showFileModal}
         fileUrl={selectedFileUrl}
         caseNo={selectedRecord?.case_no || ""}
-        onClose={() => { setShowFileModal(false); setSelectedFileUrl(""); setSelectedRecord(null); }}
+        onClose={() => {
+          setShowFileModal(false);
+          setSelectedFileUrl("");
+          setSelectedRecord(null);
+        }}
       />
       {showDetailsModal && renderDetailsModal()}
       {renderFileViewer()}

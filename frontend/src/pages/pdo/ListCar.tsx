@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+// src/pages/PDO/ListCar.tsx
+import { useState, useRef, useEffect, useCallback } from "react";
 import { ChevronDown } from "lucide-react";
 import { CorrectiveActionReportChart } from "./components/CorrectiveActionReportChart";
 import { CarPerProvinceChart } from "./components/CarPerProvinceChart";
@@ -15,18 +16,14 @@ const getCurrentMonth = () => {
 };
 
 export default function ListCar() {
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-  // ── Lifted shared filters ──────────────────────────────────────────────────
-  const [month, setMonth]         = useState(getCurrentMonth());
-  const [year, setYear]           = useState(new Date().getFullYear().toString());
+  // ── Shared filters ────────────────────────────────────────────────────────
+  const [month,            setMonth]            = useState(getCurrentMonth());
+  const [year,             setYear]             = useState(new Date().getFullYear().toString());
   const [selectedProvince, setSelectedProvince] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus]     = useState<string>("");
+  const [selectedStatus,   setSelectedStatus]   = useState<string>("");
+  const [provinces,        setProvinces]        = useState<string[]>([]);
 
-  // Province options are populated by CarListTable and bubbled up
-  const [provinces, setProvinces] = useState<string[]>([]);
-
-  // Province dropdown open/close
+  // Province dropdown
   const [isProvinceOpen, setIsProvinceOpen] = useState(false);
   const provinceRef = useRef<HTMLDivElement>(null);
 
@@ -44,15 +41,16 @@ export default function ListCar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isProvinceOpen]);
 
-  const handleDataChange = () => {
-    setRefreshTrigger(prev => prev + 1);
-  };
+  // Stabilized callback — no refreshTrigger needed; React Query handles refetch
+  const handleProvincesLoaded = useCallback((loadedProvinces: string[]) => {
+    setProvinces(loadedProvinces);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-950 p-6">
       <div className="max-w-[1400px] mx-auto space-y-6">
 
-        {/* ── Page Header + Global Filters ─────────────────────────────────── */}
+        {/* ── Page Header + Global Filters ─────────────────────────────── */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
@@ -172,28 +170,25 @@ export default function ListCar() {
           </div>
         </div>
 
-        {/* ── Charts Row ────────────────────────────────────────────────────── */}
+        {/* ── Charts Row ────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <CarPerProvinceChart
-            refreshTrigger={refreshTrigger}
             month={month}
             year={year}
             status={selectedStatus}
             province={selectedProvince}
           />
           <CorrectiveActionReportChart
-            refreshTrigger={refreshTrigger}
             month={month}
             year={year}
             province={selectedProvince}
-            status={selectedStatus} 
+            status={selectedStatus}
           />
         </div>
 
-        {/* ── Table Row ─────────────────────────────────────────────────────── */}
+        {/* ── Table Row ─────────────────────────────────────────────────── */}
         <CarListTable
-          onDataChange={handleDataChange}
-          onProvincesLoaded={setProvinces}
+          onProvincesLoaded={handleProvincesLoaded}
           selectedProvince={selectedProvince}
           selectedStatus={selectedStatus}
           month={month}
