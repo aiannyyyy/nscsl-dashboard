@@ -192,6 +192,8 @@ app.use("/api/sample-screened", require("./routes/PDORoutes/sampleScreenedRoutes
 // Lopez Purchase Filter Cards
 app.use("/api/pdo", require("./routes/PDORoutes/lopezFilterCardRoutes"));
 
+// NSF Facilities
+app.use("/api/nsf", require("./routes/PDORoutes/nsfFacilitiesRoutes"));
 
 // Laboratory Card Summary
 app.use("/api/laboratory/card-summary", require("./routes/LaboratoryRoutes/cardSummaryRoutes"));
