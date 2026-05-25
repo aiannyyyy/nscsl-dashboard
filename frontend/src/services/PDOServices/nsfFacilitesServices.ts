@@ -64,6 +64,7 @@ export interface NSFReactivationLog {
     facility_id: number;
     facility_name: string;
     facility_code: number;
+    province: string | null;
     action: NSFLogAction;
     old_status: NSFStatus | null;
     new_status: NSFStatus | null;

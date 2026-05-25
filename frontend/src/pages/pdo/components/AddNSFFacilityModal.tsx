@@ -7,14 +7,105 @@ import { useAuth } from '../../../context/AuthContext';
 
 // ─── Province / City Map ──────────────────────────────────────────────────────
 const PROVINCE_CITY_MAP: Record<string, string[]> = {
-  'Batangas':    ['Batangas City', 'Lipa', 'Tanauan', 'Santo Tomas', 'Nasugbu', 'Balayan', 'Lemery', 'Rosario', 'San Jose', 'Mabini', 'Padre Garcia'],
-  'Cavite':      ['Bacoor', 'Cavite City', 'Dasmariñas', 'Imus', 'Tagaytay', 'Trece Martires', 'General Trias', 'Silang', 'Mendez', 'Naic', 'Tanza'],
-  'Laguna':      ['Calamba', 'San Pablo', 'Santa Rosa', 'Biñan', 'Cabuyao', 'Los Baños', 'Pagsanjan', 'Sta. Cruz', 'Bay', 'Victoria'],
-  'Quezon':      ['Lucena', 'Tayabas', 'Candelaria', 'Tiaong', 'Sariaya', 'Gumaca', 'Lopez', 'Infanta', 'Mauban', 'Pagbilao'],
-  'Rizal':       ['Antipolo', 'Cainta', 'Taytay', 'Angono', 'Binangonan', 'San Mateo', 'Morong', 'Cardona', 'Tanay', 'Teresa'],
+  'BATANGAS': ['BATANGAS CITY', 'LIPA', 'TANAUAN', 'SANTO TOMAS', 'NASUGBU', 'BALAYAN', 'LEMERY', 'ROSARIO', 'SAN JOSE', 'MABINI', 'PADRE GARCIA'],
+  'CAVITE':   ['BACOOR', 'CAVITE CITY', 'DASMARIÑAS', 'IMUS', 'TAGAYTAY', 'TRECE MARTIRES', 'GENERAL TRIAS', 'SILANG', 'MENDEZ', 'NAIC', 'TANZA'],
+  'LAGUNA':   ['CALAMBA', 'SAN PABLO', 'SANTA ROSA', 'BIÑAN', 'CABUYAO', 'LOS BAÑOS', 'PAGSANJAN', 'STA. CRUZ', 'BAY', 'VICTORIA'],
+  'QUEZON':   ['LUCENA', 'TAYABAS', 'CANDELARIA', 'TIAONG', 'SARIAYA', 'GUMACA', 'LOPEZ', 'INFANTA', 'MAUBAN', 'PAGBILAO'],
+  'RIZAL':    ['ANTIPOLO', 'CAINTA', 'TAYTAY', 'ANGONO', 'BINANGONAN', 'SAN MATEO', 'MORONG', 'CARDONA', 'TANAY', 'TERESA'],
 };
 
 const ALL_PROVINCES = Object.keys(PROVINCE_CITY_MAP).sort();
+
+const CATEGORIES: string[] = [
+  'BHS',
+  'BIRTHING HOME',
+  'CHD',
+  'CHO',
+  'CLINIC',
+  'CONTINUITY CLINIC',
+  'CUSTODIAL CARE',
+  'DIAGNOSTIC / THERAPEAUTIC',
+  'DIAGNOSTIC/THERAPEUTIC',
+  'GENERAL HOSPITAL',
+  'HEALTH CENTER',
+  'HEALTH FACILITY',
+  'INFIRMARY',
+  'INFIRMARY/DISPENSARY',
+  'LABORATORY',
+  'LEVEL 1',
+  'LEVEL 2',
+  'LEVEL 3',
+  'LEVEL 4',
+  'LYING-IN',
+  'MEDICAL/DIAGNOSTIC CLINIC',
+  'MHO',
+  'N/A',
+  'NSC',
+  'PHO',
+  'PHO-PHS',
+  'PRIMARY',
+  'PRIMARY CARE',
+  'PRIMARY CARE (BIRTHING HOME)',
+  'PRIMARY CARE (BIRTHING HOME) BHS',
+  'PRIMARY CARE (BIRTHING HOME) OTHERS',
+  'PRIMARY CARE (BIRTHING HOME) PRIVAT',
+  'PRIMARY CARE (BIRTHING HOME) PRIVATE',
+  'PRIMARY CARE (BIRTHING HOME) RHU',
+  'PRIMARY CARE (INFIRMARY/DISPENSARY)',
+  'RHU',
+  'SECONDARY',
+  'SPECIALIZED OUT-PATIENT',
+  'TERTIARY',
+];
+
+const TYPE1_OPTIONS: string[] = [
+  'CHARTERED GOVERNMENT FACILITIES',
+  'CHD',
+  'CONTINUITY CLINIC',
+  'DOH RETAINED HOSPITAL',
+  'LGU',
+  'N/A',
+  'NSC',
+  'PRIVATE',
+];
+
+const TYPE2_OPTIONS: string[] = [
+  '3.5',
+  'CONTINUITY CLINIC',
+  'GOVERNMENT',
+  'LGU',
+  'NSC',
+  'NULL',
+  'PARTNER AGENCY',
+  'PRIVATE',
+];
+
+const DESIGNATION_OPTIONS: string[] = [
+  'ADMINISTRATOR',
+  'CHIEF OF HOSPITAL',
+  'CLINIC MANAGER',
+  'CLINIC MANAGER/OWNER',
+  'CLINIC OWNER',
+  'FOLLOW-UP NURSE',
+  'HOSPITAL ADMINISTRATOR',
+  'MEDICAL ADMINISTRATOR',
+  'MEDICAL DIRECTOR',
+  'MHO',
+  'MIDWIFE',
+  'MUNICIPAL HEALTH OFFICER',
+  'NBS COODINATOR',
+  'NBS COORDINATOR',
+  'NBS COORDINATOR / NBS IN CHARGE',
+  'NBS HEAD',
+  'NBSC',
+  'NURSE I',
+  'NURSING AIDE/CLERK',
+  'OWNER',
+  'OWNER/MANAGER',
+  'OWNER/NBS COORDINATOR',
+  'PRESIDENT',
+  'REGIONAL COORDINATOR',
+];
 
 // ─── Date Helper ──────────────────────────────────────────────────────────────
 /**
@@ -31,7 +122,7 @@ const toDateInput = (val?: string | null): string => {
 
 // ─── Empty Form ───────────────────────────────────────────────────────────────
 const EMPTY_FORM: Partial<NSFFacility> = {
-  facility_code:    0,
+  facility_code: undefined,
   facility_name:    '',
   category:         '',
   type1:            '',
@@ -88,11 +179,18 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
     setCitySearch(editing?.city ?? '');
   }, [editing, open]);
 
+  const UPPERCASE_EXEMPT = new Set(['email', 'tel_cell', 'fax', 'facility_code', 'year_accredited']);
+
   const field = (key: keyof NSFFacility) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => setForm(f => ({ ...f, [key]: e.target.value }));
+  ) => {
+    const value = !UPPERCASE_EXEMPT.has(key) && e.target.type !== 'number' && e.target.type !== 'email' && e.target.type !== 'date'
+      ? e.target.value.toUpperCase()
+      : e.target.value;
+    setForm(f => ({ ...f, [key]: value }));
+  };
 
-  const provincePool = provinces.length > 0 ? provinces : ALL_PROVINCES;
+  const provincePool = ALL_PROVINCES;
 
   const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setForm(f => ({ ...f, province: e.target.value, city: '' }));
@@ -168,23 +266,41 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Facility Code *</label>
-                <input type="number" required value={form.facility_code ?? ''} onChange={field('facility_code')} className={inputCls} placeholder="e.g. 10001" />
+                <input
+                  type="number"
+                  required
+                  value={form.facility_code ?? ''}
+                  onChange={field('facility_code')}
+                  className={inputCls}
+                  placeholder="e.g. 1234"
+                  style={{ MozAppearance: 'textfield' }}
+                  onWheel={e => e.currentTarget.blur()}
+                />
               </div>
               <div>
                 <label className={labelCls}>Facility Name *</label>
-                <input type="text" required value={form.facility_name ?? ''} onChange={field('facility_name')} className={inputCls} placeholder="e.g. St. Luke's Medical Center" />
+                <input type="text" required value={form.facility_name ?? ''} onChange={field('facility_name')} className={inputCls} placeholder="e.g. Healthway Daniel Mercado Medical Center" />
               </div>
               <div>
                 <label className={labelCls}>Category</label>
-                <input type="text" value={form.category ?? ''} onChange={field('category')} className={inputCls} placeholder="e.g. Hospital" />
+                <select value={form.category ?? ''} onChange={field('category')} className={inputCls}>
+                  <option value="">— Select Category —</option>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
               <div>
                 <label className={labelCls}>Type 1</label>
-                <input type="text" value={form.type1 ?? ''} onChange={field('type1')} className={inputCls} placeholder="e.g. Government" />
+                <select value={form.type1 ?? ''} onChange={field('type1')} className={inputCls}>
+                  <option value="">— Select Type 1 —</option>
+                  {TYPE1_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </div>
               <div>
                 <label className={labelCls}>Type 2</label>
-                <input type="text" value={form.type2 ?? ''} onChange={field('type2')} className={inputCls} placeholder="e.g. Primary" />
+                <select value={form.type2 ?? ''} onChange={field('type2')} className={inputCls}>
+                  <option value="">— Select Type 2 —</option>
+                  {TYPE2_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </div>
               <div>
                 <label className={labelCls}>Region</label>
@@ -251,7 +367,10 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
               </div>
               <div>
                 <label className={labelCls}>Designation</label>
-                <input type="text" value={form.designation ?? ''} onChange={field('designation')} className={inputCls} />
+                <select value={form.designation ?? ''} onChange={field('designation')} className={inputCls}>
+                  <option value="">— Select Designation —</option>
+                  {DESIGNATION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
               </div>
               <div>
                 <label className={labelCls}>Tel / Cell</label>
@@ -278,7 +397,7 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
               </div>
               <div>
                 <label className={labelCls}>Year Accredited</label>
-                <input type="number" value={form.year_accredited ?? ''} onChange={field('year_accredited')} className={inputCls} placeholder="e.g. 2024" />
+                <input type="number" value={form.year_accredited ?? ''} onChange={field('year_accredited')} className={inputCls} placeholder="e.g. 2026" />
               </div>
               <div>
                 <label className={labelCls}>Last PO Date</label>

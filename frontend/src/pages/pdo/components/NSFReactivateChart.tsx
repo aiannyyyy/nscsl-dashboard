@@ -8,17 +8,11 @@ import { downloadChart } from '../../../utils/chartDownloadUtils';
 import { useNSFReactivationStatus } from '../../../hooks/PDOHooks/useNSFFacilities';
 import { NSFLogsModal } from './NSFLogsModal';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const FLAG_COLORS: Record<string, string> = {
-  needs_reactivation: '#FF6384',
-  ok:                 '#36A2EB',
-};
-
-// Human-readable labels for reactivation flags
-const FLAG_LABELS: Record<string, string> = {
-  needs_reactivation: 'Needs Reactivation',
-  ok:                 'Reactivated',
-};
+const PROVINCE_COLORS = [
+  '#4F86C6', '#F4A261', '#2A9D8F', '#E76F51', '#8B5CF6',
+  '#06B6D4', '#F59E0B', '#10B981', '#EF4444', '#EC4899',
+  '#6366F1', '#84CC16',
+];
 
 const MONTHS = [
   { label: 'All',       value: 'All' },
@@ -38,7 +32,6 @@ const MONTHS = [
 
 const selectCls = "h-8 px-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500";
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export const NSFReactivateChart: React.FC = () => {
   const now = new Date();
 
@@ -54,20 +47,22 @@ export const NSFReactivateChart: React.FC = () => {
   const filterParams = useMemo(() => ({
     month:      month !== 'All' ? month : undefined,
     year,
-    dateColumn: 'last_po_date',
   }), [month, year]);
 
   const { data: resp, isLoading, isError } = useNSFReactivationStatus(filterParams);
 
   const records = resp?.data ?? [];
 
+  // Group by province
   const chartData = useMemo(() => {
     const map: Record<string, number> = {};
     records.forEach(r => {
-      const key = r.reactivation_flag ?? 'unknown';
+      const key = r.province?.trim() || 'Unknown';
       map[key]  = (map[key] ?? 0) + 1;
     });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
   }, [records]);
 
   const total = chartData.reduce((s, d) => s + d.value, 0);
@@ -76,21 +71,17 @@ export const NSFReactivateChart: React.FC = () => {
     ? `${MONTHS.find(m => m.value === month)?.label} ${year}`
     : year;
 
-  // Resolves the display label for a reactivation flag key
-  const formatFlag = (flag: string) =>
-    FLAG_LABELS[flag] ?? flag.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-
   const handleDownload = async (format: 'png' | 'svg' | 'excel') => {
     setShowDownloadMenu(false);
     try {
-      const filename = `NSF_Reactivate_Chart_${periodLabel.replace(/\s+/g, '_')}`;
+      const filename = `NSF_Province_Chart_${periodLabel.replace(/\s+/g, '_')}`;
       if (format === 'excel') {
         const excelData = chartData.map(item => ({
-          'Reactivation Status': formatFlag(item.name),
+          Province:   item.name,
           Count:      item.value,
           Percentage: total > 0 ? `${((item.value / total) * 100).toFixed(2)}%` : '0%',
         }));
-        await downloadChart({ elementId: 'nsf-reactivate-chart', filename, format: 'excel', data: excelData, sheetName: 'NSF Reactivate' });
+        await downloadChart({ elementId: 'nsf-reactivate-chart', filename, format: 'excel', data: excelData, sheetName: 'NSF Province' });
       } else {
         await downloadChart({ elementId: 'nsf-reactivate-chart', filename, format, backgroundColor: '#ffffff', scale: 2 });
       }
@@ -116,7 +107,7 @@ export const NSFReactivateChart: React.FC = () => {
         fontSize={10}
         fontWeight={500}
       >
-        {`${formatFlag(name)}, ${value}, ${pct}%`}
+        {`${name}, ${value}, ${pct}%`}
       </text>
     );
   };
@@ -128,10 +119,10 @@ export const NSFReactivateChart: React.FC = () => {
         <div className="flex justify-between items-start px-5 py-4 border-b bg-gray-50 dark:bg-gray-800 dark:border-gray-700 rounded-t-2xl">
           <div>
             <h4 className="font-semibold text-gray-800 dark:text-gray-100">
-              NSF Reactivation Status
+              NSF Reactivated Per Province
             </h4>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Based on last PO date — {periodLabel}
+              Distribution by province — {periodLabel}
             </p>
             {resp?.auto_deactivated !== undefined && resp.auto_deactivated > 0 && (
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
@@ -145,32 +136,23 @@ export const NSFReactivateChart: React.FC = () => {
             )}
           </div>
 
-          {/* Right side: filters + buttons */}
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            {/* Month picker */}
             <select value={month} onChange={e => setMonth(e.target.value)} className={selectCls}>
               {MONTHS.map(m => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
-
-            {/* Year picker */}
             <select value={year} onChange={e => setYear(e.target.value)} className={selectCls}>
               {yearOptions.map(y => (
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>
-
-            {/* View Logs button */}
             <button
               onClick={() => setLogsOpen(true)}
               className="h-8 px-3 text-xs rounded-full border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-1.5 transition-colors"
             >
-              <ScrollText size={13} />
-              View Logs
+              <ScrollText size={13} /> View Logs
             </button>
-
-            {/* Export */}
             <div className="relative">
               <button
                 onClick={() => setShowDownloadMenu(!showDownloadMenu)}
@@ -202,7 +184,7 @@ export const NSFReactivateChart: React.FC = () => {
           ) : isError ? (
             <span className="text-sm text-red-500">Failed to load chart data</span>
           ) : chartData.length === 0 ? (
-            <span className="text-sm text-gray-400 dark:text-gray-500">No reactivation data for {periodLabel}</span>
+            <span className="text-sm text-gray-400 dark:text-gray-500">No data for {periodLabel}</span>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -215,14 +197,17 @@ export const NSFReactivateChart: React.FC = () => {
                   labelLine={false}
                   label={renderCustomLabel}
                 >
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={FLAG_COLORS[entry.name] ?? '#9966FF'} />
+                  {chartData.map((_, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={PROVINCE_COLORS[index % PROVINCE_COLORS.length]}
+                    />
                   ))}
                 </Pie>
                 <Tooltip
                   formatter={(value: number, name: string) => [
                     `${value} facilities`,
-                    formatFlag(name),
+                    name,
                   ]}
                   contentStyle={{
                     backgroundColor: 'var(--tooltip-bg, white)',
@@ -231,10 +216,7 @@ export const NSFReactivateChart: React.FC = () => {
                     fontSize: '12px',
                   }}
                 />
-                <Legend
-                  formatter={formatFlag}
-                  wrapperStyle={{ fontSize: '11px' }}
-                />
+                <Legend wrapperStyle={{ fontSize: '11px' }} />
               </PieChart>
             </ResponsiveContainer>
           )}
@@ -248,7 +230,6 @@ export const NSFReactivateChart: React.FC = () => {
         )}
       </div>
 
-      {/* Logs Modal — passes current month/year so it opens in sync */}
       <NSFLogsModal
         open={logsOpen}
         onClose={() => setLogsOpen(false)}

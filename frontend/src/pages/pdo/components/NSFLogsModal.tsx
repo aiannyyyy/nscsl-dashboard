@@ -73,7 +73,7 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
   // Reset to page 1 whenever the period or filters change
   React.useEffect(() => { setPage(1); }, [month, year, action, facilityId, open]);
 
-  const LIMIT = 10;
+  const LIMIT = 5;
 
   const { data: resp, isLoading, isError } = useNSFReactivationLogs(
     open
@@ -153,7 +153,7 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                   <tr>
-                    {['Facility', 'Action', 'Status Change', 'Remarks', 'By', 'Date'].map(h => (
+                    {['Facility', 'Action', 'Status Change', 'Province', 'Remarks', 'By', 'Date'].map(h => (
                       <th
                         key={h}
                         className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 whitespace-nowrap"
@@ -194,6 +194,9 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
                             : <span className="text-xs text-gray-400">—</span>
                           }
                         </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600 dark:text-gray-400">
+                        {log.province ?? '—'}
                       </td>
                       <td className="px-4 py-3 max-w-[200px]">
                         <p className="text-xs text-gray-600 dark:text-gray-400 truncate" title={log.remarks ?? ''}>

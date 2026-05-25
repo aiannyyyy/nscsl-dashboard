@@ -101,6 +101,14 @@ const addNSFFacility = async (req, res) => {
 
         const now = new Date();
 
+        // ── Ensure facility_code exists in parent facilities table ──────────
+        await database.mysqlPool.query(
+            `INSERT IGNORE INTO facilities (facility_code, facility_name)
+             VALUES (?, ?)`,
+            [facility_code, facility_name]
+        );
+
+        // ── Insert into nsf_facilities ──────────────────────────────────────
         const [result] = await database.mysqlPool.query(
             `INSERT INTO nsf_facilities (
                 facility_code, facility_name, category, type1, type2,
@@ -119,8 +127,8 @@ const addNSFFacility = async (req, res) => {
                 toDateOnly(date_accredited),
                 year_accredited ? parseInt(year_accredited) : null,
                 toDateOnly(last_po_date), po_number || null,
-                created_by, now,   // created_by + created_date
-                created_by, now,   // modified_by + modified_date  ← same on insert
+                created_by, now,
+                created_by, now,
                 remarks || null
             ]
         );
@@ -454,7 +462,7 @@ const getNSFReactivationStatus = async (req, res) => {
 };
 
 
-// ── REACTIVATION LOGS ─────────────────────────────────────────────────────────
+
 // ── REACTIVATION LOGS ─────────────────────────────────────────────────────────
 const getNSFReactivationLogs = async (req, res) => {
     try {
@@ -497,13 +505,14 @@ const getNSFReactivationLogs = async (req, res) => {
             `SELECT
                 l.id, l.facility_id,
                 f.facility_name, f.facility_code,
+                f.province,
                 l.action, l.old_status, l.new_status,
                 l.remarks, l.created_by, l.created_at
-             FROM nsf_reactivation_logs l
-             LEFT JOIN nsf_facilities f ON f.id = l.facility_id
-             ${where}
-             ORDER BY l.created_at DESC
-             LIMIT ? OFFSET ?`,
+            FROM nsf_reactivation_logs l
+            LEFT JOIN nsf_facilities f ON f.id = l.facility_id
+            ${where}
+            ORDER BY l.created_at DESC
+            LIMIT ? OFFSET ?`,
             [...params, limit, offset]
         );
 
