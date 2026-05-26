@@ -12,7 +12,7 @@ const toDateOnly = (val) => {
         return isNaN(val) ? null : val.toISOString().slice(0, 10);
     }
     if (typeof val === 'string') {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;   // already correct
+        if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
         const d = new Date(val);
         return isNaN(d) ? null : d.toISOString().slice(0, 10);
     }
@@ -370,9 +370,12 @@ const getNSFStatusDistribution = async (req, res) => {
 
 // ── REACTIVATION STATUS ───────────────────────────────────────────────────────
 const getNSFReactivationStatus = async (req, res) => {
+    const connection = await database.mysqlPool.getConnection();
     try {
-        // Auto-deactivate
-        const [deactivated] = await database.mysqlPool.query(
+        await connection.beginTransaction();
+
+        // Auto-deactivate: active but no PO in 6 months
+        const [deactivated] = await connection.query(
             `UPDATE nsf_facilities
              SET status = 'inactive', modified_date = NOW(), modified_by = 'system'
              WHERE status = 'active'
@@ -380,18 +383,18 @@ const getNSFReactivationStatus = async (req, res) => {
                AND last_po_date < DATE_SUB(NOW(), INTERVAL 6 MONTH)`
         );
 
-        // Auto-reactivate
-        const [reactivated] = await database.mysqlPool.query(
+        // Auto-reactivate: inactive OR closed but has PO within 6 months
+        const [reactivated] = await connection.query(
             `UPDATE nsf_facilities
              SET status = 'active', modified_date = NOW(), modified_by = 'system'
-             WHERE status = 'inactive'
+             WHERE status IN ('inactive', 'closed')
                AND last_po_date IS NOT NULL
                AND last_po_date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)`
         );
 
         // Log auto-deactivations
         if (deactivated.affectedRows > 0) {
-            await database.mysqlPool.query(
+            await connection.query(
                 `INSERT INTO nsf_reactivation_logs
                     (facility_id, action, old_status, new_status, remarks, created_by, created_at)
                  SELECT id, 'deactivated', 'active', 'inactive',
@@ -404,13 +407,13 @@ const getNSFReactivationStatus = async (req, res) => {
             );
         }
 
-        // Log auto-reactivations
+        // Log auto-reactivations (covers both inactive and closed)
         if (reactivated.affectedRows > 0) {
-            await database.mysqlPool.query(
+            await connection.query(
                 `INSERT INTO nsf_reactivation_logs
                     (facility_id, action, old_status, new_status, remarks, created_by, created_at)
-                 SELECT id, 'reactivated', 'inactive', 'active',
-                        'Auto-reactivated: PO date is within 6 months',
+                 SELECT id, 'reactivated', 'inactive/closed', 'active',
+                        'Auto-reactivated: new PO date is within 6 months',
                         'system', NOW()
                  FROM nsf_facilities
                  WHERE status = 'active'
@@ -419,23 +422,25 @@ const getNSFReactivationStatus = async (req, res) => {
             );
         }
 
-        // Build filter by last_po_date month/year
+        await connection.commit();
+
+        // Build filter
         const { month, year } = req.query;
         const conditions = ['last_po_date IS NOT NULL'];
-        const params     = [];
+        const params = [];
 
-        if (month && month !== 'All') {
+        if (month && !isNaN(parseInt(month))) {
             conditions.push('MONTH(last_po_date) = ?');
             params.push(parseInt(month));
         }
-        if (year) {
+        if (year && !isNaN(parseInt(year))) {
             conditions.push('YEAR(last_po_date) = ?');
             params.push(parseInt(year));
         }
 
         const where = `WHERE ${conditions.join(' AND ')}`;
 
-        const [results] = await database.mysqlPool.query(
+        const [results] = await connection.query(
             `SELECT
                 id, facility_code, facility_name,
                 status, last_po_date, province,
@@ -455,13 +460,15 @@ const getNSFReactivationStatus = async (req, res) => {
             auto_deactivated: deactivated.affectedRows,
             auto_reactivated: reactivated.affectedRows,
         });
+
     } catch (err) {
+        await connection.rollback();
         console.error("getNSFReactivationStatus error:", err);
         res.status(500).json({ error: "Failed to fetch reactivation status", message: err.message });
+    } finally {
+        connection.release();
     }
 };
-
-
 
 // ── REACTIVATION LOGS ─────────────────────────────────────────────────────────
 const getNSFReactivationLogs = async (req, res) => {
