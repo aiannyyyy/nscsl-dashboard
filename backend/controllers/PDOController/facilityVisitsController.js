@@ -1,7 +1,51 @@
 const { database } = require('../../config');
 const oracledb = require('oracledb');
 
-// Get all facility visits
+// ── STATUS MAP ────────────────────────────────────────────────────────────────
+const statusMap = {
+    '1': 'active',
+    '0': 'inactive',
+    '2': 'closed',
+};
+
+// ── SHARED HELPER: sync nsf_facilities + log if status changed ────────────────
+const syncFacilityStatus = async (facility_code, mappedStatus, remarks, userName, now) => {
+    const [existing] = await database.mysqlPool.query(
+        `SELECT id, status FROM test_nscslcom_nscsl_dashboard.nsf_facilities WHERE facility_code = ?`,
+        [facility_code]
+    );
+
+    if (existing.length === 0) return; // facility not found, skip silently
+
+    const facilityId = existing[0].id;
+    const oldStatus  = existing[0].status;
+
+    await database.mysqlPool.query(
+        `UPDATE test_nscslcom_nscsl_dashboard.nsf_facilities
+         SET status = ?, remarks = ?, modified_by = ?, modified_date = ?
+         WHERE facility_code = ?`,
+        [mappedStatus, remarks || 'No remarks', userName, now, facility_code]
+    );
+
+    if (oldStatus !== mappedStatus) {
+        const action = mappedStatus === 'active' ? 'reactivated' : 'deactivated';
+        await database.mysqlPool.query(
+            `INSERT INTO test_nscslcom_nscsl_dashboard.nsf_reactivation_logs
+                (facility_id, action, old_status, new_status, remarks, created_by, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+            [
+                facilityId,
+                action,
+                oldStatus,
+                mappedStatus,
+                `Status updated via facility visit by ${userName}`,
+                userName
+            ]
+        );
+    }
+};
+
+// ── GET ALL FACILITY VISITS ───────────────────────────────────────────────────
 const getAllVisits = async (req, res) => {
     try {
         const [results] = await database.mysqlPool.query(
@@ -17,7 +61,7 @@ const getAllVisits = async (req, res) => {
     }
 };
 
-// Create new facility visit
+// ── CREATE FACILITY VISIT ─────────────────────────────────────────────────────
 const createVisit = async (req, res) => {
     try {
         const {
@@ -30,41 +74,48 @@ const createVisit = async (req, res) => {
             mark,
         } = req.body;
 
-        // Get user info from session/token
         const userName = req.user?.name || req.body.userName || 'System';
 
-        // Handle file uploads
+        // Validate status
+        const mappedStatus = statusMap[status];
+        if (!mappedStatus) {
+            return res.status(400).json({
+                error: "Invalid status value",
+                message: `Status "${status}" is not recognized. Must be 0, 1, or 2.`
+            });
+        }
+
         const filePaths = req.files && req.files.length > 0
             ? req.files.map((file) => "uploads/" + file.filename).join(",")
             : null;
 
-        // Convert the datetime from frontend to MySQL datetime format
         const mysqlDateTime = date_visited.replace('T', ' ') + ':00';
-
-        // Get current timestamp
         const now = new Date();
 
-        const sql = `
-            INSERT INTO test_nscslcom_nscsl_dashboard.pdo_visit 
-            (facility_code, facility_name, date_visited, province, status, remarks, mark, attachment_path, created_by, created_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
+        // 1. Insert visit record
+        const [result] = await database.mysqlPool.query(
+            `INSERT INTO test_nscslcom_nscsl_dashboard.pdo_visit 
+             (facility_code, facility_name, date_visited, province, status, remarks, mark, attachment_path, created_by, created_at) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                facility_code,
+                facility_name,
+                mysqlDateTime,
+                province,
+                status,
+                remarks || 'No remarks',
+                mark,
+                filePaths,
+                userName,
+                now
+            ]
+        );
 
-        const [result] = await database.mysqlPool.query(sql, [
-            facility_code,
-            facility_name,
-            mysqlDateTime,
-            province,
-            status,
-            remarks || 'No remarks',
-            mark,
-            filePaths,
-            userName,
-            now
-        ]);
+        // 2. Sync nsf_facilities status + write log if changed
+        await syncFacilityStatus(facility_code, mappedStatus, remarks, userName, now);
 
         res.json({ 
-            message: "Facility visit added successfully", 
+            message: "Facility visit added and facility record updated successfully", 
             id: result.insertId 
         });
     } catch (err) {
@@ -76,7 +127,7 @@ const createVisit = async (req, res) => {
     }
 };
 
-// Update facility visit
+// ── UPDATE FACILITY VISIT ─────────────────────────────────────────────────────
 const updateVisit = async (req, res) => {
     try {
         const { id } = req.params;
@@ -92,10 +143,18 @@ const updateVisit = async (req, res) => {
             files_to_delete
         } = req.body;
 
-        // Get user info from session/token
         const userName = req.user?.name || req.body.userName || 'System';
 
-        // Get current record to preserve created_by and created_at
+        // Validate status
+        const mappedStatus = statusMap[status];
+        if (!mappedStatus) {
+            return res.status(400).json({
+                error: "Invalid status value",
+                message: `Status "${status}" is not recognized. Must be 0, 1, or 2.`
+            });
+        }
+
+        // Get current record
         const [currentRecord] = await database.mysqlPool.query(
             "SELECT attachment_path, created_by, created_at FROM test_nscslcom_nscsl_dashboard.pdo_visit WHERE id = ?",
             [id]
@@ -105,94 +164,88 @@ const updateVisit = async (req, res) => {
             return res.status(404).json({ error: "Facility visit not found" });
         }
 
-        const currentAttachmentPath = currentRecord[0].attachment_path;
-        const createdBy = currentRecord[0].created_by;
-        const createdAt = currentRecord[0].created_at;
+        const { 
+            attachment_path: currentAttachmentPath, 
+            created_by: createdBy, 
+            created_at: createdAt 
+        } = currentRecord[0];
 
         // Parse file management data
-        let filesToKeep = [];
+        let filesToKeep   = [];
         let filesToDelete = [];
-
         try {
-            if (files_to_keep) filesToKeep = JSON.parse(files_to_keep);
+            if (files_to_keep)   filesToKeep   = JSON.parse(files_to_keep);
             if (files_to_delete) filesToDelete = JSON.parse(files_to_delete);
         } catch (error) {
             console.error("Error parsing file management data:", error);
         }
 
         // Handle new uploads
-        let newFilePaths = [];
-        if (req.files && req.files.length > 0) {
-            newFilePaths = req.files.map((file) => "uploads/" + file.filename);
-        }
+        const newFilePaths = req.files && req.files.length > 0
+            ? req.files.map((file) => "uploads/" + file.filename)
+            : [];
 
         // Determine final attachment paths
         let attachmentPathString;
-
         if (files_to_keep !== undefined || files_to_delete !== undefined || newFilePaths.length > 0) {
-            let finalFilePaths = [...filesToKeep, ...newFilePaths];
+            const finalFilePaths = [...filesToKeep, ...newFilePaths];
             attachmentPathString = finalFilePaths.length > 0 ? finalFilePaths.join(",") : null;
 
-            // Delete files marked for deletion
             if (filesToDelete.length > 0) {
-                const fs = require('fs');
+                const fs   = require('fs');
                 const path = require('path');
                 filesToDelete.forEach(filePath => {
                     const fullPath = path.join(__dirname, '..', filePath);
                     fs.unlink(fullPath, (err) => {
-                        if (err) {
-                            console.error(`Error deleting file ${filePath}:`, err);
-                        } else {
-                            console.log(`Successfully deleted file: ${filePath}`);
-                        }
+                        if (err) console.error(`Error deleting file ${filePath}:`, err);
+                        else console.log(`Successfully deleted file: ${filePath}`);
                     });
                 });
             }
         } else {
-            // Preserve existing attachments and add new ones
-            let existingPaths = currentAttachmentPath ? currentAttachmentPath.split(',') : [];
-            let allPaths = [...existingPaths, ...newFilePaths];
+            const existingPaths = currentAttachmentPath ? currentAttachmentPath.split(',') : [];
+            const allPaths = [...existingPaths, ...newFilePaths];
             attachmentPathString = allPaths.length > 0 ? allPaths.join(",") : null;
         }
 
-        // Convert datetime format for MySQL
-        const mysqlDateTime = date_visited.includes('T') 
+        const mysqlDateTime = date_visited.includes('T')
             ? date_visited.replace('T', ' ') + ':00'
             : date_visited;
 
-        // Get current timestamp - just use new Date() object, mysql2 handles it
         const now = new Date();
 
-        // Update database
-        const sql = `
-            UPDATE test_nscslcom_nscsl_dashboard.pdo_visit 
-            SET facility_code=?, facility_name=?, date_visited=?, province=?, status=?, remarks=?, mark=?, attachment_path=?, 
-                created_by=?, created_at=?, modified_by=?, modified_at=?
-            WHERE id=?
-        `;
-
-        const [result] = await database.mysqlPool.query(sql, [
-            facility_code,
-            facility_name,
-            mysqlDateTime,
-            province,
-            status,
-            remarks || 'No remarks',
-            mark,
-            attachmentPathString,
-            createdBy,
-            createdAt,
-            userName,
-            now,
-            id
-        ]);
+        // 1. Update visit record
+        const [result] = await database.mysqlPool.query(
+            `UPDATE test_nscslcom_nscsl_dashboard.pdo_visit 
+             SET facility_code=?, facility_name=?, date_visited=?, province=?, status=?, remarks=?, mark=?, attachment_path=?, 
+                 created_by=?, created_at=?, modified_by=?, modified_at=?
+             WHERE id=?`,
+            [
+                facility_code,
+                facility_name,
+                mysqlDateTime,
+                province,
+                status,
+                remarks || 'No remarks',
+                mark,
+                attachmentPathString,
+                createdBy,
+                createdAt,
+                userName,
+                now,
+                id
+            ]
+        );
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: "Facility visit not found" });
         }
 
+        // 2. Sync nsf_facilities status + write log if changed
+        await syncFacilityStatus(facility_code, mappedStatus, remarks, userName, now);
+
         res.json({
-            message: "Facility visit updated successfully",
+            message: "Facility visit updated and facility record synced successfully",
             attachments_updated: attachmentPathString ? attachmentPathString.split(',').length : 0,
             files_deleted: filesToDelete.length
         });
@@ -205,18 +258,16 @@ const updateVisit = async (req, res) => {
     }
 };
 
-// Delete facility visit
+// ── DELETE FACILITY VISIT ─────────────────────────────────────────────────────
 const deleteVisit = async (req, res) => {
     try {
         const { id } = req.params;
-        
-        // Get attachment path before deleting
+
         const [record] = await database.mysqlPool.query(
             "SELECT attachment_path FROM test_nscslcom_nscsl_dashboard.pdo_visit WHERE id = ?",
             [id]
         );
 
-        // Delete the record
         const [result] = await database.mysqlPool.query(
             "DELETE FROM test_nscslcom_nscsl_dashboard.pdo_visit WHERE id=?",
             [id]
@@ -226,9 +277,8 @@ const deleteVisit = async (req, res) => {
             return res.status(404).json({ error: "Facility visit not found" });
         }
 
-        // Delete associated files
         if (record.length > 0 && record[0].attachment_path) {
-            const fs = require('fs');
+            const fs   = require('fs');
             const path = require('path');
             const files = record[0].attachment_path.split(',');
             files.forEach(filePath => {
@@ -249,15 +299,14 @@ const deleteVisit = async (req, res) => {
     }
 };
 
-// Update status only
+// ── UPDATE STATUS ONLY ────────────────────────────────────────────────────────
 const updateStatus = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { id }     = req.params;
         const { status } = req.body;
 
-        // Get user info
         const userName = req.user?.name || req.body.userName || 'System';
-        const now = new Date();
+        const now      = new Date();
 
         const [result] = await database.mysqlPool.query(
             "UPDATE test_nscslcom_nscsl_dashboard.pdo_visit SET status=?, modified_by=?, modified_at=? WHERE id=?",
@@ -278,21 +327,20 @@ const updateStatus = async (req, res) => {
     }
 };
 
-// Get facility status count (for doughnut chart)
+// ── GET FACILITY STATUS COUNT (doughnut chart) ────────────────────────────────
 const getStatusCount = async (req, res) => {
     try {
         const { date_from, date_to, province } = req.query;
 
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = today.getMonth();
-        const defaultFrom = new Date(year, month, 1).toISOString().split("T")[0];
-        const defaultTo = new Date(year, month + 1, 0).toISOString().split("T")[0];
+        const today        = new Date();
+        const year         = today.getFullYear();
+        const month        = today.getMonth();
+        const defaultFrom  = new Date(year, month, 1).toISOString().split("T")[0];
+        const defaultTo    = new Date(year, month + 1, 0).toISOString().split("T")[0];
 
         const fromDate = date_from || defaultFrom;
-        const toDate = date_to || defaultTo;
+        const toDate   = date_to   || defaultTo;
 
-        // Build query dynamically based on whether province is provided
         let sql = `
             SELECT
                 COUNT(CASE WHEN status = '1' THEN 1 END) AS active,
@@ -311,13 +359,11 @@ const getStatusCount = async (req, res) => {
 
         const [results] = await database.mysqlPool.query(sql, params);
 
-        const statusCount = {
-            active: Number(results[0].active),
+        res.json({
+            active:   Number(results[0].active),
             inactive: Number(results[0].inactive),
-            closed: Number(results[0].closed)
-        };
-
-        res.json(statusCount);
+            closed:   Number(results[0].closed)
+        });
     } catch (err) {
         console.error("Status count error:", err);
         res.status(500).json({ 
@@ -327,7 +373,7 @@ const getStatusCount = async (req, res) => {
     }
 };
 
-// Get facilities by status
+// ── GET FACILITIES BY STATUS ──────────────────────────────────────────────────
 const getFacilitiesByStatus = async (req, res) => {
     try {
         const { status } = req.params;
@@ -357,7 +403,6 @@ const getFacilitiesByStatus = async (req, res) => {
         }
 
         const [results] = await database.mysqlPool.query(sql, params);
-
         res.json(results);
     } catch (err) {
         console.error("Facility filter error:", err);
@@ -368,10 +413,9 @@ const getFacilitiesByStatus = async (req, res) => {
     }
 };
 
-// Get facility by code from Oracle
+// ── GET FACILITY BY CODE (Oracle) ─────────────────────────────────────────────
 const getFacilityByCode = async (req, res) => {
     let connection;
-    
     try {
         const oraclePool = req.app.locals.oracleDb;
 
@@ -385,15 +429,14 @@ const getFacilityByCode = async (req, res) => {
             return res.status(400).json({ error: 'Facility code is required' });
         }
 
-        // Get connection from pool
         connection = await oraclePool.getConnection();
 
         const query = `
             SELECT 
                 PROVIDERID AS facilitycode, 
-                ADRS_TYPE AS adrs_type, 
-                DESCR1 AS facilityname,
-                COUNTY as province
+                ADRS_TYPE  AS adrs_type, 
+                DESCR1     AS facilityname,
+                COUNTY     AS province
             FROM PHMSDS.REF_PROVIDER_ADDRESS 
             WHERE ADRS_TYPE = '1'
             AND PROVIDERID = :facilitycode
@@ -431,6 +474,7 @@ const getFacilityByCode = async (req, res) => {
     }
 };
 
+// ── EXPORTS ───────────────────────────────────────────────────────────────────
 module.exports = {
     getAllVisits,
     createVisit,

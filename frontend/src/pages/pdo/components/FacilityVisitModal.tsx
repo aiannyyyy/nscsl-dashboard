@@ -1,20 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Upload, FileText, Trash2, Loader2, Image, File, AlertCircle, Info, CheckCircle2 } from 'lucide-react';
+import { useCreateFacilityVisit, useUpdateFacilityVisit } from '../../../hooks/PDOHooks/useFacilityVisits';
 import facilityVisitsService from '../../../services/PDOServices/facilityVisitsService';
 import type { FacilityVisit } from '../../../services/PDOServices/facilityVisitsService';
 import { useAuth } from '../../../hooks/useAuth';
 
 interface FacilityVisitModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen:    boolean;
+  onClose:   () => void;
   onSuccess: () => void;
-  visit?: FacilityVisit | null;
+  visit?:    FacilityVisit | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MAX_FILES       = 50;
-const MAX_TOTAL_BYTES = 50 * 1024 * 1024; // 50 MB
-const MAX_FILE_BYTES  = 10 * 1024 * 1024; // 10 MB per file
+const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
+const MAX_FILE_BYTES  = 10 * 1024 * 1024;
 const ALLOWED_TYPES   = [
   'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
   'application/pdf',
@@ -56,14 +57,17 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const createMutation = useCreateFacilityVisit();
+  const updateMutation = useUpdateFacilityVisit();
+
   const [formData, setFormData] = useState({
     facility_code: '',
     facility_name: '',
-    date_visited: '',
-    province: '',
-    status: '1',
-    remarks: '',
-    mark: '',
+    date_visited:  '',
+    province:      '',
+    status:        '1',
+    remarks:       '',
+    mark:          '',
   });
 
   const [newFiles,      setNewFiles]      = useState<File[]>([]);
@@ -71,9 +75,10 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
   const [filesToDelete, setFilesToDelete] = useState<string[]>([]);
   const [fileWarning,   setFileWarning]   = useState<string | null>(null);
   const [isDragging,    setIsDragging]    = useState(false);
-  const [loading,       setLoading]       = useState(false);
   const [uploadPct,     setUploadPct]     = useState(0);
   const [lookupLoading, setLookupLoading] = useState(false);
+
+  const loading = createMutation.isPending || updateMutation.isPending;
 
   // derived
   const totalCount = newFiles.length + existingFiles.length;
@@ -84,7 +89,7 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
     usedPct >= 65 ? 'bg-amber-500' :
     'bg-blue-500';
 
-  // ── Effects ──────────────────────────────────────────────────────────────────
+  // ── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
     if (visit) {
@@ -102,7 +107,11 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
         remarks:       visit.remarks       ?? '',
         mark:          visit.mark          ?? '',
       });
-      setExistingFiles(visit.attachment_path ? visit.attachment_path.split(',').filter(Boolean) : []);
+      setExistingFiles(
+        visit.attachment_path
+          ? visit.attachment_path.split(',').filter(Boolean)
+          : []
+      );
     } else {
       resetForm();
     }
@@ -112,19 +121,26 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     setFormData({
-      facility_code: '', facility_name: '',
+      facility_code: '',
+      facility_name: '',
       date_visited: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`,
-      province: '', status: '1', remarks: '', mark: '',
+      province: '',
+      status:   '1',
+      remarks:  '',
+      mark:     '',
     });
-    setNewFiles([]); setExistingFiles([]); setFilesToDelete([]);
-    setFileWarning(null); setUploadPct(0);
+    setNewFiles([]);
+    setExistingFiles([]);
+    setFilesToDelete([]);
+    setFileWarning(null);
+    setUploadPct(0);
   };
 
-  // ── File validation ───────────────────────────────────────────────────────────
+  // ── File validation ────────────────────────────────────────────────────────
   const addFiles = useCallback((incoming: FileList | File[]) => {
     setFileWarning(null);
-    const arr = Array.from(incoming);
-    const accepted: File[] = [];
+    const arr      = Array.from(incoming);
+    const accepted: File[]   = [];
     const rejected: string[] = [];
 
     for (const f of arr) {
@@ -142,19 +158,21 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
       if (projBytes > MAX_TOTAL_BYTES) {
         rejected.push(`"${f.name}" — would exceed 50 MB total`); continue;
       }
-      // deduplicate
       if (newFiles.some(x => x.name === f.name && x.size === f.size)) continue;
       accepted.push(f);
     }
 
     if (accepted.length) setNewFiles(prev => [...prev, ...accepted]);
     if (rejected.length) setFileWarning(
-      rejected.slice(0, 2).join(' · ') + (rejected.length > 2 ? ` +${rejected.length - 2} more skipped` : '')
+      rejected.slice(0, 2).join(' · ') +
+      (rejected.length > 2 ? ` +${rejected.length - 2} more skipped` : '')
     );
   }, [newFiles, totalCount, usedBytes]);
 
-  // ── Handlers ─────────────────────────────────────────────────────────────────
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -169,7 +187,11 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
     try {
       const result = await facilityVisitsService.lookupFacility(facilityCode);
       if (result) {
-        setFormData(prev => ({ ...prev, facility_name: result.facilityname, province: result.province }));
+        setFormData(prev => ({
+          ...prev,
+          facility_name: result.facilityname,
+          province:      result.province,
+        }));
       } else {
         alert('Facility not found. Please check the facility code.');
       }
@@ -181,16 +203,20 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault(); setIsDragging(false);
+    e.preventDefault();
+    setIsDragging(false);
     addFiles(e.dataTransfer.files);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setUploadPct(0);
+    setUploadPct(0);
+
     try {
       const submitData = new FormData();
-      Object.entries(formData).forEach(([key, value]) => submitData.append(key, value));
+      Object.entries(formData).forEach(([key, value]) =>
+        submitData.append(key, value)
+      );
       submitData.append('userName', user?.name || 'Unknown User');
       newFiles.forEach(file => submitData.append('attachments', file));
 
@@ -198,15 +224,16 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
         const filesToKeep = existingFiles.filter(f => !filesToDelete.includes(f));
         submitData.append('files_to_keep',   JSON.stringify(filesToKeep));
         submitData.append('files_to_delete', JSON.stringify(filesToDelete));
-        await facilityVisitsService.update(visit.id, submitData, setUploadPct);
+        await updateMutation.mutateAsync({ id: visit.id, data: submitData });
       } else {
-        await facilityVisitsService.create(submitData, setUploadPct);
+        await createMutation.mutateAsync(submitData);
       }
-      resetForm(); onSuccess(); onClose();
+
+      resetForm();
+      onSuccess();
+      onClose();
     } catch (error: any) {
-      alert(error.message || 'Failed to save facility visit');
-    } finally {
-      setLoading(false); setUploadPct(0);
+      alert(error?.response?.data?.message || error.message || 'Failed to save facility visit');
     }
   };
 
@@ -221,24 +248,31 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {visit ? 'Edit Facility Visit' : 'Add Facility Visit'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
+          >
             <X size={20} />
           </button>
         </div>
 
-        {/* Upload progress (only while submitting) */}
+        {/* Upload progress */}
         {loading && uploadPct > 0 && (
           <div className="px-5 pt-2.5 flex-shrink-0">
             <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
               <span>Uploading…</span><span>{uploadPct}%</span>
             </div>
             <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-500 transition-all duration-300 rounded-full" style={{ width: `${uploadPct}%` }} />
+              <div
+                className="h-full bg-blue-500 transition-all duration-300 rounded-full"
+                style={{ width: `${uploadPct}%` }}
+              />
             </div>
           </div>
         )}
 
-        {/* Scrollable form */}
+        {/* Form */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
           <div className="p-5 space-y-3">
 
@@ -255,7 +289,8 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
                   value={formData.facility_code}
                   onChange={handleChange}
                   onKeyPress={handleFacilityCodeKeyPress}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  disabled={!!visit}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
                   required
                 />
                 {lookupLoading && (
@@ -272,8 +307,13 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
                 Facility Name <span className="text-red-500">*</span>
               </label>
               <input
-                type="text" name="facility_name" value={formData.facility_name}
-                onChange={handleChange} required disabled readOnly
+                type="text"
+                name="facility_name"
+                value={formData.facility_name}
+                onChange={handleChange}
+                required
+                disabled
+                readOnly
                 className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
               />
             </div>
@@ -285,8 +325,13 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
                   Province <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="text" name="province" value={formData.province}
-                  onChange={handleChange} required disabled readOnly
+                  type="text"
+                  name="province"
+                  value={formData.province}
+                  onChange={handleChange}
+                  required
+                  disabled
+                  readOnly
                   className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
                 />
               </div>
@@ -295,7 +340,10 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
                   Status <span className="text-red-500">*</span>
                 </label>
                 <select
-                  name="status" value={formData.status} onChange={handleChange} required
+                  name="status"
+                  value={formData.status}
+                  onChange={handleChange}
+                  required
                   className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
                 >
                   <option value="1">Active</option>
@@ -312,15 +360,23 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
                   Date & Time Visited <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="datetime-local" name="date_visited"
-                  value={formData.date_visited} onChange={handleChange} required
+                  type="datetime-local"
+                  name="date_visited"
+                  value={formData.date_visited}
+                  onChange={handleChange}
+                  required
                   className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Mark</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Mark
+                </label>
                 <input
-                  type="text" name="mark" value={formData.mark} onChange={handleChange}
+                  type="text"
+                  name="mark"
+                  value={formData.mark}
+                  onChange={handleChange}
                   className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
                 />
               </div>
@@ -328,14 +384,19 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
 
             {/* Remarks */}
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Remarks</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Remarks
+              </label>
               <textarea
-                name="remarks" value={formData.remarks} onChange={handleChange} rows={4}
+                name="remarks"
+                value={formData.remarks}
+                onChange={handleChange}
+                rows={4}
                 className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white resize-none"
               />
             </div>
 
-            {/* ── Attachments ── */}
+            {/* Attachments */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
@@ -346,9 +407,7 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
                 </span>
               </div>
 
-              {/* Limit note */}
-              <div className="flex items-start gap-1.5 px-3 py-2 mb-2 rounded-md
-                              bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
+              <div className="flex items-start gap-1.5 px-3 py-2 mb-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
                 <Info size={12} className="text-blue-500 flex-shrink-0 mt-px" />
                 <p className="text-[11px] text-blue-700 dark:text-blue-400 leading-relaxed">
                   Max <span className="font-semibold">50 files</span> ·{' '}
@@ -364,18 +423,18 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`
-                  flex justify-center px-4 py-4 border-2 border-dashed rounded-md cursor-pointer transition-colors
-                  ${isDragging
+                className={`flex justify-center px-4 py-4 border-2 border-dashed rounded-md cursor-pointer transition-colors ${
+                  isDragging
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                     : 'border-gray-300 dark:border-gray-700 hover:border-blue-500'
-                  }
-                `}
+                }`}
               >
                 <div className="text-center">
                   <Upload className="mx-auto h-8 w-8 text-gray-400" />
                   <div className="mt-1 flex text-xs text-gray-600 dark:text-gray-400 justify-center">
-                    <span className="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">Upload files</span>
+                    <span className="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">
+                      Upload files
+                    </span>
                     <p className="pl-1">or drag and drop</p>
                   </div>
                   <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
@@ -384,9 +443,16 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
                 </div>
                 <input
                   ref={fileInputRef}
-                  type="file" multiple className="sr-only"
+                  type="file"
+                  multiple
+                  className="sr-only"
                   accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                  onChange={e => { if (e.target.files) { addFiles(e.target.files); e.target.value = ''; } }}
+                  onChange={e => {
+                    if (e.target.files) {
+                      addFiles(e.target.files);
+                      e.target.value = '';
+                    }
+                  }}
                 />
               </div>
 
@@ -400,7 +466,10 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
                     </span>
                   </div>
                   <div className="h-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-300 ${meterColor}`} style={{ width: `${usedPct}%` }} />
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${meterColor}`}
+                      style={{ width: `${usedPct}%` }}
+                    />
                   </div>
                 </div>
               )}
@@ -421,7 +490,10 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
                   </label>
                   <div className="space-y-1.5">
                     {existingFiles.map((filePath, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-md">
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-md"
+                      >
                         <div className="flex items-center gap-2 min-w-0">
                           <FileIcon name={filePath} />
                           <span className="text-xs text-gray-700 dark:text-gray-300 truncate">
@@ -452,15 +524,25 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
                   </label>
                   <div className="space-y-1.5">
                     {newFiles.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-green-50 dark:bg-green-900/20 rounded-md">
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 bg-green-50 dark:bg-green-900/20 rounded-md"
+                      >
                         <div className="flex items-center gap-2 min-w-0">
                           <FileIcon name={file.name} />
-                          <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{file.name}</span>
-                          <span className="text-[10px] text-gray-400 flex-shrink-0">{fmt(file.size)}</span>
+                          <span className="text-xs text-gray-700 dark:text-gray-300 truncate">
+                            {file.name}
+                          </span>
+                          <span className="text-[10px] text-gray-400 flex-shrink-0">
+                            {fmt(file.size)}
+                          </span>
                         </div>
                         <button
                           type="button"
-                          onClick={() => { setNewFiles(p => p.filter((_, i) => i !== index)); setFileWarning(null); }}
+                          onClick={() => {
+                            setNewFiles(p => p.filter((_, i) => i !== index));
+                            setFileWarning(null);
+                          }}
                           className="text-red-400 hover:text-red-600 flex-shrink-0"
                         >
                           <Trash2 size={14} />
@@ -473,39 +555,39 @@ export const FacilityVisitModal: React.FC<FacilityVisitModalProps> = ({
             </div>
           </div>
 
-          {/* Action Buttons */}
+          {/* Footer */}
           <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50">
-            {/* File count summary */}
             <div className="flex items-center gap-1 text-[11px]">
               {totalCount > 0 ? (
                 <>
                   <CheckCircle2 size={12} className="text-green-500" />
                   <span className="text-gray-500 dark:text-gray-400">
                     {totalCount} file{totalCount !== 1 ? 's' : ''} attached
-                    {newFiles.length > 0 && <span className="text-blue-500 ml-1">· {newFiles.length} new</span>}
+                    {newFiles.length > 0 && (
+                      <span className="text-blue-500 ml-1">· {newFiles.length} new</span>
+                    )}
                   </span>
                 </>
               ) : (
                 <span className="text-gray-400">No attachments</span>
               )}
             </div>
-
             <div className="flex gap-2">
               <button
-                type="button" onClick={onClose} disabled={loading}
+                type="button"
+                onClick={onClose}
+                disabled={loading}
                 className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                type="submit" disabled={loading || lookupLoading}
+                type="submit"
+                disabled={loading || lookupLoading}
                 className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 {loading && <Loader2 size={14} className="animate-spin" />}
-                {loading
-                  ? (uploadPct > 0 ? `${uploadPct}%` : 'Saving…')
-                  : visit ? 'Update' : 'Create'
-                }
+                {loading ? 'Saving…' : visit ? 'Update' : 'Create'}
               </button>
             </div>
           </div>
