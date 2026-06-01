@@ -1,6 +1,6 @@
 // src/pages/PDO/components/NSFLogsModal.tsx
 import React from 'react';
-import { X, ChevronLeft, ChevronRight, ArrowRight, CalendarDays } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ArrowRight, CalendarDays, Download } from 'lucide-react';
 import { useNSFReactivationLogs } from '../../../hooks/PDOHooks/useNSFFacilities';
 import type { NSFLogAction } from '../../../services/PDOServices/nsfFacilitesServices';
 
@@ -19,7 +19,6 @@ interface NSFLogsModalProps {
   subtitle?:   string;
   action?:     NSFLogAction;
   facilityId?: number;
-  /** Passed directly from the chart's dropdowns — modal just reads them */
   month?:      string;
   year?:       string;
 }
@@ -39,6 +38,41 @@ const STATUS_STYLES: Record<string, string> = {
   partner:  'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
 };
 
+const ACTION_LABELS: Record<string, string> = {
+  added:       'Added',
+  reactivated: 'Reactivated',
+  deactivated: 'Deactivated',
+  deleted:     'Deleted',
+};
+
+// Active (selected) styles per action for filter buttons
+const ACTION_ACTIVE_STYLES: Record<string, string> = {
+  all:         'bg-gray-700   text-white     dark:bg-gray-200    dark:text-gray-900',
+  added:       'bg-blue-500   text-white     dark:bg-blue-400    dark:text-white',
+  reactivated: 'bg-green-500  text-white     dark:bg-green-400   dark:text-white',
+  deactivated: 'bg-amber-500  text-white     dark:bg-amber-400   dark:text-white',
+  deleted:     'bg-red-500    text-white     dark:bg-red-400     dark:text-white',
+};
+
+// Idle (unselected) styles per action for filter buttons
+const ACTION_IDLE_STYLES: Record<string, string> = {
+  all:         'border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700',
+  added:       'border border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20',
+  reactivated: 'border border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20',
+  deactivated: 'border border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20',
+  deleted:     'border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20',
+};
+
+type FilterAction = NSFLogAction | 'all';
+
+const FILTER_OPTIONS: { key: FilterAction; label: string }[] = [
+  { key: 'all',         label: 'All'         },
+  { key: 'added',       label: 'Added'       },
+  { key: 'reactivated', label: 'Reactivated' },
+  { key: 'deactivated', label: 'Deactivated' },
+  { key: 'deleted',     label: 'Deleted'     },
+];
+
 const Badge: React.FC<{ label: string; styleMap: Record<string, string> }> = ({ label, styleMap }) => {
   if (!label) return <span className="text-gray-400">—</span>;
   const cls = styleMap[label.toLowerCase()] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
@@ -57,32 +91,95 @@ const formatDate = (val: string | null | undefined) => {
   });
 };
 
+// ─── Expandable Remarks Cell ──────────────────────────────────────────────────
+const RemarksCell: React.FC<{ text: string | null }> = ({ text }) => {
+  const [expanded, setExpanded] = React.useState(false);
+
+  if (!text) return <span className="text-gray-400">—</span>;
+
+  const isLong = text.length > 60;
+
+  return (
+    <div className="text-xs text-gray-600 dark:text-gray-400">
+      <span>{expanded || !isLong ? text : `${text.slice(0, 60)}…`}</span>
+      {isLong && (
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="ml-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium whitespace-nowrap"
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  );
+};
+
+// ─── CSV Export Helper ────────────────────────────────────────────────────────
+const exportToCSV = (logs: any[], title: string, periodLabel: string) => {
+  const headers = ['Facility Name', 'Facility Code', 'Action', 'Old Status', 'New Status', 'Province', 'Remarks', 'By', 'Date'];
+
+  const rows = logs.map(log => [
+    log.facility_name ?? '',
+    log.facility_code ?? '',
+    log.action        ?? '',
+    log.old_status    ?? '',
+    log.new_status    ?? '',
+    log.province      ?? '',
+    log.remarks       ?? '',
+    log.created_by    ?? '',
+    formatDate(log.created_at),
+  ]);
+
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href     = url;
+  link.download = `${title.replace(/[^a-zA-Z0-9]/g, '_')}${periodLabel ? `_${periodLabel.replace(/\s+/g, '_')}` : ''}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
   open,
   onClose,
   title,
   subtitle,
-  action,
+  action: actionProp,
   facilityId,
   month,
   year,
 }) => {
-  const [page, setPage] = React.useState(1);
+  const [page,         setPage]         = React.useState(1);
+  const [activeFilter, setActiveFilter] = React.useState<FilterAction>('all');
 
-  // Reset to page 1 whenever the period or filters change
-  React.useEffect(() => { setPage(1); }, [month, year, action, facilityId, open]);
+  // ── Tracks which action types actually exist in the dataset (from unfiltered fetch)
+  const [knownActions, setKnownActions] = React.useState<Set<string>>(new Set());
 
-  const LIMIT = 5;
+  // Reset page, filter, and knownActions whenever modal params change
+  React.useEffect(() => {
+    setPage(1);
+    setActiveFilter(actionProp ?? 'all');
+    setKnownActions(new Set());
+  }, [month, year, actionProp, facilityId, open]);
+
+  const LIMIT = 8;
+
+  const resolvedAction = activeFilter === 'all' ? undefined : activeFilter;
 
   const { data: resp, isLoading, isError } = useNSFReactivationLogs(
     open
       ? {
-          action,
+          action:      resolvedAction,
           facility_id: facilityId,
           page,
-          limit: LIMIT,
-          month: month !== 'All' ? month : undefined,
+          limit:       LIMIT,
+          month:       month !== 'All' ? month : undefined,
           year,
         }
       : undefined
@@ -92,10 +189,32 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
   const total      = resp?.total       ?? 0;
   const totalPages = resp?.total_pages ?? 1;
 
-  // e.g. "March 2025" or "2025" when month is 'All'
+  // ── Update knownActions only from the unfiltered "all" response
+  React.useEffect(() => {
+    if (activeFilter === 'all' && logs.length > 0) {
+      setKnownActions(prev => {
+        const next = new Set(prev);
+        logs.forEach(log => next.add(log.action));
+        return next;
+      });
+    }
+  }, [logs, activeFilter]);
+
   const periodLabel = month && month !== 'All'
     ? `${MONTH_NAMES[month] ?? month} ${year}`
     : (year ?? '');
+
+  // ── Per-page action counts (used only for the count badges on pills)
+  const actionCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    logs.forEach(log => { counts[log.action] = (counts[log.action] ?? 0) + 1; });
+    return counts;
+  }, [logs]);
+
+  const handleFilter = (key: FilterAction) => {
+    setActiveFilter(key);
+    setPage(1);
+  };
 
   if (!open) return null;
 
@@ -105,26 +224,74 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="flex items-start justify-between px-6 py-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-t-2xl gap-4">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="text-base font-bold text-gray-900 dark:text-white">{title}</h2>
             {subtitle && (
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>
             )}
-            {/* Period badge — read-only, reflects chart selection */}
-            {periodLabel && (
-              <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 text-xs font-medium text-blue-700 dark:text-blue-300">
-                <CalendarDays size={11} />
-                {periodLabel}
-              </span>
-            )}
-            {!isLoading && (
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                {total.toLocaleString()} log{total !== 1 ? 's' : ''} found
-              </p>
+
+            {/* Period + total count */}
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              {periodLabel && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 text-xs font-medium text-blue-700 dark:text-blue-300">
+                  <CalendarDays size={11} />
+                  {periodLabel}
+                </span>
+              )}
+              {!isLoading && (
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  {total.toLocaleString()} log{total !== 1 ? 's' : ''} found
+                </span>
+              )}
+            </div>
+
+            {/* ── Action Filter Buttons ──────────────────────────────────── */}
+            {!isLoading && total > 0 && (
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+
+                {/* Always show "All" */}
+                <button
+                  onClick={() => handleFilter('all')}
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full transition-colors ${
+                    activeFilter === 'all'
+                      ? ACTION_ACTIVE_STYLES['all']
+                      : ACTION_IDLE_STYLES['all']
+                  }`}
+                >
+                  All
+                  <span className={`ml-0.5 ${activeFilter === 'all' ? 'opacity-80' : 'opacity-60'}`}>
+                    · {total.toLocaleString()}
+                  </span>
+                </button>
+
+                {/*
+                  Only render pills for action types that were seen in the
+                  unfiltered "all" fetch — so pills don't vanish when a filter
+                  is active, and pills for non-existent actions never appear.
+                */}
+                {FILTER_OPTIONS.filter(({ key }) => key !== 'all' && knownActions.has(key)).map(({ key, label }) => {
+                  const isActive = activeFilter === key;
+                  const count    = actionCounts[key];
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => handleFilter(key)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full transition-colors ${
+                        isActive ? ACTION_ACTIVE_STYLES[key] : ACTION_IDLE_STYLES[key]
+                      }`}
+                    >
+                      {label}
+                      {/* Show count badge only when viewing "all" (count is meaningful) */}
+                      {activeFilter === 'all' && count !== undefined && (
+                        <span className="ml-0.5 opacity-60">· {count}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
 
-          {/* Close button only — no dropdowns */}
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 transition-colors flex-shrink-0"
@@ -146,6 +313,9 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
               No logs found
               {periodLabel && (
                 <> for <span className="font-medium text-gray-600 dark:text-gray-300">{periodLabel}</span></>
+              )}
+              {activeFilter !== 'all' && (
+                <> with action <span className="font-medium text-gray-600 dark:text-gray-300">{ACTION_LABELS[activeFilter]}</span></>
               )}.
             </div>
           ) : (
@@ -184,24 +354,20 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
                         <div className="flex items-center gap-1.5">
                           {log.old_status
                             ? <Badge label={log.old_status} styleMap={STATUS_STYLES} />
-                            : <span className="text-xs text-gray-400">—</span>
+                            : <span className="text-xs text-gray-400 italic">none</span>
                           }
-                          {(log.old_status || log.new_status) && (
-                            <ArrowRight size={12} className="text-gray-400 flex-shrink-0" />
-                          )}
+                          <ArrowRight size={12} className="text-gray-400 flex-shrink-0" />
                           {log.new_status
                             ? <Badge label={log.new_status} styleMap={STATUS_STYLES} />
-                            : <span className="text-xs text-gray-400">—</span>
+                            : <span className="text-xs text-gray-400 italic">deleted</span>
                           }
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600 dark:text-gray-400">
                         {log.province ?? '—'}
                       </td>
-                      <td className="px-4 py-3 max-w-[200px]">
-                        <p className="text-xs text-gray-600 dark:text-gray-400 truncate" title={log.remarks ?? ''}>
-                          {log.remarks ?? '—'}
-                        </p>
+                      <td className="px-4 py-3 max-w-[220px]">
+                        <RemarksCell text={log.remarks} />
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600 dark:text-gray-400">
                         {log.created_by ?? '—'}
@@ -243,13 +409,26 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
               <ChevronRight size={14} />
             </button>
           </div>
-          <button
-            onClick={onClose}
-            className="h-8 px-4 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          >
-            Close
-          </button>
+
+          {/* ── Right side: Export + Close ───────────────────────────────── */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => exportToCSV(logs, title, periodLabel)}
+              disabled={logs.length === 0 || isLoading}
+              className="h-8 px-3 text-xs rounded-lg border border-teal-500 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+            >
+              <Download size={13} />
+              Export CSV
+            </button>
+            <button
+              onClick={onClose}
+              className="h-8 px-4 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              Close
+            </button>
+          </div>
         </div>
+
       </div>
     </div>
   );

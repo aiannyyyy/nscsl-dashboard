@@ -38,7 +38,7 @@ const syncFacilityStatus = async (facility_code, mappedStatus, remarks, userName
                 action,
                 oldStatus,
                 mappedStatus,
-                `Status updated via facility visit by ${userName}`,
+                remarks || `Status updated via facility visit by ${userName}`,
                 userName
             ]
         );

@@ -24,6 +24,21 @@ const formatDateOnly = (d: string | null | undefined): string => {
   return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
+const formatDateTime = (d: string | null | undefined): string => {
+  if (!d) return '—';
+  // Parse as local time to avoid UTC offset shifting the date
+  const date = new Date(d.includes('T') ? d : d.replace(' ', 'T'));
+  if (isNaN(date.getTime())) return '—';
+  return date.toLocaleString('en-US', {
+    year:   'numeric',
+    month:  'short',
+    day:    'numeric',
+    hour:   '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
 const getStatusBadge = (status: string | null | undefined) => {
   if (!status)
     return <span className="px-2 py-1 text-xs rounded-full font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">—</span>;
@@ -102,10 +117,11 @@ const NSFDetailModal: React.FC<{ record: NSFRecord | null; onClose: () => void }
           <div>
             <h3 className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3">Accreditation & PO</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <DetailRow label="Date Accredited" value={formatDateOnly(record.date_accredited)} />
-              <DetailRow label="Year Accredited" value={record.year_accredited} />
-              <DetailRow label="Last PO Date"    value={formatDateOnly(record.last_po_date)} />
-              <DetailRow label="PO Number"       value={record.po_number} />
+              <DetailRow label="Date Accredited"  value={formatDateOnly(record.date_accredited)} />
+              <DetailRow label="Year Accredited"  value={record.year_accredited} />
+              <DetailRow label="Last PO Date"     value={formatDateOnly(record.last_po_date)} />
+              <DetailRow label="PO Number"        value={record.po_number} />
+              <DetailRow label="Last Sample Sent" value={formatDateTime(record.last_sample_sent)} />
             </div>
           </div>
           <div>
@@ -148,12 +164,11 @@ export const NSFTable: React.FC<NSFTableProps> = ({
   const [detailRecord, setDetailRecord] = useState<NSFRecord | null>(null);
   const [editRecord,   setEditRecord]   = useState<NSFFacility | null>(null);
   const [editOpen,     setEditOpen]     = useState(false);
-  const [addOpen,      setAddOpen]      = useState(false);  // ← Add Facility modal
+  const [addOpen,      setAddOpen]      = useState(false);
 
-  // search is always the source of truth — never mixed with filterParams.search
   const params: NSFFilterParams = useMemo(() => ({
     ...filterParams,
-    search: search.trim() || undefined,   // ← send only when non-empty
+    search: search.trim() || undefined,
     page,
     limit,
   }), [filterParams, search, page, limit]);
@@ -168,7 +183,6 @@ export const NSFTable: React.FC<NSFTableProps> = ({
   const records = resp?.data ?? [];
   const total   = resp?.total ?? 0;
 
-  // Keep last known totalPages so pagination doesn't flicker while fetching
   const [lastTotalPages, setLastTotalPages] = useState(1);
   React.useEffect(() => {
     if (resp?.total_pages !== undefined) setLastTotalPages(resp.total_pages);
@@ -178,7 +192,6 @@ export const NSFTable: React.FC<NSFTableProps> = ({
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
   const handleLimit  = (v: number) => { setLimit(v);  setPage(1); };
 
-  // Reset to page 1 when external filterParams change
   const filterParamsKey = JSON.stringify(filterParams);
   React.useEffect(() => { setPage(1); }, [filterParamsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -206,6 +219,7 @@ export const NSFTable: React.FC<NSFTableProps> = ({
         'Date Accredited':  formatDateOnly(r.date_accredited),
         'Last PO Date':     formatDateOnly(r.last_po_date),
         'PO Number':        r.po_number             ?? '',
+        'Last Sample Sent': formatDateTime(r.last_sample_sent),
         Remarks:            r.remarks               ?? '',
         'Created By':       r.created_by            ?? '',
         'Created Date':     formatDateOnly(r.created_date),
@@ -213,7 +227,7 @@ export const NSFTable: React.FC<NSFTableProps> = ({
         'Modified Date':    formatDateOnly(r.modified_date),
       }));
       const ws = XLSX.utils.json_to_sheet(exportData);
-      ws['!cols'] = Array(21).fill({ wch: 20 });
+      ws['!cols'] = Array(22).fill({ wch: 20 });
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'NSF Data');
       XLSX.writeFile(wb, `NSF_Data_${new Date().toISOString().slice(0, 10)}.xlsx`);

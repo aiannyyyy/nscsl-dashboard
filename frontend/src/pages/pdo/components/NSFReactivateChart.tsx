@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { Download, ChevronDown, ScrollText } from 'lucide-react';
 import { downloadChart } from '../../../utils/chartDownloadUtils';
-import { useNSFReactivationStatus } from '../../../hooks/PDOHooks/useNSFFacilities';
+import { useNSFReactivatedByProvince } from '../../../hooks/PDOHooks/useNSFFacilities';
 import { NSFLogsModal } from './NSFLogsModal';
 
 const PROVINCE_COLORS = [
@@ -45,27 +45,22 @@ export const NSFReactivateChart: React.FC = () => {
   );
 
   const filterParams = useMemo(() => ({
-    month:      month !== 'All' ? month : undefined,
+    month: month !== 'All' ? month : undefined,
     year,
   }), [month, year]);
 
-  const { data: resp, isLoading, isError } = useNSFReactivationStatus(filterParams);
+  // ✅ Only reactivated facilities from logs — not all facilities with last_sample_sent
+  const { data: resp, isLoading, isError } = useNSFReactivatedByProvince(filterParams);
 
-  const records = resp?.data ?? [];
+  // Data is already grouped by province from the backend
+  const chartData = useMemo(() =>
+    (resp?.data ?? []).map(r => ({
+      name:  r.province,
+      value: Number(r.count),
+    })),
+  [resp]);
 
-  // Group by province
-  const chartData = useMemo(() => {
-    const map: Record<string, number> = {};
-    records.forEach(r => {
-      const key = r.province?.trim() || 'Unknown';
-      map[key]  = (map[key] ?? 0) + 1;
-    });
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [records]);
-
-  const total = chartData.reduce((s, d) => s + d.value, 0);
+  const total = resp?.total ?? 0;
 
   const periodLabel = month !== 'All'
     ? `${MONTHS.find(m => m.value === month)?.label} ${year}`
@@ -74,14 +69,14 @@ export const NSFReactivateChart: React.FC = () => {
   const handleDownload = async (format: 'png' | 'svg' | 'excel') => {
     setShowDownloadMenu(false);
     try {
-      const filename = `NSF_Province_Chart_${periodLabel.replace(/\s+/g, '_')}`;
+      const filename = `NSF_Reactivated_By_Province_${periodLabel.replace(/\s+/g, '_')}`;
       if (format === 'excel') {
         const excelData = chartData.map(item => ({
           Province:   item.name,
-          Count:      item.value,
+          Reactivated: item.value,
           Percentage: total > 0 ? `${((item.value / total) * 100).toFixed(2)}%` : '0%',
         }));
-        await downloadChart({ elementId: 'nsf-reactivate-chart', filename, format: 'excel', data: excelData, sheetName: 'NSF Province' });
+        await downloadChart({ elementId: 'nsf-reactivate-chart', filename, format: 'excel', data: excelData, sheetName: 'NSF Reactivated' });
       } else {
         await downloadChart({ elementId: 'nsf-reactivate-chart', filename, format, backgroundColor: '#ffffff', scale: 2 });
       }
@@ -122,18 +117,8 @@ export const NSFReactivateChart: React.FC = () => {
               NSF Reactivated Per Province
             </h4>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Distribution by province — {periodLabel}
+              Reactivated facilities by province — {periodLabel}
             </p>
-            {resp?.auto_deactivated !== undefined && resp.auto_deactivated > 0 && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
-                ⚠ {resp.auto_deactivated} facility/ies auto-deactivated (PO &gt; 6 months)
-              </p>
-            )}
-            {resp?.auto_reactivated !== undefined && resp.auto_reactivated > 0 && (
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
-                ✓ {resp.auto_reactivated} facility/ies auto-reactivated (PO within 6 months)
-              </p>
-            )}
           </div>
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -184,7 +169,9 @@ export const NSFReactivateChart: React.FC = () => {
           ) : isError ? (
             <span className="text-sm text-red-500">Failed to load chart data</span>
           ) : chartData.length === 0 ? (
-            <span className="text-sm text-gray-400 dark:text-gray-500">No data for {periodLabel}</span>
+            <span className="text-sm text-gray-400 dark:text-gray-500">
+              No reactivated facilities for {periodLabel}
+            </span>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -206,7 +193,7 @@ export const NSFReactivateChart: React.FC = () => {
                 </Pie>
                 <Tooltip
                   formatter={(value: number, name: string) => [
-                    `${value} facilities`,
+                    `${value} reactivated`,
                     name,
                   ]}
                   contentStyle={{
@@ -225,7 +212,7 @@ export const NSFReactivateChart: React.FC = () => {
         {/* Footer */}
         {chartData.length > 0 && !isLoading && (
           <div className="text-center text-sm text-gray-400 dark:text-gray-500 pb-3">
-            Total Records: <span className="font-semibold text-blue-600">{total}</span>
+            Total Reactivated: <span className="font-semibold text-blue-600">{total}</span>
           </div>
         )}
       </div>
@@ -234,7 +221,7 @@ export const NSFReactivateChart: React.FC = () => {
         open={logsOpen}
         onClose={() => setLogsOpen(false)}
         title="Reactivation & Deactivation Logs"
-        subtitle="Auto and manual status changes based on PO date"
+        subtitle="Auto and manual status changes based on last sample sent"
         month={month}
         year={year}
       />

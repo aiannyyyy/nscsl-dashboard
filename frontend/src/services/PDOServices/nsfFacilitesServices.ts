@@ -2,9 +2,9 @@ import api from '../api';
 
 // ── INTERFACES ────────────────────────────────────────────────────────────────
 
-export type NSFStatus = 'active' | 'inactive' | 'closed' | 'partner';
-export type NSFLogAction = 'added' | 'reactivated' | 'deactivated' | 'deleted';
-export type NSFReactivationFlag = 'needs_reactivation' | 'ok';
+export type NSFStatus            = 'active' | 'inactive' | 'closed' | 'partner';
+export type NSFLogAction         = 'added' | 'reactivated' | 'deactivated' | 'deleted';
+export type NSFReactivationFlag  = 'needs_reactivation' | 'ok';
 
 export interface NSFFacility {
     id?: number;
@@ -33,6 +33,7 @@ export interface NSFFacility {
     modified_by?: string | null;
     modified_date?: string | null;
     remarks?: string | null;
+    last_sample_sent?: string | null;
 }
 
 export interface NSFSummaryCards {
@@ -53,9 +54,9 @@ export interface NSFReactivationRecord {
     facility_code: number;
     facility_name: string;
     status: NSFStatus;
-    last_po_date: string;
+    last_sample_sent: string | null;
     province: string;
-    months_since_po: number;
+    months_since_last_sample: number;
     reactivation_flag: NSFReactivationFlag;
 }
 
@@ -73,6 +74,12 @@ export interface NSFReactivationLog {
     created_at: string;
 }
 
+// ── Reactivated by province (chart data) ─────────────────────────────────────
+export interface NSFReactivatedByProvince {
+    province: string;
+    count: number;
+}
+
 // ── FILTER PARAMS ─────────────────────────────────────────────────────────────
 
 export interface NSFFilterParams {
@@ -85,20 +92,18 @@ export interface NSFFilterParams {
     limit?: number;
 }
 
-// ── REACTIVATION FILTER PARAMS (separate — only month/year by last_po_date) ──
 export interface NSFReactivationParams {
     month?: string;
-    year?:  string;
+    year?: string;
 }
 
-// ── REACTIVATION LOGS FILTER PARAMS ──────────────────────────────────────────
 export interface NSFReactivationLogsParams {
     facility_id?: number;
-    action?:      NSFLogAction;
-    page?:        number;
-    limit?:       number;
-    month?:       string;   // filter by created_at month
-    year?:        string;   // filter by created_at year
+    action?: NSFLogAction;
+    page?: number;
+    limit?: number;
+    month?: string;
+    year?: string;
 }
 
 // ── PAGINATED RESPONSE ────────────────────────────────────────────────────────
@@ -115,59 +120,58 @@ export interface PaginatedResponse<T> {
 
 class NSFFacilitiesService {
 
-    // Get all facilities with filters + pagination
     async getAll(params?: NSFFilterParams): Promise<PaginatedResponse<NSFFacility>> {
         const response = await api.get('/nsf', { params });
         return response.data;
     }
 
-    // Get single facility by ID
     async getById(id: number): Promise<NSFFacility> {
         const response = await api.get(`/nsf/${id}`);
         return response.data.data;
     }
 
-    // Get summary cards (total, active, inactive, closed, partner)
     async getSummaryCards(params?: NSFFilterParams): Promise<NSFSummaryCards> {
         const response = await api.get('/nsf/summary', { params });
         return response.data;
     }
 
-    // Get status distribution for chart
     async getStatusDistribution(): Promise<NSFStatusDistribution[]> {
         const response = await api.get('/nsf/distribution');
         return response.data.data;
     }
 
-    // Get reactivation status — filters by last_po_date month/year only
+    // Pure read — no mutations, safe to call freely
     async getReactivationStatus(params?: NSFReactivationParams): Promise<{
-        data:             NSFReactivationRecord[];
-        auto_deactivated: number;
-        auto_reactivated: number;
+        data: NSFReactivationRecord[];
     }> {
         const response = await api.get('/nsf/reactivation', { params });
         return response.data;
     }
 
-    // Get reactivation logs (paginated, filterable by facility_id, action, month, year)
+    // ✅ Chart data — only reactivated facilities grouped by province
+    async getReactivatedByProvince(params?: NSFReactivationParams): Promise<{
+        data: NSFReactivatedByProvince[];
+        total: number;
+    }> {
+        const response = await api.get('/nsf/reactivation/by-province', { params });
+        return response.data;
+    }
+
     async getReactivationLogs(params?: NSFReactivationLogsParams): Promise<PaginatedResponse<NSFReactivationLog>> {
         const response = await api.get('/nsf/reactivation/logs', { params });
         return response.data;
     }
 
-    // Get provinces for dropdown
     async getProvinces(): Promise<string[]> {
         const response = await api.get('/nsf/provinces');
         return response.data.data;
     }
 
-    // Add new facility
     async create(data: Partial<NSFFacility>): Promise<{ message: string; id: number }> {
         const response = await api.post('/nsf', data);
         return response.data;
     }
 
-    // Update facility
     async update(id: number, data: Partial<NSFFacility>): Promise<{
         message: string;
         status_changed: boolean;
@@ -178,7 +182,6 @@ class NSFFacilitiesService {
         return response.data;
     }
 
-    // Delete facility
     async delete(id: number, deleted_by: string): Promise<{ message: string }> {
         const response = await api.delete(`/nsf/${id}`, {
             data: { deleted_by },
@@ -187,9 +190,28 @@ class NSFFacilitiesService {
     }
 
     async getSummaryTrend(params?: { month?: string; year?: string }): Promise<NSFSummaryCards> {
-    const response = await api.get('/nsf/summary/trend', { params });
-    return response.data;
-}
+        const response = await api.get('/nsf/summary/trend', { params });
+        return response.data;
+    }
+
+    async syncLastSampleSent(): Promise<{
+        message: string;
+        total_facilities: number;
+        updated: number;
+        not_found_in_oracle: number;
+    }> {
+        const response = await api.post('/nsf/sync-last-sample-sent');
+        return response.data;
+    }
+
+    async syncReactivationStatus(): Promise<{
+        message: string;
+        deactivated: number;
+        reactivated: number;
+    }> {
+        const response = await api.post('/nsf/sync-reactivation');
+        return response.data;
+    }
 }
 
 export default new NSFFacilitiesService();

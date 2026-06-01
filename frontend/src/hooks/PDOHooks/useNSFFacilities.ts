@@ -9,19 +9,25 @@ import type {
 
 // ── QUERY KEYS ────────────────────────────────────────────────────────────────
 export const NSF_KEYS = {
-    all:          ['nsf'] as const,
-    facilities:   (params?: NSFFilterParams)        => ['nsf', 'facilities',   params] as const,
-    facility:     (id: number)                       => ['nsf', 'facility',     id]     as const,
-    summary:      (params?: NSFFilterParams)        => ['nsf', 'summary',      params] as const,
-    distribution: ()                                 => ['nsf', 'distribution']         as const,
-    reactivation: (params?: NSFReactivationParams)  => ['nsf', 'reactivation', params] as const,
-    logs:         (params?: { facility_id?: number; action?: NSFLogAction; page?: number }) =>
-                      ['nsf', 'logs', params] as const,
-    provinces:    ['nsf', 'provinces'] as const,
+    all:                  ['nsf'] as const,
+    facilities:           (params?: NSFFilterParams)       => ['nsf', 'facilities',            params] as const,
+    facility:             (id: number)                      => ['nsf', 'facility',              id]     as const,
+    summary:              (params?: NSFFilterParams)       => ['nsf', 'summary',               params] as const,
+    distribution:         ()                                => ['nsf', 'distribution']                  as const,
+    reactivation:         (params?: NSFReactivationParams) => ['nsf', 'reactivation',          params] as const,
+    reactivatedByProvince:(params?: NSFReactivationParams) => ['nsf', 'reactivated-by-province',params] as const,
+    logs:                 (params?: { facility_id?: number; action?: NSFLogAction; page?: number }) =>
+                              ['nsf', 'logs', params] as const,
+    provinces:            ['nsf', 'provinces'] as const,
+    trend:                (params?: { month?: string; year?: string }) =>
+                              ['nsf', 'summary', 'trend', params] as const,
 };
 
 const REFETCH_INTERVAL = 30_000; // 30 seconds
 
+const invalidateAll = (queryClient: ReturnType<typeof useQueryClient>) => {
+    queryClient.invalidateQueries({ queryKey: ['nsf'] });
+};
 
 // ── GET ALL FACILITIES ────────────────────────────────────────────────────────
 export const useNSFFacilities = (params?: NSFFilterParams) => {
@@ -33,7 +39,6 @@ export const useNSFFacilities = (params?: NSFFilterParams) => {
     });
 };
 
-
 // ── GET SINGLE FACILITY ───────────────────────────────────────────────────────
 export const useNSFFacility = (id: number) => {
     return useQuery({
@@ -43,7 +48,6 @@ export const useNSFFacility = (id: number) => {
         staleTime: 10_000,
     });
 };
-
 
 // ── SUMMARY CARDS ─────────────────────────────────────────────────────────────
 export const useNSFSummaryCards = (params?: NSFFilterParams) => {
@@ -55,7 +59,6 @@ export const useNSFSummaryCards = (params?: NSFFilterParams) => {
     });
 };
 
-
 // ── STATUS DISTRIBUTION CHART ─────────────────────────────────────────────────
 export const useNSFStatusDistribution = () => {
     return useQuery({
@@ -66,8 +69,7 @@ export const useNSFStatusDistribution = () => {
     });
 };
 
-
-// ── REACTIVATION STATUS ───────────────────────────────────────────────────────
+// ── REACTIVATION STATUS (pure read) ──────────────────────────────────────────
 export const useNSFReactivationStatus = (params?: NSFReactivationParams) => {
     return useQuery({
         queryKey:        NSF_KEYS.reactivation(params),
@@ -77,6 +79,17 @@ export const useNSFReactivationStatus = (params?: NSFReactivationParams) => {
     });
 };
 
+// ── REACTIVATED BY PROVINCE (chart) ──────────────────────────────────────────
+// Only counts facilities with action = 'reactivated' in the given period.
+// This is what drives the pie chart — not last_sample_sent.
+export const useNSFReactivatedByProvince = (params?: NSFReactivationParams) => {
+    return useQuery({
+        queryKey:        NSF_KEYS.reactivatedByProvince(params),
+        queryFn:         () => nsfFacilitiesService.getReactivatedByProvince(params),
+        refetchInterval: REFETCH_INTERVAL,
+        staleTime:       10_000,
+    });
+};
 
 // ── REACTIVATION LOGS ─────────────────────────────────────────────────────────
 export const useNSFReactivationLogs = (params?: {
@@ -93,7 +106,6 @@ export const useNSFReactivationLogs = (params?: {
     });
 };
 
-
 // ── PROVINCES DROPDOWN ────────────────────────────────────────────────────────
 export const useNSFProvinces = () => {
     return useQuery({
@@ -103,62 +115,73 @@ export const useNSFProvinces = () => {
     });
 };
 
-
 // ── ADD FACILITY ──────────────────────────────────────────────────────────────
 export const useAddNSFFacility = () => {
     const queryClient = useQueryClient();
-
     return useMutation({
         mutationFn: (data: Partial<NSFFacility>) => nsfFacilitiesService.create(data),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: NSF_KEYS.all });
-        },
-        onError: (error: any) => {
-            console.error('addNSFFacility error:', error?.response?.data?.message || error.message);
-        },
+        onSuccess:  () => invalidateAll(queryClient),
+        onError:    (error: any) => console.error('addNSFFacility error:', error?.response?.data?.message || error.message),
     });
 };
-
 
 // ── UPDATE FACILITY ───────────────────────────────────────────────────────────
 export const useUpdateNSFFacility = () => {
     const queryClient = useQueryClient();
-
     return useMutation({
         mutationFn: ({ id, data }: { id: number; data: Partial<NSFFacility> }) =>
             nsfFacilitiesService.update(id, data),
         onSuccess: (_result, variables) => {
+            invalidateAll(queryClient);
             queryClient.invalidateQueries({ queryKey: NSF_KEYS.facility(variables.id) });
-            queryClient.invalidateQueries({ queryKey: NSF_KEYS.all });
         },
-        onError: (error: any) => {
-            console.error('updateNSFFacility error:', error?.response?.data?.message || error.message);
-        },
+        onError: (error: any) => console.error('updateNSFFacility error:', error?.response?.data?.message || error.message),
     });
 };
-
 
 // ── DELETE FACILITY ───────────────────────────────────────────────────────────
 export const useDeleteNSFFacility = () => {
     const queryClient = useQueryClient();
-
     return useMutation({
         mutationFn: ({ id, deleted_by }: { id: number; deleted_by: string }) =>
             nsfFacilitiesService.delete(id, deleted_by),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: NSF_KEYS.all });
-        },
-        onError: (error: any) => {
-            console.error('deleteNSFFacility error:', error?.response?.data?.message || error.message);
-        },
+        onSuccess:  () => invalidateAll(queryClient),
+        onError:    (error: any) => console.error('deleteNSFFacility error:', error?.response?.data?.message || error.message),
     });
 };
 
+// ── SUMMARY TREND ─────────────────────────────────────────────────────────────
 export const useNSFSummaryTrend = (params?: { month?: string; year?: string }) => {
     return useQuery({
-        queryKey:        ['nsf', 'summary', 'trend', params],
+        queryKey:        NSF_KEYS.trend(params),
         queryFn:         () => nsfFacilitiesService.getSummaryTrend(params),
         refetchInterval: REFETCH_INTERVAL,
         staleTime:       10_000,
+    });
+};
+
+// ── SYNC LAST SAMPLE SENT ─────────────────────────────────────────────────────
+export const useSyncLastSampleSent = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: () => nsfFacilitiesService.syncLastSampleSent(),
+        onSuccess:  (result) => {
+            invalidateAll(queryClient);
+            console.log(`[Sync] last_sample_sent: ${result.updated}/${result.total_facilities} updated`);
+        },
+        onError: (error: any) => console.error('syncLastSampleSent error:', error?.response?.data?.message || error.message),
+    });
+};
+
+// ── SYNC REACTIVATION STATUS ──────────────────────────────────────────────────
+export const useSyncReactivationStatus = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: () => nsfFacilitiesService.syncReactivationStatus(),
+        onSuccess:  (result) => {
+            invalidateAll(queryClient);
+            console.log(`[Sync] Reactivation: deactivated ${result.deactivated}, reactivated ${result.reactivated}`);
+        },
+        onError: (error: any) => console.error('syncReactivationStatus error:', error?.response?.data?.message || error.message),
     });
 };

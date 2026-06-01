@@ -150,6 +150,14 @@ database.createOraclePool()
         if (pool) {
             app.locals.oracleDb = pool;
             console.log("✅ Oracle connection pool stored in app.locals");
+
+            // Require INSIDE the .then() to make sure it loads after routes
+            const nsfController = require('./controllers/PDOController/nsfFacilitiesController');
+            if (typeof nsfController.initSyncCron === 'function') {
+                nsfController.initSyncCron(app);
+            } else {
+                console.error('❌ initSyncCron not found in controller exports');
+            }
         }
     })
     .catch((err) => {

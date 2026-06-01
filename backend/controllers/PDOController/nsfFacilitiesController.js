@@ -1,11 +1,8 @@
 const { database } = require('../../config');
+const oracledb = require('oracledb');
+const cron = require('node-cron');
 
 // ── DATE HELPER ───────────────────────────────────────────────────────────────
-/**
- * Normalise any date value to "YYYY-MM-DD" for MySQL DATE columns.
- * Accepts: "YYYY-MM-DD", ISO-8601 strings, Date objects, null/undefined.
- * Returns null when the value is absent or unparseable.
- */
 const toDateOnly = (val) => {
     if (val === null || val === undefined || val === '') return null;
     if (val instanceof Date) {
@@ -17,6 +14,203 @@ const toDateOnly = (val) => {
         return isNaN(d) ? null : d.toISOString().slice(0, 10);
     }
     return null;
+};
+
+
+// ── CRON: AUTO SYNC LAST SAMPLE SENT (every 1 hour at :00) ───────────────────
+const runSyncLastSampleSent = async (app) => {
+    let connection;
+    try {
+        const oraclePool = app?.locals?.oracleDb;
+        if (!oraclePool) {
+            console.log('[Sync] Oracle pool not available, skipping...');
+            return { updated: 0, total: 0 };
+        }
+
+        connection = await oraclePool.getConnection();
+
+        const [facilities] = await database.mysqlPool.query(
+            `SELECT id, facility_code FROM nsf_facilities
+             WHERE facility_code IS NOT NULL AND facility_code != ''`
+        );
+
+        if (facilities.length === 0) {
+            console.log('[Sync] No facilities found, skipping...');
+            return { updated: 0, total: 0 };
+        }
+
+        const result = await connection.execute(
+            `SELECT SUBMID, DTRECV, TMRECV
+             FROM (
+                 SELECT SUBMID, DTRECV, TMRECV,
+                     ROW_NUMBER() OVER (
+                         PARTITION BY SUBMID
+                         ORDER BY DTRECV DESC, TMRECV DESC
+                     ) RN
+                 FROM PHMSDS.SAMPLE_DEMOG_MASTER
+             ) WHERE RN = 1`,
+            [],
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        const PHT_OFFSET = 8 * 60 * 60 * 1000;
+        const oracleMap = {};
+
+        for (const row of result.rows) {
+            if (!row.SUBMID || !row.DTRECV) continue;
+            const submid = String(row.SUBMID).trim();
+            const dtrecv = new Date(row.DTRECV);
+            if (isNaN(dtrecv)) continue;
+
+            let hh = 0, mm = 0;
+            if (row.TMRECV) {
+                const t = String(row.TMRECV).trim().padStart(4, '0');
+                hh = parseInt(t.slice(0, 2), 10);
+                mm = parseInt(t.slice(2, 4), 10);
+                if (isNaN(hh) || isNaN(mm) || hh > 23 || mm > 59) { hh = 0; mm = 0; }
+            }
+
+            const phtDate = new Date(dtrecv.getTime() + PHT_OFFSET);
+            phtDate.setUTCHours(hh, mm, 0, 0);
+            oracleMap[submid] = phtDate.toISOString().slice(0, 19).replace('T', ' ');
+        }
+
+        let updated = 0;
+        const missed = [];
+
+        for (const facility of facilities) {
+            const key = String(facility.facility_code).trim();
+            const lastSampleSent = oracleMap[key];
+
+            if (lastSampleSent) {
+                const [updateResult] = await database.mysqlPool.query(
+                    `UPDATE nsf_facilities
+                     SET last_sample_sent = ?
+                     WHERE id = ?`,
+                    [lastSampleSent, facility.id]
+                );
+                if (updateResult.affectedRows > 0) updated++;
+            } else {
+                missed.push(facility.facility_code);
+            }
+        }
+
+        console.log(`[Sync] ✅ last_sample_sent done — ${updated}/${facilities.length} updated | ${missed.length} not found in Oracle | ${new Date().toISOString()}`);
+        return { updated, total: facilities.length, missed: missed.length };
+
+    } catch (error) {
+        console.error('[Sync] ❌ last_sample_sent error:', error.message);
+        return { updated: 0, total: 0, error: error.message };
+    } finally {
+        if (connection) {
+            try { await connection.close(); }
+            catch (err) { console.error('[Sync] Error closing Oracle connection:', err); }
+        }
+    }
+};
+
+
+// ── CRON: AUTO SYNC REACTIVATION STATUS (every 1 hour at :05) ────────────────
+// Runs 5 minutes after last_sample_sent so Oracle data is fresh first.
+// This is the ONLY place auto deactivate/reactivate logic runs —
+// the GET /reactivation endpoint is now a pure read.
+const runSyncReactivationStatus = async () => {
+    const connection = await database.mysqlPool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // --- Auto-deactivate: active + has last_sample_sent + older than 6 months ---
+        const [toDeactivate] = await connection.query(
+            `SELECT id, status FROM nsf_facilities
+             WHERE status = 'active'
+               AND last_sample_sent IS NOT NULL
+               AND last_sample_sent < DATE_SUB(NOW(), INTERVAL 6 MONTH)`
+        );
+
+        if (toDeactivate.length > 0) {
+            await connection.query(
+                `UPDATE nsf_facilities
+                 SET status = 'inactive', modified_date = NOW(), modified_by = 'system'
+                 WHERE status = 'active'
+                   AND last_sample_sent IS NOT NULL
+                   AND last_sample_sent < DATE_SUB(NOW(), INTERVAL 6 MONTH)`
+            );
+
+            for (const f of toDeactivate) {
+                await connection.query(
+                    `INSERT INTO nsf_reactivation_logs
+                        (facility_id, action, old_status, new_status, remarks, created_by, created_at)
+                     VALUES (?, 'deactivated', ?, 'inactive',
+                             'Auto-deactivated: last sample sent exceeded 6 months',
+                             'system', NOW())`,
+                    [f.id, f.status]
+                );
+            }
+        }
+
+        // --- Auto-reactivate: inactive/closed + has last_sample_sent + within 6 months ---
+        const [toReactivate] = await connection.query(
+            `SELECT id, status FROM nsf_facilities
+             WHERE status IN ('inactive', 'closed')
+               AND last_sample_sent IS NOT NULL
+               AND last_sample_sent >= DATE_SUB(NOW(), INTERVAL 6 MONTH)`
+        );
+
+        if (toReactivate.length > 0) {
+            await connection.query(
+                `UPDATE nsf_facilities
+                 SET status = 'active', modified_date = NOW(), modified_by = 'system'
+                 WHERE status IN ('inactive', 'closed')
+                   AND last_sample_sent IS NOT NULL
+                   AND last_sample_sent >= DATE_SUB(NOW(), INTERVAL 6 MONTH)`
+            );
+
+            for (const f of toReactivate) {
+                await connection.query(
+                    `INSERT INTO nsf_reactivation_logs
+                        (facility_id, action, old_status, new_status, remarks, created_by, created_at)
+                     VALUES (?, 'reactivated', ?, 'active',
+                             'Auto-reactivated: last sample sent is within 6 months',
+                             'system', NOW())`,
+                    [f.id, f.status]
+                );
+            }
+        }
+
+        await connection.commit();
+        console.log(`[Sync] ✅ Reactivation sync done — deactivated: ${toDeactivate.length}, reactivated: ${toReactivate.length} | ${new Date().toISOString()}`);
+        return { deactivated: toDeactivate.length, reactivated: toReactivate.length };
+
+    } catch (err) {
+        await connection.rollback();
+        console.error('[Sync] ❌ Reactivation sync error:', err.message);
+        return { deactivated: 0, reactivated: 0, error: err.message };
+    } finally {
+        connection.release();
+    }
+};
+
+
+// ── CRON INIT — call this once from app.js ────────────────────────────────────
+const initSyncCron = (app) => {
+    // 1. last_sample_sent — runs at :00 every hour
+    console.log('[Cron] Running initial last_sample_sent sync on startup...');
+    runSyncLastSampleSent(app);
+    cron.schedule('0 * * * *', () => {
+        console.log('[Cron] ⏰ Hourly last_sample_sent sync triggered...');
+        runSyncLastSampleSent(app);
+    });
+
+    // 2. Reactivation status — runs at :05 every hour (after last_sample_sent finishes)
+    console.log('[Cron] Running initial reactivation status sync on startup...');
+    // Slight delay on startup so last_sample_sent has time to finish first
+    setTimeout(() => runSyncReactivationStatus(), 30 * 1000); // 30s after startup
+    cron.schedule('5 * * * *', () => {
+        console.log('[Cron] ⏰ Hourly reactivation status sync triggered...');
+        runSyncReactivationStatus();
+    });
+
+    console.log('[Cron] ✅ All syncs scheduled (last_sample_sent @ :00, reactivation @ :05)');
 };
 
 
@@ -67,6 +261,7 @@ const getAllNSFFacilities = async (req, res) => {
     }
 };
 
+
 // ── GET SINGLE FACILITY ───────────────────────────────────────────────────────
 const getNSFFacilityById = async (req, res) => {
     try {
@@ -101,14 +296,12 @@ const addNSFFacility = async (req, res) => {
 
         const now = new Date();
 
-        // ── Ensure facility_code exists in parent facilities table ──────────
         await database.mysqlPool.query(
             `INSERT IGNORE INTO facilities (facility_code, facility_name)
              VALUES (?, ?)`,
             [facility_code, facility_name]
         );
 
-        // ── Insert into nsf_facilities ──────────────────────────────────────
         const [result] = await database.mysqlPool.query(
             `INSERT INTO nsf_facilities (
                 facility_code, facility_name, category, type1, type2,
@@ -172,28 +365,13 @@ const updateNSFFacility = async (req, res) => {
         if (!old) return res.status(404).json({ error: "Facility not found" });
 
         const now = new Date();
-        let finalStatus = status ? status.toLowerCase() : old.status;
 
-        // Resolve and sanitise the PO date we'll actually store
+        // Status only changes if explicitly passed in the request body
+        // last_po_date NEVER drives status changes — only the reactivation cron does
+        const finalStatus = status ? status.toLowerCase() : old.status;
+
+        // PO date is just data — stored as-is, no logic applied
         const resolvedPoDate = toDateOnly(last_po_date ?? old.last_po_date);
-
-        const poDate = resolvedPoDate ? new Date(resolvedPoDate) : null;
-
-        if (poDate) {
-            const diffMonths =
-                (now.getFullYear() - poDate.getFullYear()) * 12 +
-                (now.getMonth() - poDate.getMonth());
-
-            // A new PO date on an inactive/closed facility reactivates it
-            if (last_po_date && (old.status === "inactive" || old.status === "closed")) {
-                finalStatus = "active";
-            }
-
-            // Auto-deactivate if PO date is 6+ months old
-            if (diffMonths >= 6 && finalStatus === "active") {
-                finalStatus = "inactive";
-            }
-        }
 
         await database.mysqlPool.query(
             `UPDATE nsf_facilities SET
@@ -231,11 +409,10 @@ const updateNSFFacility = async (req, res) => {
             ]
         );
 
+        // Only log if status was explicitly changed via request body
         if (old.status !== finalStatus) {
-            const action    = finalStatus === "active" ? "reactivated" : "deactivated";
-            const logRemark = finalStatus === "inactive"
-                ? "Auto-deactivated: last PO date exceeded 6 months"
-                : "Reactivated: new PO date provided";
+            const action    = finalStatus === 'active' ? 'reactivated' : 'deactivated';
+            const logRemark = `Manually ${action} by ${modified_by}`;
 
             await database.mysqlPool.query(
                 `INSERT INTO nsf_reactivation_logs
@@ -296,7 +473,6 @@ const getNSFSummaryCards = async (req, res) => {
     try {
         const { month, year } = req.query;
 
-        // Build two separate WHERE clauses
         const createdConditions  = [];
         const modifiedConditions = [];
         const createdParams      = [];
@@ -318,13 +494,11 @@ const getNSFSummaryCards = async (req, res) => {
         const createdWhere  = createdConditions.length  ? `WHERE ${createdConditions.join(' AND ')}`  : '';
         const modifiedWhere = modifiedConditions.length ? `WHERE ${modifiedConditions.join(' AND ')}` : '';
 
-        // Total: count by created_date (new additions only)
         const [[totalRow]] = await database.mysqlPool.query(
             `SELECT COUNT(*) AS total FROM nsf_facilities ${createdWhere}`,
             createdParams
         );
 
-        // Status counts: count by modified_date (status changes)
         const [[statusRow]] = await database.mysqlPool.query(
             `SELECT
                 SUM(status = 'active')   AS active,
@@ -368,107 +542,47 @@ const getNSFStatusDistribution = async (req, res) => {
 };
 
 
-// ── REACTIVATION STATUS ───────────────────────────────────────────────────────
+// ── REACTIVATION STATUS (pure read — no mutations) ────────────────────────────
+// Auto deactivate/reactivate logic has been moved to runSyncReactivationStatus()
+// which runs via cron every hour at :05. This endpoint is now safe to call
+// multiple times without triggering duplicate log entries.
 const getNSFReactivationStatus = async (req, res) => {
-    const connection = await database.mysqlPool.getConnection();
     try {
-        await connection.beginTransaction();
-
-        // Auto-deactivate: active but no PO in 6 months
-        const [deactivated] = await connection.query(
-            `UPDATE nsf_facilities
-             SET status = 'inactive', modified_date = NOW(), modified_by = 'system'
-             WHERE status = 'active'
-               AND last_po_date IS NOT NULL
-               AND last_po_date < DATE_SUB(NOW(), INTERVAL 6 MONTH)`
-        );
-
-        // Auto-reactivate: inactive OR closed but has PO within 6 months
-        const [reactivated] = await connection.query(
-            `UPDATE nsf_facilities
-             SET status = 'active', modified_date = NOW(), modified_by = 'system'
-             WHERE status IN ('inactive', 'closed')
-               AND last_po_date IS NOT NULL
-               AND last_po_date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)`
-        );
-
-        // Log auto-deactivations
-        if (deactivated.affectedRows > 0) {
-            await connection.query(
-                `INSERT INTO nsf_reactivation_logs
-                    (facility_id, action, old_status, new_status, remarks, created_by, created_at)
-                 SELECT id, 'deactivated', 'active', 'inactive',
-                        'Auto-deactivated: last PO date exceeded 6 months',
-                        'system', NOW()
-                 FROM nsf_facilities
-                 WHERE status = 'inactive'
-                   AND modified_by = 'system'
-                   AND modified_date >= DATE_SUB(NOW(), INTERVAL 1 MINUTE)`
-            );
-        }
-
-        // Log auto-reactivations (covers both inactive and closed)
-        if (reactivated.affectedRows > 0) {
-            await connection.query(
-                `INSERT INTO nsf_reactivation_logs
-                    (facility_id, action, old_status, new_status, remarks, created_by, created_at)
-                 SELECT id, 'reactivated', 'inactive/closed', 'active',
-                        'Auto-reactivated: new PO date is within 6 months',
-                        'system', NOW()
-                 FROM nsf_facilities
-                 WHERE status = 'active'
-                   AND modified_by = 'system'
-                   AND modified_date >= DATE_SUB(NOW(), INTERVAL 1 MINUTE)`
-            );
-        }
-
-        await connection.commit();
-
-        // Build filter
         const { month, year } = req.query;
-        const conditions = ['last_po_date IS NOT NULL'];
-        const params = [];
+        const conditions = ['last_sample_sent IS NOT NULL'];
+        const params     = [];
 
         if (month && !isNaN(parseInt(month))) {
-            conditions.push('MONTH(last_po_date) = ?');
+            conditions.push('MONTH(last_sample_sent) = ?');
             params.push(parseInt(month));
         }
         if (year && !isNaN(parseInt(year))) {
-            conditions.push('YEAR(last_po_date) = ?');
+            conditions.push('YEAR(last_sample_sent) = ?');
             params.push(parseInt(year));
         }
 
-        const where = `WHERE ${conditions.join(' AND ')}`;
-
-        const [results] = await connection.query(
+        const [results] = await database.mysqlPool.query(
             `SELECT
                 id, facility_code, facility_name,
-                status, last_po_date, province,
-                TIMESTAMPDIFF(MONTH, last_po_date, NOW()) AS months_since_po,
+                status, last_sample_sent, province,
+                TIMESTAMPDIFF(MONTH, last_sample_sent, NOW()) AS months_since_last_sample,
                 CASE
-                    WHEN last_po_date < DATE_SUB(NOW(), INTERVAL 6 MONTH) THEN 'needs_reactivation'
+                    WHEN last_sample_sent < DATE_SUB(NOW(), INTERVAL 6 MONTH) THEN 'needs_reactivation'
                     ELSE 'ok'
                 END AS reactivation_flag
              FROM nsf_facilities
-             ${where}
-             ORDER BY last_po_date ASC`,
+             WHERE ${conditions.join(' AND ')}
+             ORDER BY last_sample_sent ASC`,
             params
         );
 
-        res.json({
-            data:             results,
-            auto_deactivated: deactivated.affectedRows,
-            auto_reactivated: reactivated.affectedRows,
-        });
-
+        res.json({ data: results });
     } catch (err) {
-        await connection.rollback();
         console.error("getNSFReactivationStatus error:", err);
         res.status(500).json({ error: "Failed to fetch reactivation status", message: err.message });
-    } finally {
-        connection.release();
     }
 };
+
 
 // ── REACTIVATION LOGS ─────────────────────────────────────────────────────────
 const getNSFReactivationLogs = async (req, res) => {
@@ -486,8 +600,6 @@ const getNSFReactivationLogs = async (req, res) => {
             conditions.push("l.action = ?");
             params.push(action);
         }
-
-        // ── Filter by created_at month / year ──────────────────────────────
         if (month && month !== 'All') {
             conditions.push("MONTH(l.created_at) = ?");
             params.push(parseInt(month));
@@ -536,6 +648,45 @@ const getNSFReactivationLogs = async (req, res) => {
     }
 };
 
+const getNSFReactivatedByProvince = async (req, res) => {
+    try {
+        const { month, year } = req.query;
+ 
+        const conditions = ["l.action = 'reactivated'"];
+        const params     = [];
+ 
+        if (month && month !== 'All') {
+            conditions.push('MONTH(l.created_at) = ?');
+            params.push(parseInt(month));
+        }
+        if (year) {
+            conditions.push('YEAR(l.created_at) = ?');
+            params.push(parseInt(year));
+        }
+ 
+        const [results] = await database.mysqlPool.query(
+            `SELECT
+                COALESCE(f.province, 'Unknown') AS province,
+                COUNT(*)                         AS count
+             FROM nsf_reactivation_logs l
+             LEFT JOIN nsf_facilities f ON f.id = l.facility_id
+             WHERE ${conditions.join(' AND ')}
+             GROUP BY f.province
+             ORDER BY count DESC`,
+            params
+        );
+ 
+        const total = results.reduce((sum, r) => sum + Number(r.count), 0);
+ 
+        res.json({ data: results, total });
+    } catch (err) {
+        console.error("getNSFReactivatedByProvince error:", err);
+        res.status(500).json({ error: "Failed to fetch reactivated by province", message: err.message });
+    }
+};
+ 
+
+
 // ── PROVINCES DROPDOWN ────────────────────────────────────────────────────────
 const getNSFProvinces = async (req, res) => {
     try {
@@ -553,6 +704,8 @@ const getNSFProvinces = async (req, res) => {
     }
 };
 
+
+// ── SUMMARY TREND ─────────────────────────────────────────────────────────────
 const getNSFSummaryTrend = async (req, res) => {
     try {
         const { month, year } = req.query;
@@ -575,11 +728,11 @@ const getNSFSummaryTrend = async (req, res) => {
 
         const [[row]] = await database.mysqlPool.query(
             `SELECT
-                SUM(l.action = 'added')                          AS total,
-                SUM(l.new_status = 'active'   AND l.action != 'added') AS active,
-                SUM(l.new_status = 'inactive')                   AS inactive,
-                SUM(l.new_status = 'closed')                     AS closed,
-                SUM(l.new_status = 'partner')                    AS partner
+                SUM(l.action = 'added')                                AS total,
+                SUM(l.new_status = 'active' AND l.action != 'added')   AS active,
+                SUM(l.new_status = 'inactive')                         AS inactive,
+                SUM(l.new_status = 'closed')                           AS closed,
+                SUM(l.new_status = 'partner')                          AS partner
              FROM nsf_reactivation_logs l
              ${where}`,
             params
@@ -599,16 +752,108 @@ const getNSFSummaryTrend = async (req, res) => {
 };
 
 
+// ── GET LAST SAMPLE SENT PER SUBMID (Oracle — raw view) ───────────────────────
+const getLastSampleSent = async (req, res) => {
+    let connection;
+    try {
+        const oraclePool = req.app.locals.oracleDb;
+        if (!oraclePool) {
+            return res.status(500).json({ error: "Oracle connection pool is not initialized" });
+        }
+
+        connection = await oraclePool.getConnection();
+
+        const result = await connection.execute(
+            `SELECT SUBMID, DTRECV, TMRECV
+             FROM (
+                 SELECT SUBMID, DTRECV, TMRECV,
+                     ROW_NUMBER() OVER (
+                         PARTITION BY SUBMID
+                         ORDER BY DTRECV DESC, TMRECV DESC
+                     ) RN
+                 FROM PHMSDS.SAMPLE_DEMOG_MASTER
+             ) WHERE RN = 1
+             ORDER BY SUBMID`,
+            [],
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        res.json(result.rows || []);
+    } catch (error) {
+        console.error("getLastSampleSent error:", error);
+        res.status(500).json({ error: "Internal Server Error", details: error.message });
+    } finally {
+        if (connection) {
+            try { await connection.close(); }
+            catch (err) { console.error('Error closing Oracle connection:', err); }
+        }
+    }
+};
+
+
+// ── MANUAL SYNC ENDPOINT — last_sample_sent (HTTP trigger) ───────────────────
+const syncLastSampleSent = async (req, res) => {
+    try {
+        const result = await runSyncLastSampleSent(req.app);
+        res.json({
+            message:             "last_sample_sent synced successfully",
+            total_facilities:    result.total,
+            updated:             result.updated,
+            not_found_in_oracle: result.missed ?? 0,
+            ...(result.error ? { error: result.error } : {}),
+        });
+    } catch (error) {
+        console.error("syncLastSampleSent error:", error);
+        res.status(500).json({ error: "Internal Server Error", details: error.message });
+    }
+};
+
+
+// ── MANUAL SYNC ENDPOINT — reactivation status (HTTP trigger) ────────────────
+const syncReactivationStatus = async (req, res) => {
+    try {
+        const result = await runSyncReactivationStatus();
+        res.json({
+            message:      "Reactivation status synced successfully",
+            deactivated:  result.deactivated,
+            reactivated:  result.reactivated,
+            ...(result.error ? { error: result.error } : {}),
+        });
+    } catch (error) {
+        console.error("syncReactivationStatus error:", error);
+        res.status(500).json({ error: "Internal Server Error", details: error.message });
+    }
+};
+
+
 module.exports = {
+    // Facilities CRUD
     getAllNSFFacilities,
     getNSFFacilityById,
     addNSFFacility,
     updateNSFFacility,
     deleteNSFFacility,
+
+    // Charts & Cards
     getNSFSummaryCards,
     getNSFStatusDistribution,
+    getNSFSummaryTrend,
+
+    // Reactivation
     getNSFReactivationStatus,
     getNSFReactivationLogs,
+    getNSFReactivatedByProvince,
+
+    // Provinces
     getNSFProvinces,
-    getNSFSummaryTrend,
+
+    // Last Sample Sent
+    getLastSampleSent,
+    syncLastSampleSent,
+
+    // Reactivation Sync (manual HTTP trigger)
+    syncReactivationStatus,
+
+    // Cron init — call this once in app.js
+    initSyncCron,
 };
