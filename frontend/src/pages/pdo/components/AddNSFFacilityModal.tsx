@@ -107,12 +107,10 @@ const DESIGNATION_OPTIONS: string[] = [
   'REGIONAL COORDINATOR',
 ];
 
+// ─── Notification Email ───────────────────────────────────────────────────────
+const NOTIFICATION_EMAIL = 'itmis2nscsl@gmail.com';
+
 // ─── Date Helper ──────────────────────────────────────────────────────────────
-/**
- * Normalise any date value to "YYYY-MM-DD" for <input type="date">.
- * Accepts ISO-8601 strings, already-formatted strings, or null/undefined.
- * Returns '' when absent or unparseable.
- */
 const toDateInput = (val?: string | null): string => {
   if (!val) return '';
   if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
@@ -120,9 +118,98 @@ const toDateInput = (val?: string | null): string => {
   return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
 };
 
+// ─── Email Builder ────────────────────────────────────────────────────────────
+/**
+ * Sends a plain-text notification email via the Anthropic Claude API
+ * (which has access to the Gmail MCP connector).  Falls back silently
+ * so a mail-send failure never blocks the save operation.
+ */
+const sendFacilityEmail = async (
+  facility: Partial<NSFFacility>,
+  addedBy: string,
+): Promise<void> => {
+  try {
+    const now = new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
+
+    const rows = [
+      ['Facility Code',    facility.facility_code  ?? '—'],
+      ['Facility Name',    facility.facility_name  ?? '—'],
+      ['Category',         facility.category       ?? '—'],
+      ['Type 1',           facility.type1          ?? '—'],
+      ['Type 2',           facility.type2          ?? '—'],
+      ['Region',           facility.region         ?? '—'],
+      ['Province',         facility.province       ?? '—'],
+      ['City / Municipality', facility.city        ?? '—'],
+      ['Address',          facility.address        ?? '—'],
+      ['Medical Director', facility.medical_director ?? '—'],
+      ['Contact Person',   facility.contact_person ?? '—'],
+      ['Designation',      facility.designation    ?? '—'],
+      ['Tel / Cell',       facility.tel_cell       ?? '—'],
+      ['Fax',              facility.fax            ?? '—'],
+      ['Email',            facility.email          ?? '—'],
+      ['Date Accredited',  facility.date_accredited ?? '—'],
+      ['Year Accredited',  facility.year_accredited ?? '—'],
+      ['Last PO Date',     facility.last_po_date   ?? '—'],
+      ['PO Number',        facility.po_number      ?? '—'],
+      ['Remarks',          facility.remarks        ?? '—'],
+    ];
+
+    const tableRows = rows
+      .map(([label, value]) =>
+        `        <tr>
+          <td style="padding:6px 12px;font-weight:600;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;white-space:nowrap;">${label}</td>
+          <td style="padding:6px 12px;color:#111827;border:1px solid #e5e7eb;">${value}</td>
+        </tr>`,
+      )
+      .join('\n');
+
+    const htmlBody = `
+<div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;color:#111827;">
+  <div style="background:#1d4ed8;padding:24px 32px;border-radius:8px 8px 0 0;">
+    <h1 style="margin:0;color:#fff;font-size:20px;">New NSF Facility Added</h1>
+    <p style="margin:4px 0 0;color:#bfdbfe;font-size:13px;">Submitted on ${now} by <strong>${addedBy}</strong></p>
+  </div>
+  <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:24px 32px;">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      ${tableRows}
+    </table>
+    <p style="margin-top:20px;font-size:12px;color:#6b7280;">
+      This is an automated notification from the NSF Facility Registry System.
+    </p>
+  </div>
+</div>`;
+
+    const prompt = `
+Send an HTML email using Gmail with these exact parameters and no other action:
+
+To: ${NOTIFICATION_EMAIL}
+Subject: [NSF Registry] New Facility Added – ${facility.facility_name ?? 'Unknown'} (Code: ${facility.facility_code ?? '—'})
+Body (HTML):
+${htmlBody}
+
+After sending, reply with only the word: SENT
+`.trim();
+
+    await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 256,
+        messages: [{ role: 'user', content: prompt }],
+        mcp_servers: [
+          { type: 'url', url: 'https://gmailmcp.googleapis.com/mcp/v1', name: 'gmail-mcp' },
+        ],
+      }),
+    });
+  } catch {
+    // Swallow — email is best-effort; do not block the save
+  }
+};
+
 // ─── Empty Form ───────────────────────────────────────────────────────────────
 const EMPTY_FORM: Partial<NSFFacility> = {
-  facility_code: undefined,
+  facility_code:    undefined,
   facility_name:    '',
   category:         '',
   type1:            '',
@@ -168,7 +255,6 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
   const [citySearch,   setCitySearch]   = useState('');
   const [showCitySugg, setShowCitySugg] = useState(false);
 
-  // Reset form when modal opens or editing changes — normalise date fields here
   React.useEffect(() => {
     const base = editing ?? EMPTY_FORM;
     setForm({
@@ -189,8 +275,6 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
       : e.target.value;
     setForm(f => ({ ...f, [key]: value }));
   };
-
-  const provincePool = ALL_PROVINCES;
 
   const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setForm(f => ({ ...f, province: e.target.value, city: '' }));
@@ -220,12 +304,15 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
     e.preventDefault();
     try {
       if (editing?.id) {
+        // ── Update: no notification email ─────────────────────────────────────
         await updateMutation.mutateAsync({
           id:   editing.id,
           data: { ...form, modified_by: username },
         });
       } else {
+        // ── Add: save first, then fire-and-forget notification email ──────────
         await addMutation.mutateAsync({ ...form, created_by: username });
+        sendFacilityEmail(form, username); // intentionally not awaited
       }
       onClose();
     } catch {
@@ -249,7 +336,9 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
               {editing ? 'Edit Facility' : 'Add New Facility'}
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              {editing ? `Editing: ${editing.facility_name}` : 'Fill in the details below to register a new NSF facility.'}
+              {editing
+                ? `Editing: ${editing.facility_name}`
+                : 'Fill in the details below to register a new NSF facility.'}
             </p>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors">
@@ -317,7 +406,7 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
                 <label className={labelCls}>Province</label>
                 <select value={form.province ?? ''} onChange={handleProvinceChange} className={inputCls}>
                   <option value="">— Select Province —</option>
-                  {provincePool.map(p => <option key={p} value={p}>{p}</option>)}
+                  {ALL_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
               <div className="relative">
@@ -421,6 +510,8 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
               placeholder="Optional notes…"
             />
           </div>
+
+
         </form>
 
         {/* Footer */}

@@ -119,12 +119,16 @@ const runSyncReactivationStatus = async () => {
     try {
         await connection.beginTransaction();
 
-        // --- Auto-deactivate: active + has last_sample_sent + older than 6 months ---
+        // --- Auto-deactivate: active + both dates older than 6 months or one is NULL ---
         const [toDeactivate] = await connection.query(
             `SELECT id, status FROM nsf_facilities
              WHERE status = 'active'
-               AND last_sample_sent IS NOT NULL
-               AND last_sample_sent < DATE_SUB(NOW(), INTERVAL 6 MONTH)`
+               AND NOT (
+                   last_sample_sent IS NOT NULL AND last_sample_sent >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                   OR
+                   last_po_date IS NOT NULL AND last_po_date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+               )
+               AND NOT (last_sample_sent IS NULL AND last_po_date IS NULL)`
         );
 
         if (toDeactivate.length > 0) {
@@ -132,8 +136,12 @@ const runSyncReactivationStatus = async () => {
                 `UPDATE nsf_facilities
                  SET status = 'inactive', modified_date = NOW(), modified_by = 'system'
                  WHERE status = 'active'
-                   AND last_sample_sent IS NOT NULL
-                   AND last_sample_sent < DATE_SUB(NOW(), INTERVAL 6 MONTH)`
+                   AND NOT (
+                       last_sample_sent IS NOT NULL AND last_sample_sent >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                       OR
+                       last_po_date IS NOT NULL AND last_po_date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                   )
+                   AND NOT (last_sample_sent IS NULL AND last_po_date IS NULL)`
             );
 
             for (const f of toDeactivate) {
@@ -141,28 +149,36 @@ const runSyncReactivationStatus = async () => {
                     `INSERT INTO nsf_reactivation_logs
                         (facility_id, action, old_status, new_status, remarks, created_by, created_at)
                      VALUES (?, 'deactivated', ?, 'inactive',
-                             'Auto-deactivated: last sample sent exceeded 6 months',
+                             'Auto-deactivated: both last_sample_sent and last_po_date exceeded 6 months',
                              'system', NOW())`,
                     [f.id, f.status]
                 );
             }
         }
 
-        // --- Auto-reactivate: inactive/closed + has last_sample_sent + within 6 months ---
+        // --- Auto-reactivate: inactive + either date within 6 months ---
         const [toReactivate] = await connection.query(
             `SELECT id, status FROM nsf_facilities
-             WHERE status IN ('inactive', 'closed')
-               AND last_sample_sent IS NOT NULL
-               AND last_sample_sent >= DATE_SUB(NOW(), INTERVAL 6 MONTH)`
+             WHERE status = 'inactive'
+               AND NOT (last_sample_sent IS NULL AND last_po_date IS NULL)
+               AND (
+                   last_sample_sent IS NOT NULL AND last_sample_sent >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                   OR
+                   last_po_date IS NOT NULL AND last_po_date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+               )`
         );
 
         if (toReactivate.length > 0) {
             await connection.query(
                 `UPDATE nsf_facilities
                  SET status = 'active', modified_date = NOW(), modified_by = 'system'
-                 WHERE status IN ('inactive', 'closed')
-                   AND last_sample_sent IS NOT NULL
-                   AND last_sample_sent >= DATE_SUB(NOW(), INTERVAL 6 MONTH)`
+                 WHERE status = 'inactive'
+                   AND NOT (last_sample_sent IS NULL AND last_po_date IS NULL)
+                   AND (
+                       last_sample_sent IS NOT NULL AND last_sample_sent >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                       OR
+                       last_po_date IS NOT NULL AND last_po_date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                   )`
             );
 
             for (const f of toReactivate) {
@@ -170,7 +186,7 @@ const runSyncReactivationStatus = async () => {
                     `INSERT INTO nsf_reactivation_logs
                         (facility_id, action, old_status, new_status, remarks, created_by, created_at)
                      VALUES (?, 'reactivated', ?, 'active',
-                             'Auto-reactivated: last sample sent is within 6 months',
+                             'Auto-reactivated: last_sample_sent or last_po_date is within 6 months',
                              'system', NOW())`,
                     [f.id, f.status]
                 );
@@ -549,30 +565,38 @@ const getNSFStatusDistribution = async (req, res) => {
 const getNSFReactivationStatus = async (req, res) => {
     try {
         const { month, year } = req.query;
-        const conditions = ['last_sample_sent IS NOT NULL'];
+        const conditions = ['(last_sample_sent IS NOT NULL OR last_po_date IS NOT NULL)'];
         const params     = [];
 
         if (month && !isNaN(parseInt(month))) {
-            conditions.push('MONTH(last_sample_sent) = ?');
-            params.push(parseInt(month));
+            conditions.push('(MONTH(last_sample_sent) = ? OR MONTH(last_po_date) = ?)');
+            params.push(parseInt(month), parseInt(month));
         }
         if (year && !isNaN(parseInt(year))) {
-            conditions.push('YEAR(last_sample_sent) = ?');
-            params.push(parseInt(year));
+            conditions.push('(YEAR(last_sample_sent) = ? OR YEAR(last_po_date) = ?)');
+            params.push(parseInt(year), parseInt(year));
         }
 
         const [results] = await database.mysqlPool.query(
             `SELECT
                 id, facility_code, facility_name,
-                status, last_sample_sent, province,
+                status, last_sample_sent, last_po_date, province,
                 TIMESTAMPDIFF(MONTH, last_sample_sent, NOW()) AS months_since_last_sample,
+                TIMESTAMPDIFF(MONTH, last_po_date, NOW())     AS months_since_last_po,
                 CASE
-                    WHEN last_sample_sent < DATE_SUB(NOW(), INTERVAL 6 MONTH) THEN 'needs_reactivation'
-                    ELSE 'ok'
+                    WHEN (
+                        last_sample_sent IS NOT NULL AND last_sample_sent >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                        OR
+                        last_po_date IS NOT NULL AND last_po_date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                    ) THEN 'ok'
+                    ELSE 'needs_reactivation'
                 END AS reactivation_flag
              FROM nsf_facilities
              WHERE ${conditions.join(' AND ')}
-             ORDER BY last_sample_sent ASC`,
+             ORDER BY GREATEST(
+                COALESCE(last_sample_sent, '1900-01-01'),
+                COALESCE(last_po_date, '1900-01-01')
+             ) ASC`,
             params
         );
 

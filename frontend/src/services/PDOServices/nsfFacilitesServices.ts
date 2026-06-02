@@ -55,8 +55,10 @@ export interface NSFReactivationRecord {
     facility_name: string;
     status: NSFStatus;
     last_sample_sent: string | null;
+    last_po_date: string | null;
     province: string;
     months_since_last_sample: number;
+    months_since_last_po: number;
     reactivation_flag: NSFReactivationFlag;
 }
 
