@@ -97,6 +97,7 @@ export interface NSFFilterParams {
 export interface NSFReactivationParams {
     month?: string;
     year?: string;
+    action?: 'reactivated' | 'deactivated';
 }
 
 export interface NSFReactivationLogsParams {

@@ -674,11 +674,14 @@ const getNSFReactivationLogs = async (req, res) => {
 
 const getNSFReactivatedByProvince = async (req, res) => {
     try {
-        const { month, year } = req.query;
- 
-        const conditions = ["l.action = 'reactivated'"];
-        const params     = [];
- 
+        const { month, year, action } = req.query;
+
+        const validActions = ['reactivated', 'deactivated'];
+        const resolvedAction = validActions.includes(action) ? action : 'reactivated';
+
+        const conditions = [`l.action = ?`];
+        const params     = [resolvedAction];  // ← was hardcoded 'reactivated' before
+
         if (month && month !== 'All') {
             conditions.push('MONTH(l.created_at) = ?');
             params.push(parseInt(month));
@@ -687,7 +690,7 @@ const getNSFReactivatedByProvince = async (req, res) => {
             conditions.push('YEAR(l.created_at) = ?');
             params.push(parseInt(year));
         }
- 
+
         const [results] = await database.mysqlPool.query(
             `SELECT
                 COALESCE(f.province, 'Unknown') AS province,
@@ -699,10 +702,10 @@ const getNSFReactivatedByProvince = async (req, res) => {
              ORDER BY count DESC`,
             params
         );
- 
+
         const total = results.reduce((sum, r) => sum + Number(r.count), 0);
- 
         res.json({ data: results, total });
+
     } catch (err) {
         console.error("getNSFReactivatedByProvince error:", err);
         res.status(500).json({ error: "Failed to fetch reactivated by province", message: err.message });

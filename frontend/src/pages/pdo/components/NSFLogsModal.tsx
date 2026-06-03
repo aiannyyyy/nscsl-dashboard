@@ -254,8 +254,7 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
                                 )}
                             </div>
 
-                            {/* ── Action Filter Buttons ──────────────────────── */}
-                            {!isLoading && total > 0 && (
+                            {!isLoading && total > 0 && !actionProp && (
                                 <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                                     <button
                                         onClick={() => handleFilter('all')}
@@ -286,6 +285,17 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
                                             </button>
                                         );
                                     })}
+                                </div>
+                            )}
+
+                            {/* Show a locked badge instead when opened from the chart */}
+                            {!isLoading && total > 0 && actionProp && (
+                                <div className="flex items-center gap-1.5 mt-2">
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full ${ACTION_ACTIVE_STYLES[actionProp]}`}>
+                                        {ACTION_LABELS[actionProp]}
+                                        <span className="opacity-80">· {total.toLocaleString()}</span>
+                                    </span>
+                                    <span className="text-xs text-gray-400 dark:text-gray-500 italic">filtered from chart</span>
                                 </div>
                             )}
                         </div>
