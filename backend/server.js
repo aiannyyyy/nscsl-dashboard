@@ -203,6 +203,9 @@ app.use("/api/pdo", require("./routes/PDORoutes/lopezFilterCardRoutes"));
 // NSF Facilities
 app.use("/api/nsf", require("./routes/PDORoutes/nsfFacilitiesRoutes"));
 
+// Calendar
+app.use("/api/calendar", require("./routes/PDORoutes/calendarRoutes"));
+
 // Laboratory Card Summary
 app.use("/api/laboratory/card-summary", require("./routes/LaboratoryRoutes/cardSummaryRoutes"));
 

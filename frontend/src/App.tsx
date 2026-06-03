@@ -25,6 +25,7 @@ import { LogbookEndorsement } from './pages/followup/LogbookEndorsement'
 import { CMSUrgent } from './pages/followup/CMSUrgent';
 import { FollowUpPatientInformationSystem } from './pages/followup/FollowUpPatientInformationSystem';
 import { NSFDatabase } from './pages/pdo/NSFDatabase';
+import { Calendar } from './pages/pdo/Calendar';
 
 // Create a QueryClient instance
 const queryClient = new QueryClient({
@@ -64,6 +65,7 @@ function App() {
               <Route path="pdo/nsf-performance" element={<NSFPerformance />} />
               <Route path="pdo/list-of-car" element={<ListCar />} />
               <Route path="pdo/lopez-quezon" element={<LopezQuezonOverview />} />
+              <Route path="pdo/calendar" element={<Calendar />} />
 
               {/* Admin Routes */}
               <Route path="admin" element={<AdminOverview />} />

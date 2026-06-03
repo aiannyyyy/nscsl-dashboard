@@ -50,6 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed })
         { title: 'NSF Performance', path: '/dashboard/pdo/nsf-performance' },
         { title: 'List of Car', path: '/dashboard/pdo/list-of-car' },
         { title: 'Lopez Quezon', path: '/dashboard/pdo/lopez-quezon' },
+        { title: 'Calendar', path: '/dashboard/pdo/calendar' },
       ],
     },
     {
