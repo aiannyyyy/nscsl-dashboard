@@ -141,7 +141,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
         const maxRow = weekEvents.reduce((m, p) => Math.max(m, p.row), -1)
 
         return (
-          <div key={weekIdx} className="relative grid grid-cols-7 flex-1" style={{ minHeight: 110 + (maxRow + 1) * 22 }}>
+          <div key={weekIdx} className="relative grid grid-cols-7 flex-1" style={{ minHeight: 140 + (maxRow + 1) * 22 }}>
             {/* Day cells (background + day number) */}
             {week.map((date, dayIdx) => {
               const isToday = isSameDay(date, today)

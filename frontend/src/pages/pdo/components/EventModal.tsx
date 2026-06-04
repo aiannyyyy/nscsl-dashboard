@@ -34,7 +34,10 @@ interface EventModalProps {
   isDeleting?: boolean
   users?: UserOption[]
   onClose: () => void
-  onSave: (event: Omit<CalendarEvent, 'event_id' | 'created_by'> & { participant_ids: number[] }) => void
+  onSave: (event: Omit<CalendarEvent, 'event_id' | 'created_by'> & { 
+    participant_ids: number[]
+    reminder_minutes?: number
+  }) => void
   onDelete?: (event_id: number) => void
 }
 
@@ -124,6 +127,7 @@ export const EventModal: React.FC<EventModalProps> = ({
       color,
       category:        category || undefined,
       participant_ids: participants,
+      reminder_minutes: reminder !== '' ? reminder : undefined,
     })
   }
 

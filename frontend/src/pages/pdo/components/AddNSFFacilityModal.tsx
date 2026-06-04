@@ -7,11 +7,162 @@ import { useAuth } from '../../../context/AuthContext';
 
 // ─── Province / City Map ──────────────────────────────────────────────────────
 const PROVINCE_CITY_MAP: Record<string, string[]> = {
-  'BATANGAS': ['BATANGAS CITY', 'LIPA', 'TANAUAN', 'SANTO TOMAS', 'NASUGBU', 'BALAYAN', 'LEMERY', 'ROSARIO', 'SAN JOSE', 'MABINI', 'PADRE GARCIA'],
-  'CAVITE':   ['BACOOR', 'CAVITE CITY', 'DASMARIÑAS', 'IMUS', 'TAGAYTAY', 'TRECE MARTIRES', 'GENERAL TRIAS', 'SILANG', 'MENDEZ', 'NAIC', 'TANZA'],
-  'LAGUNA':   ['CALAMBA', 'SAN PABLO', 'SANTA ROSA', 'BIÑAN', 'CABUYAO', 'LOS BAÑOS', 'PAGSANJAN', 'STA. CRUZ', 'BAY', 'VICTORIA'],
-  'QUEZON':   ['LUCENA', 'TAYABAS', 'CANDELARIA', 'TIAONG', 'SARIAYA', 'GUMACA', 'LOPEZ', 'INFANTA', 'MAUBAN', 'PAGBILAO'],
-  'RIZAL':    ['ANTIPOLO', 'CAINTA', 'TAYTAY', 'ANGONO', 'BINANGONAN', 'SAN MATEO', 'MORONG', 'CARDONA', 'TANAY', 'TERESA'],
+  'BATANGAS': [
+    'AGONCILLO',
+    'ALITAGTAG',
+    'BALAYAN',
+    'BALETE',
+    'BATANGAS CITY',
+    'BAUAN',
+    'CALACA CITY',
+    'CALATAGAN',
+    'CUENCA',
+    'IBAAN',
+    'LAUREL',
+    'LEMERY',
+    'LIAN',
+    'LIPA CITY',
+    'LOBO',
+    'MABINI',
+    'MALVAR',
+    'MATAASNAKAHOY',
+    'NASUGBU',
+    'PADRE GARCIA',
+    'ROSARIO',
+    'SAN JOSE',
+    'SAN JUAN',
+    'SAN LUIS',
+    'SAN NICOLAS',
+    'SAN PASCUAL',
+    'SANTA TERESITA',
+    'SANTO TOMAS CITY',
+    'TAAL',
+    'TALISAY',
+    'TANAUAN CITY',
+    'TAYSAN',
+    'TINGLOY',
+    'TUY'
+  ],
+
+  'CAVITE': [
+    'ALFONSO',
+    'AMADEO',
+    'BACOOR CITY',
+    'CARMONA',
+    'CAVITE CITY',
+    'DASMARINAS CITY',
+    'GENERAL EMILIO AGUINALDO',
+    'GENERAL MARIANO ALVAREZ',
+    'GENERAL TRIAS CITY',
+    'IMUS CITY',
+    'INDANG',
+    'KAWIT',
+    'MAGALLANES',
+    'MARAGONDON',
+    'MENDEZ',
+    'NAIC',
+    'NOVELETA',
+    'ROSARIO',
+    'SILANG',
+    'TAGAYTAY CITY',
+    'TANZA',
+    'TERNATE',
+    'TRECE MARTIRES CITY'
+  ],
+
+  'LAGUNA': [
+    'ALAMINOS',
+    'BAY',
+    'BINAN CITY',
+    'CABUYAO CITY',
+    'CALAMBA CITY',
+    'CALAUAN',
+    'CAVINTI',
+    'FAMY',
+    'KALAYAAN',
+    'LILIW',
+    'LOS BANOS',
+    'LUISIANA',
+    'LUMBAN',
+    'MABITAC',
+    'MAGDALENA',
+    'MAJAYJAY',
+    'NAGCARLAN',
+    'PAETE',
+    'PAGSANJAN',
+    'PAKIL',
+    'PANGIL',
+    'PILA',
+    'RIZAL',
+    'SAN PABLO CITY',
+    'SAN PEDRO CITY',
+    'SANTA CRUZ',
+    'SANTA MARIA',
+    'SANTA ROSA CITY',
+    'SINILOAN',
+    'VICTORIA'
+  ],
+
+  'QUEZON': [
+    'AGDANGAN',
+    'ALABAT',
+    'ATIMONAN',
+    'BUENAVISTA',
+    'BURDEOS',
+    'CALAUAG',
+    'CANDELARIA',
+    'CATANAUAN',
+    'DOLORES',
+    'GENERAL LUNA',
+    'GENERAL NAKAR',
+    'GUINAYANGAN',
+    'GUMACA',
+    'INFANTA',
+    'JOMALIG',
+    'LOPEZ',
+    'LUCBAN',
+    'LUCENA CITY',
+    'MACALELON',
+    'MAUBAN',
+    'MULANAY',
+    'PADRE BURGOS',
+    'PAGBILAO',
+    'PANUKULAN',
+    'PATNANUNGAN',
+    'PEREZ',
+    'PITOGO',
+    'PLARIDEL',
+    'POLILLO',
+    'QUEZON',
+    'REAL',
+    'SAMPALOC',
+    'SAN ANDRES',
+    'SAN ANTONIO',
+    'SAN FRANCISCO',
+    'SAN NARCISO',
+    'SARIAYA',
+    'TAGKAWAYAN',
+    'TAYABAS CITY',
+    'TIAONG',
+    'UNISAN'
+  ],
+
+  'RIZAL': [
+    'ANGONO',
+    'ANTIPOLO CITY',
+    'BARAS',
+    'BINANGONAN',
+    'CAINTA',
+    'CARDONA',
+    'JALAJALA',
+    'MORONG',
+    'PILILLA',
+    'RODRIGUEZ',
+    'SAN MATEO',
+    'TANAY',
+    'TAYTAY',
+    'TERESA'
+  ]
 };
 
 const ALL_PROVINCES = Object.keys(PROVINCE_CITY_MAP).sort();
@@ -110,6 +261,9 @@ const DESIGNATION_OPTIONS: string[] = [
 // ─── Notification Email ───────────────────────────────────────────────────────
 const NOTIFICATION_EMAIL = 'itmis2nscsl@gmail.com';
 
+// ─── Current year constant ────────────────────────────────────────────────────
+const CURRENT_YEAR = String(new Date().getFullYear());
+
 // ─── Date Helper ──────────────────────────────────────────────────────────────
 const toDateInput = (val?: string | null): string => {
   if (!val) return '';
@@ -119,11 +273,6 @@ const toDateInput = (val?: string | null): string => {
 };
 
 // ─── Email Builder ────────────────────────────────────────────────────────────
-/**
- * Sends a plain-text notification email via the Anthropic Claude API
- * (which has access to the Gmail MCP connector).  Falls back silently
- * so a mail-send failure never blocks the save operation.
- */
 const sendFacilityEmail = async (
   facility: Partial<NSFFacility>,
   addedBy: string,
@@ -209,7 +358,7 @@ After sending, reply with only the word: SENT
 
 // ─── Empty Form ───────────────────────────────────────────────────────────────
 const EMPTY_FORM: Partial<NSFFacility> = {
-  facility_code:    undefined,
+  facility_code:    '',               // ← varchar (was undefined / number)
   facility_name:    '',
   category:         '',
   type1:            '',
@@ -225,7 +374,7 @@ const EMPTY_FORM: Partial<NSFFacility> = {
   province:         '',
   region:           '4A',
   date_accredited:  '',
-  year_accredited:  undefined,
+  year_accredited:  CURRENT_YEAR,     // ← pre-filled, readonly
   last_po_date:     '',
   po_number:        '',
   remarks:          '',
@@ -261,6 +410,8 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
       ...base,
       date_accredited: toDateInput(base.date_accredited),
       last_po_date:    toDateInput(base.last_po_date),
+      // On edit keep the stored year; on add always use current year
+      year_accredited: editing ? (base.year_accredited ?? CURRENT_YEAR) : CURRENT_YEAR,
     });
     setCitySearch(editing?.city ?? '');
   }, [editing, open]);
@@ -304,13 +455,11 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
     e.preventDefault();
     try {
       if (editing?.id) {
-        // ── Update: no notification email ─────────────────────────────────────
         await updateMutation.mutateAsync({
           id:   editing.id,
           data: { ...form, modified_by: username },
         });
       } else {
-        // ── Add: save first, then fire-and-forget notification email ──────────
         await addMutation.mutateAsync({ ...form, created_by: username });
         sendFacilityEmail(form, username); // intentionally not awaited
       }
@@ -322,8 +471,9 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
 
   if (!open) return null;
 
-  const inputCls = "w-full h-9 px-3 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
-  const labelCls = "block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1";
+  const inputCls        = "w-full h-9 px-3 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const inputReadonlyCls = "w-full h-9 px-3 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed select-none";
+  const labelCls        = "block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -353,19 +503,20 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
           <fieldset>
             <legend className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3">Basic Information</legend>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+              {/* Facility Code — varchar, plain text input */}
               <div>
                 <label className={labelCls}>Facility Code *</label>
                 <input
-                  type="number"
+                  type="text"
                   required
                   value={form.facility_code ?? ''}
                   onChange={field('facility_code')}
                   className={inputCls}
                   placeholder="e.g. 1234"
-                  style={{ MozAppearance: 'textfield' }}
-                  onWheel={e => e.currentTarget.blur()}
                 />
               </div>
+
               <div>
                 <label className={labelCls}>Facility Name *</label>
                 <input type="text" required value={form.facility_name ?? ''} onChange={field('facility_name')} className={inputCls} placeholder="e.g. Healthway Daniel Mercado Medical Center" />
@@ -391,10 +542,19 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
                   {TYPE2_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
+
+              {/* Region — pre-filled with 4A, still editable */}
               <div>
                 <label className={labelCls}>Region</label>
-                <input type="text" value={form.region ?? ''} onChange={field('region')} className={inputCls} placeholder="e.g. 4A" />
+                <input
+                  type="text"
+                  value={form.region ?? '4A'}
+                  onChange={field('region')}
+                  className={inputCls}
+                  placeholder="e.g. 4A"
+                />
               </div>
+
             </div>
           </fieldset>
 
@@ -484,10 +644,22 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
                 <label className={labelCls}>Date Accredited</label>
                 <input type="date" value={form.date_accredited ?? ''} onChange={field('date_accredited')} className={inputCls} />
               </div>
+
+              {/* Year Accredited — readonly, auto-set to current year */}
               <div>
-                <label className={labelCls}>Year Accredited</label>
-                <input type="number" value={form.year_accredited ?? ''} onChange={field('year_accredited')} className={inputCls} placeholder="e.g. 2026" />
+                <label className={labelCls}>
+                  Year Accredited
+                  <span className="ml-1 text-gray-400 font-normal">(auto)</span>
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  tabIndex={-1}
+                  value={form.year_accredited ?? CURRENT_YEAR}
+                  className={inputReadonlyCls}
+                />
               </div>
+
               <div>
                 <label className={labelCls}>Last PO Date</label>
                 <input type="date" value={form.last_po_date ?? ''} onChange={field('last_po_date')} className={inputCls} />
@@ -510,7 +682,6 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
               placeholder="Optional notes…"
             />
           </div>
-
 
         </form>
 

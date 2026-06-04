@@ -5,10 +5,11 @@ import {
   createEvent,
   updateEvent,
   deleteEvent,
+  checkReminders,
 } from '../../services/PDOServices/calendarService'
 import type { CreateEventPayload, UpdateEventPayload } from '../../services/PDOServices/calendarService'
 
-const EVENTS_KEY = ['events'] as const
+const EVENTS_KEY = ['events']       as const
 const USERS_KEY  = ['calendarUsers'] as const
 
 export const useCalendar = () => {
@@ -29,6 +30,15 @@ export const useCalendar = () => {
   const { data: users = [] } = useQuery({
     queryKey: USERS_KEY,
     queryFn: fetchUsers,
+  })
+
+  // ─── CHECK reminders every 60 seconds ─────────────────────────
+  useQuery({
+    queryKey: ['calendarReminders'],
+    queryFn: checkReminders,
+    refetchInterval: 60 * 1000,       // every 1 minute
+    refetchIntervalInBackground: true, // keeps running even if tab is not focused
+    retry: false,                      // don't spam retries on failure
   })
 
   // ─── POST create event ────────────────────────────────────────
@@ -55,11 +65,8 @@ export const useCalendar = () => {
     },
   })
 
-  // ─── Handlers (used directly in Calendar.tsx) ─────────────────
-  const handleSave = (
-    payload: CreateEventPayload,
-    editEventId?: number
-  ) => {
+  // ─── Handlers ─────────────────────────────────────────────────
+  const handleSave = (payload: CreateEventPayload, editEventId?: number) => {
     if (editEventId) {
       updateMutation.mutate({ ...payload, event_id: editEventId })
     } else {
@@ -72,18 +79,13 @@ export const useCalendar = () => {
   }
 
   return {
-    // Data
     events,
     users,
-
-    // States
     isLoading,
     isError,
     error,
-    isSaving: createMutation.isPending || updateMutation.isPending,
+    isSaving:   createMutation.isPending || updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
-
-    // Handlers
     handleSave,
     handleDelete,
   }

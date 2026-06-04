@@ -8,7 +8,7 @@ export type NSFReactivationFlag  = 'needs_reactivation' | 'ok';
 
 export interface NSFFacility {
     id?: number;
-    facility_code: number;
+    facility_code: string;                // ← varchar
     facility_name: string;
     category?: string | null;
     type1?: string | null;
@@ -24,7 +24,7 @@ export interface NSFFacility {
     province?: string | null;
     region?: string | null;
     date_accredited?: string | null;
-    year_accredited?: number | null;
+    year_accredited?: string | null;      // ← varchar
     status: NSFStatus;
     last_po_date?: string | null;
     po_number?: string | null;
@@ -51,7 +51,7 @@ export interface NSFStatusDistribution {
 
 export interface NSFReactivationRecord {
     id: number;
-    facility_code: number;
+    facility_code: string;                // ← varchar
     facility_name: string;
     status: NSFStatus;
     last_sample_sent: string | null;
@@ -66,7 +66,7 @@ export interface NSFReactivationLog {
     id: number;
     facility_id: number;
     facility_name: string;
-    facility_code: number;
+    facility_code: string;                // ← varchar
     province: string | null;
     action: NSFLogAction;
     old_status: NSFStatus | null;

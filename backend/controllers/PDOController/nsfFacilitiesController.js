@@ -111,15 +111,11 @@ const runSyncLastSampleSent = async (app) => {
 
 
 // ── CRON: AUTO SYNC REACTIVATION STATUS (every 1 hour at :05) ────────────────
-// Runs 5 minutes after last_sample_sent so Oracle data is fresh first.
-// This is the ONLY place auto deactivate/reactivate logic runs —
-// the GET /reactivation endpoint is now a pure read.
 const runSyncReactivationStatus = async () => {
     const connection = await database.mysqlPool.getConnection();
     try {
         await connection.beginTransaction();
 
-        // --- Auto-deactivate: active + both dates older than 6 months or one is NULL ---
         const [toDeactivate] = await connection.query(
             `SELECT id, status FROM nsf_facilities
              WHERE status = 'active'
@@ -156,7 +152,6 @@ const runSyncReactivationStatus = async () => {
             }
         }
 
-        // --- Auto-reactivate: inactive + either date within 6 months ---
         const [toReactivate] = await connection.query(
             `SELECT id, status FROM nsf_facilities
              WHERE status = 'inactive'
@@ -209,7 +204,6 @@ const runSyncReactivationStatus = async () => {
 
 // ── CRON INIT — call this once from app.js ────────────────────────────────────
 const initSyncCron = (app) => {
-    // 1. last_sample_sent — runs at :00 every hour
     console.log('[Cron] Running initial last_sample_sent sync on startup...');
     runSyncLastSampleSent(app);
     cron.schedule('0 * * * *', () => {
@@ -217,10 +211,8 @@ const initSyncCron = (app) => {
         runSyncLastSampleSent(app);
     });
 
-    // 2. Reactivation status — runs at :05 every hour (after last_sample_sent finishes)
     console.log('[Cron] Running initial reactivation status sync on startup...');
-    // Slight delay on startup so last_sample_sent has time to finish first
-    setTimeout(() => runSyncReactivationStatus(), 30 * 1000); // 30s after startup
+    setTimeout(() => runSyncReactivationStatus(), 30 * 1000);
     cron.schedule('5 * * * *', () => {
         console.log('[Cron] ⏰ Hourly reactivation status sync triggered...');
         runSyncReactivationStatus();
@@ -244,7 +236,7 @@ const getAllNSFFacilities = async (req, res) => {
         if (search) {
             conditions.push(`(
                 facility_name LIKE ? OR
-                CAST(facility_code AS CHAR) LIKE ?
+                facility_code LIKE ?
             )`);
             params.push(`%${search}%`, `%${search}%`);
         }
@@ -334,7 +326,7 @@ const addNSFFacility = async (req, res) => {
                 medical_director, contact_person, designation,
                 tel_cell, fax, email, address, city, province, region || "4A",
                 toDateOnly(date_accredited),
-                year_accredited ? parseInt(year_accredited) : null,
+                year_accredited ?? null,           // ← was: year_accredited ? parseInt(year_accredited) : null
                 toDateOnly(last_po_date), po_number || null,
                 created_by, now,
                 created_by, now,
@@ -382,11 +374,7 @@ const updateNSFFacility = async (req, res) => {
 
         const now = new Date();
 
-        // Status only changes if explicitly passed in the request body
-        // last_po_date NEVER drives status changes — only the reactivation cron does
-        const finalStatus = status ? status.toLowerCase() : old.status;
-
-        // PO date is just data — stored as-is, no logic applied
+        const finalStatus  = status ? status.toLowerCase() : old.status;
         const resolvedPoDate = toDateOnly(last_po_date ?? old.last_po_date);
 
         await database.mysqlPool.query(
@@ -415,7 +403,7 @@ const updateNSFFacility = async (req, res) => {
                 province         ?? old.province,
                 region           ?? old.region,
                 toDateOnly(date_accredited ?? old.date_accredited),
-                year_accredited  ? parseInt(year_accredited) : old.year_accredited,
+                year_accredited  ?? old.year_accredited,   // ← was: year_accredited ? parseInt(year_accredited) : old.year_accredited
                 finalStatus,
                 resolvedPoDate,
                 po_number        ?? old.po_number,
@@ -425,7 +413,6 @@ const updateNSFFacility = async (req, res) => {
             ]
         );
 
-        // Only log if status was explicitly changed via request body
         if (old.status !== finalStatus) {
             const action    = finalStatus === 'active' ? 'reactivated' : 'deactivated';
             const logRemark = `Manually ${action} by ${modified_by}`;
@@ -559,9 +546,6 @@ const getNSFStatusDistribution = async (req, res) => {
 
 
 // ── REACTIVATION STATUS (pure read — no mutations) ────────────────────────────
-// Auto deactivate/reactivate logic has been moved to runSyncReactivationStatus()
-// which runs via cron every hour at :05. This endpoint is now safe to call
-// multiple times without triggering duplicate log entries.
 const getNSFReactivationStatus = async (req, res) => {
     try {
         const { month, year } = req.query;
@@ -680,7 +664,7 @@ const getNSFReactivatedByProvince = async (req, res) => {
         const resolvedAction = validActions.includes(action) ? action : 'reactivated';
 
         const conditions = [`l.action = ?`];
-        const params     = [resolvedAction];  // ← was hardcoded 'reactivated' before
+        const params     = [resolvedAction];
 
         if (month && month !== 'All') {
             conditions.push('MONTH(l.created_at) = ?');
@@ -711,7 +695,6 @@ const getNSFReactivatedByProvince = async (req, res) => {
         res.status(500).json({ error: "Failed to fetch reactivated by province", message: err.message });
     }
 };
- 
 
 
 // ── PROVINCES DROPDOWN ────────────────────────────────────────────────────────

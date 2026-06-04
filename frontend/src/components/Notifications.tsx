@@ -29,6 +29,12 @@ export const Notifications: React.FC = () => {
             if (!notification.is_read) {
                 await markAsReadMutation.mutateAsync(notification.id);
             }
+
+            // ✅ Don't navigate for calendar reminders — just mark as read
+            if (notification.type === 'calendar_reminder') {
+                return
+            }
+
             if (notification.link?.trim()) {
                 navigate(notification.link.trim());
             }
@@ -81,6 +87,9 @@ export const Notifications: React.FC = () => {
             case 'logbook_endorsement_recall':
                 return <Send size={16} />;
 
+            case 'calendar_reminder':
+                return <Bell size={16} />;
+
             default:
                 return 'ℹ️';
         }
@@ -123,6 +132,9 @@ export const Notifications: React.FC = () => {
             case 'logbook_endorsement_recall':
                 return 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400';
 
+            case 'calendar_reminder':
+                return 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
+
             default:
                 return 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400';
         }
@@ -137,6 +149,7 @@ export const Notifications: React.FC = () => {
         if (type === 'logbook_endorsement') return 'Logbook';
         if (type === 'logbook_tc_approved') return 'Logbook TC';
         if (type === 'logbook_endorsement_recall') return 'Recall';
+        if (type === 'calendar_reminder') return 'Calendar';
         return null;
     };
 

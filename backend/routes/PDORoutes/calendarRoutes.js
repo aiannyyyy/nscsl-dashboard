@@ -1,20 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const calendarController = require("../../controllers/PDOController/calendarController");
+const verifyToken = require("../../middleware/authMiddleware");
 
-// Get all events
-router.get("/", calendarController.getEvents);
-
-// Get all users (participant picker) — must be before /:id
-router.get("/users", calendarController.getUsers);
-
-// Create event
-router.post("/", calendarController.createEvent);
-
-// Update event
-router.put("/:id", calendarController.updateEvent);
-
-// Delete event
-router.delete("/:id", calendarController.deleteEvent);
+router.get("/",              verifyToken, calendarController.getEvents);
+router.get("/users",         verifyToken, calendarController.getUsers);
+router.get("/check-reminders", verifyToken, calendarController.checkReminders); // ← must be before /:id
+router.post("/",             verifyToken, calendarController.createEvent);
+router.put("/:id",           verifyToken, calendarController.updateEvent);
+router.delete("/:id",        verifyToken, calendarController.deleteEvent);
 
 module.exports = router;

@@ -11,6 +11,7 @@ export interface CreateEventPayload {
   color: string
   category?: string
   participant_ids?: number[]
+  reminder_minutes?: number | ''
 }
 
 export interface UpdateEventPayload extends CreateEventPayload {
@@ -22,6 +23,12 @@ export interface UserOption {
   name: string
   dept: string
   position: string
+}
+
+export interface CheckRemindersResult {
+  message: string
+  reminders_checked: number
+  notifications_sent: number
 }
 
 export const fetchEvents = async (): Promise<CalendarEvent[]> => {
@@ -46,4 +53,9 @@ export const updateEvent = async (payload: UpdateEventPayload): Promise<Calendar
 
 export const deleteEvent = async (event_id: number): Promise<void> => {
   await api.delete(`/calendar/${event_id}`)
+}
+
+export const checkReminders = async (): Promise<CheckRemindersResult> => {
+  const { data } = await api.get('/calendar/check-reminders')
+  return data
 }
