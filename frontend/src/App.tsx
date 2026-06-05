@@ -26,6 +26,9 @@ import { CMSUrgent } from './pages/followup/CMSUrgent';
 import { FollowUpPatientInformationSystem } from './pages/followup/FollowUpPatientInformationSystem';
 import { NSFDatabase } from './pages/pdo/NSFDatabase';
 import { Calendar } from './pages/pdo/Calendar';
+import { General } from './pages/settings/General';
+import { User } from './pages/settings/User';
+
 
 // Create a QueryClient instance
 const queryClient = new QueryClient({
@@ -88,6 +91,10 @@ function App() {
               {/* IT Job Order Routes */}
               <Route path="it-job-order" element={<ITJobOrderOverview />} />
               <Route path="it-job-order/summary" element={ <ITJobOrderSummary />} />
+
+              {/* Settings Routes */}
+              <Route path="settings/general" element={<General />} />
+              <Route path="settings/users" element={ <User />} />
             </Route>
 
             {/* Catch all - redirect to login */}

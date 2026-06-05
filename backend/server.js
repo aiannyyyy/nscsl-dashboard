@@ -179,6 +179,10 @@ const authRoutes = require("./routes/authRoutes");
 app.use("/api/auth", authRoutes);
 console.log("🔐 Authentication routes loaded");
 
+// User Management (Admin)
+app.use('/api/admin/users',  require('./routes/AdminRoutes/userRoutes'));
+app.use('/api/admin/access', require('./routes/AdminRoutes/accessRoutes'));
+
 // Facility Visits
 app.use("/api/facility-visits", require("./routes/PDORoutes/facilityVisitsRoutes"));
 
