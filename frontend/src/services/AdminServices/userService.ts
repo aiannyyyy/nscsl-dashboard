@@ -10,6 +10,12 @@ export interface CreateUserPayload {
   role: 'admin' | 'user';
 }
 
+export interface ChangePasswordPayload {
+  userId: number;
+  currentPassword: string;
+  newPassword: string;
+}
+
 // ─── GET /api/admin/users ─────────────────────────────────────────────────────
 export const fetchUsers = async (): Promise<User[]> => {
   const { data } = await api.get('/admin/users');
@@ -25,4 +31,9 @@ export const postUser = async (payload: CreateUserPayload): Promise<User> => {
 // ─── DELETE /api/admin/users/:id ──────────────────────────────────────────────
 export const removeUser = async (userId: number): Promise<void> => {
   await api.delete(`/admin/users/${userId}`);
+};
+
+// ─── PUT /api/admin/users/change-password ─────────────────────────────────────
+export const putChangePassword = async (payload: ChangePasswordPayload): Promise<void> => {
+  await api.put('/admin/users/change-password', payload);
 };

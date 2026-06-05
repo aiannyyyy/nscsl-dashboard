@@ -64,6 +64,7 @@ export const MENU_CONFIG = [
     subItems: [
       { key: 'general', label: 'General', path: '/dashboard/settings/general' },
       { key: 'users',   label: 'Users',   path: '/dashboard/settings/users' },
+      { key: 'change-password',   label: 'Change Password',   path: '/dashboard/settings/change-password' },
     ],
   },
 ] as const;

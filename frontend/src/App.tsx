@@ -28,6 +28,7 @@ import { NSFDatabase } from './pages/pdo/NSFDatabase';
 import { Calendar } from './pages/pdo/Calendar';
 import { General } from './pages/settings/General';
 import { User } from './pages/settings/User';
+import { ChangePassword } from './pages/settings/ChangePassword';
 
 
 // Create a QueryClient instance
@@ -95,6 +96,7 @@ function App() {
               {/* Settings Routes */}
               <Route path="settings/general" element={<General />} />
               <Route path="settings/users" element={ <User />} />
+              <Route path="settings/change-password" element={ <ChangePassword />} />
             </Route>
 
             {/* Catch all - redirect to login */}

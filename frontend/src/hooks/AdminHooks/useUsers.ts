@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchUsers, postUser, removeUser } from '../../services/AdminServices/userService';
-import type { CreateUserPayload } from '../../services/AdminServices/userService';
+import { fetchUsers, postUser, removeUser, putChangePassword } from '../../services/AdminServices/userService';
+import type { CreateUserPayload, ChangePasswordPayload } from '../../services/AdminServices/userService';
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 export const userKeys = {
@@ -8,7 +8,6 @@ export const userKeys = {
 };
 
 // ─── useUsers ─────────────────────────────────────────────────────────────────
-// Fetches all users. Use in UserTable.
 export const useUsers = () =>
   useQuery({
     queryKey: userKeys.all,
@@ -16,7 +15,6 @@ export const useUsers = () =>
   });
 
 // ─── useCreateUser ────────────────────────────────────────────────────────────
-// Creates a user then refreshes the list. Use in CreateUser modal.
 export const useCreateUser = () => {
   const queryClient = useQueryClient();
 
@@ -29,7 +27,6 @@ export const useCreateUser = () => {
 };
 
 // ─── useDeleteUser ────────────────────────────────────────────────────────────
-// Deletes a user then refreshes the list. Use in UserTable.
 export const useDeleteUser = () => {
   const queryClient = useQueryClient();
 
@@ -40,3 +37,15 @@ export const useDeleteUser = () => {
     },
   });
 };
+
+// ─── useChangePassword ────────────────────────────────────────────────────────
+// Sends current + new password to the backend for verification and update.
+// Throws with a user-friendly message on failure so the modal can display it.
+export const useChangePassword = () =>
+  useMutation({
+    mutationFn: (payload: ChangePasswordPayload) => putChangePassword(payload),
+    onError: (error: unknown) => {
+      // Re-throw so the modal's catch block receives the message
+      throw error;
+    },
+  });
