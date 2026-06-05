@@ -5,6 +5,7 @@ import { EventBadge } from './EventBadge'
 interface CalendarGridProps {
   currentDate: Date
   events: CalendarEvent[]
+  holidayDates: Set<string>           // ← new: "YYYY-MM-DD" strings
   onDayClick: (date: Date) => void
   onEventClick: (event: CalendarEvent) => void
 }
@@ -45,13 +46,20 @@ function isSameDay(a: Date, b: Date) {
   )
 }
 
-// For each event, calculate which grid cell index it starts and ends on
+/** "YYYY-MM-DD" from a Date — matches the Nager.Date API format */
+function toDateKey(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 interface PositionedEvent {
   event: CalendarEvent
   startIdx: number
   endIdx: number
   span: number
-  row: number // vertical stacking row within a day
+  row: number
 }
 
 function layoutEvents(events: CalendarEvent[], days: Date[]): PositionedEvent[] {
@@ -72,13 +80,10 @@ function layoutEvents(events: CalendarEvent[], days: Date[]): PositionedEvent[] 
     positioned.push({ event, startIdx, endIdx: clampedEnd, span, row: 0 })
   }
 
-  // Sort so multi-day events come first (they get lower row numbers)
   positioned.sort((a, b) => b.span - a.span || a.startIdx - b.startIdx)
 
-  // Assign rows per starting cell to avoid overlap
   const rowTracker: Record<number, boolean[]> = {}
   for (const p of positioned) {
-    // Find the first row not occupied by any overlapping event in this range
     let row = 0
     while (true) {
       let occupied = false
@@ -101,6 +106,7 @@ function layoutEvents(events: CalendarEvent[], days: Date[]): PositionedEvent[] 
 export const CalendarGrid: React.FC<CalendarGridProps> = ({
   currentDate,
   events,
+  holidayDates,
   onDayClick,
   onEventClick,
 }) => {
@@ -132,20 +138,20 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
         const weekStartIdx = weekIdx * 7
         const weekEndIdx   = weekStartIdx + 6
 
-        // Events that are visible in this week
         const weekEvents = positioned.filter(
           (p) => p.startIdx <= weekEndIdx && p.endIdx >= weekStartIdx
         )
 
-        // Max rows needed in this week
         const maxRow = weekEvents.reduce((m, p) => Math.max(m, p.row), -1)
 
         return (
           <div key={weekIdx} className="relative grid grid-cols-7 flex-1" style={{ minHeight: 140 + (maxRow + 1) * 22 }}>
-            {/* Day cells (background + day number) */}
+            {/* Day cells */}
             {week.map((date, dayIdx) => {
-              const isToday = isSameDay(date, today)
+              const isToday      = isSameDay(date, today)
               const isCurrentMonth = date.getMonth() === currentDate.getMonth()
+              const isHoliday    = holidayDates.has(toDateKey(date))
+
               return (
                 <div
                   key={dayIdx}
@@ -153,13 +159,18 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                   className={`
                     border-b border-r border-gray-200 dark:border-gray-700 cursor-pointer
                     transition-colors duration-150 flex flex-col
-                    ${isCurrentMonth
+                    ${isHoliday && isCurrentMonth
+                      ? 'bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
+                      : isCurrentMonth
                       ? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50'
                       : 'bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/60'}
                   `}
                 >
-                  {/* Day number */}
-                  <div className="flex items-center justify-end p-1.5">
+                  {/* Day number + optional holiday dot */}
+                  <div className="flex items-center justify-end p-1.5 gap-1">
+                    {isHoliday && isCurrentMonth && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 flex-shrink-0" />
+                    )}
                     <span
                       className={`
                         text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full
@@ -179,10 +190,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
             {/* Event bars — absolutely positioned over the grid */}
             {weekEvents.map(({ event, startIdx, endIdx, span, row }) => {
-              // Clamp to this week
               const clampedStart = Math.max(startIdx, weekStartIdx)
               const clampedEnd   = Math.min(endIdx, weekEndIdx)
-              const colStart     = clampedStart - weekStartIdx // 0–6
+              const colStart     = clampedStart - weekStartIdx
               const colSpan      = clampedEnd - clampedStart + 1
               const startsHere   = startIdx >= weekStartIdx
               const endsHere     = endIdx <= weekEndIdx

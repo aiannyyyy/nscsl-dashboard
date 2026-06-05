@@ -189,11 +189,10 @@ export const UnsatPerProvince: React.FC = () => {
             {months.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
 
-          {/* ✅ NEW: Export Dropdown */}
           <select 
             onChange={(e) => {
               if (e.target.value) {
-                handleExport(e.target.value as 'png' | 'svg' | 'excel');
+                handleExport(e.target.value as 'png' | 'excel');
                 e.target.value = ''; // Reset after selection
               }
             }}
@@ -202,7 +201,6 @@ export const UnsatPerProvince: React.FC = () => {
           >
             <option value="">Export</option>
             <option value="png">PNG Image</option>
-            <option value="svg">SVG Vector</option>
             <option value="excel">Excel Data</option>
           </select>
         </div>
@@ -245,7 +243,7 @@ export const UnsatPerProvince: React.FC = () => {
                   <LabelList content={CustomLabel} />
                 </Bar>
 
-                <Bar dataKey="period2" name={`${shortMonth} ${yearB}`} fill="#fffb00" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="period2" name={`${shortMonth} ${yearB}`} fill="#FFA500" radius={[4, 4, 0, 0]}>
                   <LabelList content={CustomLabel} />
                 </Bar>
               </BarChart>

@@ -476,14 +476,6 @@ export const CumulativePerProvince: React.FC<Props> = ({
                         Download as PNG
                       </button>
                       <button
-                        onClick={() => handleDownload('svg')}
-                        className="w-full px-4 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-700
-                          text-gray-700 dark:text-gray-300 transition-colors flex items-center gap-2"
-                      >
-                        <Download size={12} />
-                        Download as SVG
-                      </button>
-                      <button
                         onClick={() => handleDownload('excel')}
                         className="w-full px-4 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-700
                           text-gray-700 dark:text-gray-300 transition-colors flex items-center gap-2"
@@ -600,7 +592,7 @@ export const CumulativePerProvince: React.FC<Props> = ({
               <Bar 
                 dataKey={yearB} 
                 name={yearB}
-                fill="#fffb00"
+                fill="#FFA500"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={150}
               >

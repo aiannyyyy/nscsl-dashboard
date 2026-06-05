@@ -404,7 +404,7 @@ export const CumulativePerProvince: React.FC<Props> = ({
                       border-gray-200 dark:border-gray-700
                       z-20 overflow-hidden"
                     >
-                      {(['png', 'svg', 'excel'] as const).map((fmt) => (
+                      {(['png', 'excel'] as const).map((fmt) => (
                         <button
                           key={fmt}
                           onClick={() => handleDownload(fmt)}
@@ -516,7 +516,7 @@ export const CumulativePerProvince: React.FC<Props> = ({
               <Bar 
                 dataKey={yearB} 
                 name={yearB}
-                fill="#fffb00"
+                fill="#FFA500"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={150}
               >

@@ -64,30 +64,37 @@ export const LopezPurchasedFilterCardsTable = () => {
   const collapseAll = () => setExpandedCities(new Set());
 
   const handleExportExcel = () => {
-    setShowDownloadMenu(false);
-    const monthLabel = months.find(m => m.value === selectedMonth)?.label;
-    const headers = ['City', 'SUBMID', 'Description', 'Count'];
-    const rows: (string | number)[][] = [];
+  setShowDownloadMenu(false);
+  const monthLabel = months.find(m => m.value === selectedMonth)?.label;
 
-    data.forEach(row => {
-      rows.push([row.city, '', '', row.total_count]);
-      row.breakdown.forEach(b => {
-        rows.push(['', b.submid, b.descr1, b.total_count]);
-      });
+  // Headers
+  const headers = ['City', 'Count', 'SUBMID', 'Description', 'Facility Count'];
+
+  const rows: (string | number)[][] = [];
+
+  data.forEach(row => {
+    // City row — total count now in column B (index 1)
+    rows.push([row.city, row.total_count, '', '', '']);
+
+    // Breakdown rows — submid in C, description in D, count in E
+    row.breakdown.forEach(b => {
+      rows.push(['', '', b.submid, b.descr1, b.total_count]);
     });
+  });
 
-    const total = data.reduce((sum, row) => sum + row.total_count, 0);
-    rows.push(['TOTAL', '', '', total]);
+  // Grand total row
+  const total = data.reduce((sum, row) => sum + row.total_count, 0);
+  rows.push(['TOTAL', total, '', '', '']);
 
-    const csvContent = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Lopez_FilterCards_${monthLabel}_${selectedYear}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const csvContent = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Lopez_FilterCards_${monthLabel}_${selectedYear}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
   const handleExportPNG = () => {
     setShowDownloadMenu(false);

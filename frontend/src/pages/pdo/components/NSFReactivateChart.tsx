@@ -222,7 +222,7 @@ export const NSFReactivateChart: React.FC = () => {
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowDownloadMenu(false)} />
                   <div className="absolute right-0 mt-1 w-44 rounded-lg shadow-lg border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
-                    {(['png', 'svg', 'excel'] as const).map(fmt => (
+                    {(['png', 'excel'] as const).map(fmt => (
                       <button
                         key={fmt}
                         onClick={() => handleDownload(fmt)}

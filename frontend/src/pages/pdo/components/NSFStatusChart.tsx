@@ -50,17 +50,29 @@ export const NSFStatusChart: React.FC = () => {
     }
   };
 
+  // ── Custom label: only show for slices >= 5% to avoid crowding ───────────────
   const renderCustomLabel = ({ cx, cy, midAngle, outerRadius, value, name }: any) => {
     if (!name || value === undefined || total === 0) return null;
-    const RADIAN = Math.PI / 180;
-    const radius = outerRadius + 28;
-    const x      = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y      = cy + radius * Math.sin(-midAngle * RADIAN);
-    const pct    = ((value / total) * 100).toFixed(0);
-    const label  = `${name.charAt(0).toUpperCase() + name.slice(1)}, ${value}, ${pct}%`;
-    const isDark = document.documentElement.classList.contains('dark');
+    const pct = (value / total) * 100;
+    if (pct < 5) return null; // skip tiny slices
+
+    const RADIAN     = Math.PI / 180;
+    const labelRadius = outerRadius + 45;
+    const x           = cx + labelRadius * Math.cos(-midAngle * RADIAN);
+    const y           = cy + labelRadius * Math.sin(-midAngle * RADIAN);
+    const label       = `${name.charAt(0).toUpperCase() + name.slice(1)}, ${value}, ${pct.toFixed(0)}%`;
+    const isDark      = document.documentElement.classList.contains('dark');
+
     return (
-      <text x={x} y={y} fill={isDark ? '#e5e7eb' : '#374151'} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={11} fontWeight={500}>
+      <text
+        x={x}
+        y={y}
+        fill={isDark ? '#e5e7eb' : '#374151'}
+        textAnchor={x > cx ? 'start' : 'end'}
+        dominantBaseline="central"
+        fontSize={10}
+        fontWeight={500}
+      >
         {label}
       </text>
     );
@@ -68,7 +80,8 @@ export const NSFStatusChart: React.FC = () => {
 
   return (
     <>
-      <div className="rounded-2xl bg-white dark:bg-gray-900 shadow-lg h-[550px]">
+      <div className="rounded-2xl bg-white dark:bg-gray-900 shadow-lg h-[550px] flex flex-col">
+
         {/* Header */}
         <div className="flex justify-between items-start px-5 py-4 border-b bg-gray-50 dark:bg-gray-800 dark:border-gray-700 rounded-t-2xl">
           <div>
@@ -99,7 +112,7 @@ export const NSFStatusChart: React.FC = () => {
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowDownloadMenu(false)} />
                   <div className="absolute right-0 mt-1 w-44 rounded-lg shadow-lg border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
-                    {(['png', 'svg', 'excel'] as const).map(fmt => (
+                    {(['png', 'excel'] as const).map(fmt => (
                       <button key={fmt} onClick={() => handleDownload(fmt)} className="w-full px-4 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors">
                         {fmt === 'excel' ? 'Export Data to Excel' : `Download as ${fmt.toUpperCase()}`}
                       </button>
@@ -112,7 +125,10 @@ export const NSFStatusChart: React.FC = () => {
         </div>
 
         {/* Chart */}
-        <div id="nsf-status-chart" className="mx-5 mt-4 h-[420px] rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-4 flex items-center justify-center">
+        <div
+          id="nsf-status-chart"
+          className="flex-1 mx-5 mt-4 mb-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-center overflow-hidden"
+        >
           {isLoading ? (
             <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
           ) : isError ? (
@@ -121,12 +137,12 @@ export const NSFStatusChart: React.FC = () => {
             <span className="text-sm text-gray-400 dark:text-gray-500">No data available</span>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
+              <PieChart margin={{ top: 30, right: 80, bottom: 30, left: 80 }}>
                 <Pie
                   data={chartData}
                   cx="50%"
                   cy="50%"
-                  outerRadius={120}
+                  outerRadius={100}
                   innerRadius={0}
                   dataKey="value"
                   labelLine={false}
@@ -138,9 +154,19 @@ export const NSFStatusChart: React.FC = () => {
                 </Pie>
                 <Tooltip
                   formatter={(value: number) => [`${value} facilities`, 'Count']}
-                  contentStyle={{ backgroundColor: 'var(--tooltip-bg, white)', border: '1px solid #e5e7eb', borderRadius: '0.5rem', fontSize: '12px' }}
+                  contentStyle={{
+                    backgroundColor: 'var(--tooltip-bg, white)',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '0.5rem',
+                    fontSize: '12px',
+                  }}
                 />
-                <Legend formatter={value => value.charAt(0).toUpperCase() + value.slice(1)} />
+                <Legend
+                  wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+                  iconType="circle"
+                  iconSize={8}
+                  formatter={value => value.charAt(0).toUpperCase() + value.slice(1)}
+                />
               </PieChart>
             </ResponsiveContainer>
           )}

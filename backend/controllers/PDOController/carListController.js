@@ -89,7 +89,6 @@ const getCarListGroupedByProvince = async (req, res) => {
             params.push(date_end);
         }
 
-        // ← add this block
         if (province && province !== '') {
             query += ` AND LOWER(province) = LOWER(?)`;
             params.push(province);
@@ -173,7 +172,6 @@ const getNextCaseNumber = async (req, res) => {
             });
         }
 
-        // Query to find the highest case number for the given province and year
         const query = `
             SELECT case_no 
             FROM test_nscslcom_nscsl_dashboard.list_car
@@ -189,8 +187,6 @@ const getNextCaseNumber = async (req, res) => {
         let nextNumber = 1;
 
         if (results && results.length > 0) {
-            // Extract the incremental number from the case_no
-            // Format: CAR-PDO-26-001-LAG
             const lastCaseNo = results[0].case_no;
             const parts = lastCaseNo.split('-');
             
@@ -239,6 +235,10 @@ const addCar = async (req, res) => {
         await mysqlPool.query("SELECT 1 as connection_test");
         console.log("Database connection test PASSED");
 
+        // ✅ FIX: Force UTF-8 encoding to support special characters like ñ
+        await mysqlPool.query("SET NAMES 'utf8'");
+        console.log("UTF-8 encoding set");
+
         // Extract and validate form data
         const {
             case_no,
@@ -266,7 +266,7 @@ const addCar = async (req, res) => {
             closed_on,
         } = req.body;
 
-        // ⭐ Get username from request (passed from frontend)
+        // Get username from request (passed from frontend)
         const userName = req.user?.name || req.body.userName || 'System';
 
         console.log("Extracted form data:");
@@ -309,34 +309,33 @@ const addCar = async (req, res) => {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
-        // Prepare values array with proper length limits matching database schema
         const values = [
-            safeTrim(case_no, 25),           // VARCHAR(25)
-            date_endorsed || null,            // datetime
-            safeTrim(endorsed_by, 100),        // VARCHAR(25)
-            safeTrim(facility_code, 4),       // VARCHAR(4)
-            safeTrim(facility_name, 50),      // VARCHAR(50)
-            safeTrim(city, 25),               // VARCHAR(25)
-            safeTrim(province, 25),           // VARCHAR(25)
-            safeTrim(labno, 100),             // VARCHAR(100)
-            safeTrim(repeat_field, 50),       // VARCHAR(50)
-            safeTrim(status, 20),             // VARCHAR(20)
-            number_sample ? parseInt(number_sample) : null,  // varchar(4) but storing as int
-            safeTrim(case_code, 10),          // VARCHAR(10)
-            safeTrim(sub_code1, 25),          // VARCHAR(25)
-            safeTrim(sub_code2, 25),          // VARCHAR(25)
-            safeTrim(sub_code3, 25),          // VARCHAR(25)
-            safeTrim(sub_code4, 25),          // VARCHAR(25)
-            safeTrim(remarks, 100),           // VARCHAR(100)
-            safeTrim(frc, 10),                // VARCHAR(10)
-            safeTrim(wrc, 10),                // VARCHAR(10)
-            safeTrim(prepared_by, 100),        // VARCHAR(15)
-            followup_on || null,              // VARCHAR(15) - date field
-            reviewed_on || null,              // VARCHAR(15) - date field
-            closed_on || null,                // datetime
-            safeTrim(attachment_path, 255),   // VARCHAR(255)
-            safeTrim(userName, 100),          // created_by
-            now                               // created_at
+            safeTrim(case_no, 25),
+            date_endorsed || null,
+            safeTrim(endorsed_by, 100),
+            safeTrim(facility_code, 4),
+            safeTrim(facility_name, 50),
+            safeTrim(city, 25),
+            safeTrim(province, 25),
+            safeTrim(labno, 100),
+            safeTrim(repeat_field, 50),
+            safeTrim(status, 20),
+            number_sample ? parseInt(number_sample) : null,
+            safeTrim(case_code, 10),
+            safeTrim(sub_code1, 25),
+            safeTrim(sub_code2, 25),
+            safeTrim(sub_code3, 25),
+            safeTrim(sub_code4, 25),
+            safeTrim(remarks, 100),
+            safeTrim(frc, 10),
+            safeTrim(wrc, 10),
+            safeTrim(prepared_by, 100),
+            followup_on || null,
+            reviewed_on || null,
+            closed_on || null,
+            safeTrim(attachment_path, 255),
+            safeTrim(userName, 100),
+            now
         ];
 
         console.log("SQL Query:", sql);
@@ -349,7 +348,6 @@ const addCar = async (req, res) => {
         console.log("Insert ID:", result.insertId);
         console.log("Affected rows:", result.affectedRows);
 
-        // Success response
         const response = {
             success: true,
             message: "Record added successfully",
@@ -377,7 +375,6 @@ const addCar = async (req, res) => {
         console.error("Error code:", error.code);
         console.error("Full error:", error);
 
-        // Handle specific MySQL errors
         let errorMessage = "Database insert failed";
         let statusCode = 500;
 
@@ -435,6 +432,10 @@ const updateCar = async (req, res) => {
     } : "No new file uploaded");
 
     try {
+        // ✅ FIX: Force UTF-8 encoding to support special characters like ñ
+        await mysqlPool.query("SET NAMES 'utf8'");
+        console.log("UTF-8 encoding set");
+
         // Extract form data
         const {
             id,
@@ -463,7 +464,7 @@ const updateCar = async (req, res) => {
             closed_on,
         } = req.body;
 
-        // ⭐ Get username from request
+        // Get username from request
         const userName = req.user?.name || req.body.userName || 'System';
         const now = new Date();
 
@@ -510,13 +511,11 @@ const updateCar = async (req, res) => {
         const existingRecord = checkResult[0];
         
         // Handle file attachment
-        let attachment_path = existingRecord.attachment_path; // Keep existing if no new file
+        let attachment_path = existingRecord.attachment_path;
         
         if (req.file) {
-            // New file uploaded
             attachment_path = `/uploads/${req.file.filename}`;
             
-            // Delete old file if it exists
             if (existingRecord.attachment_path) {
                 const oldFilePath = path.join(__dirname, '..', existingRecord.attachment_path);
                 fs.unlink(oldFilePath, (err) => {
@@ -529,7 +528,6 @@ const updateCar = async (req, res) => {
             }
         }
 
-        // Update SQL
         const sql = `
             UPDATE test_nscslcom_nscsl_dashboard.list_car 
             SET 
@@ -562,7 +560,6 @@ const updateCar = async (req, res) => {
             WHERE id = ?
         `;
 
-        // Prepare values array with proper length limits
         const values = [
             safeTrim(case_no, 25),
             date_endorsed || null,
@@ -596,7 +593,6 @@ const updateCar = async (req, res) => {
         console.log("SQL Query:", sql);
         console.log("Values count:", values.length);
 
-        // Execute the update
         const [result] = await mysqlPool.query(sql, values);
 
         console.log("=== UPDATE SUCCESS ===");
@@ -610,7 +606,6 @@ const updateCar = async (req, res) => {
             });
         }
 
-        // Success response
         const response = {
             success: true,
             message: "Record updated successfully",
@@ -638,7 +633,6 @@ const updateCar = async (req, res) => {
         console.error("Error code:", error.code);
         console.error("Full error:", error);
 
-        // Handle specific MySQL errors
         let errorMessage = "Database update failed";
         let statusCode = 500;
 
@@ -676,7 +670,6 @@ const updateStatus = async (req, res) => {
         
         const { id, status } = req.body;
         
-        // ⭐ Get username from request
         const userName = req.user?.name || req.body.userName || 'System';
         const now = new Date();
 
@@ -710,7 +703,6 @@ const updateStatus = async (req, res) => {
 
         console.log('Updating record ID:', id, 'to status:', status);
 
-        // Check if record exists first
         const checkSql = "SELECT id, status FROM test_nscslcom_nscsl_dashboard.list_car WHERE id = ?";
         const [checkResult] = await mysqlPool.query(checkSql, [id]);
 
@@ -725,9 +717,6 @@ const updateStatus = async (req, res) => {
 
         console.log('Record exists, current status:', checkResult[0].status);
 
-        // ✅ FIX: Swapped modified_at and modified_by so that
-        //    modified_at (DATETIME) receives `now`
-        //    modified_by (VARCHAR)  receives `userName`
         let sql, values;
         
         if (status.toLowerCase() === 'closed') {
@@ -755,7 +744,6 @@ const updateStatus = async (req, res) => {
             });
         }
 
-        // Get the updated record to confirm the change
         const selectSql = "SELECT id, status, closed_on, modified_by, modified_at FROM test_nscslcom_nscsl_dashboard.list_car WHERE id = ?";
         const [selectResult] = await mysqlPool.query(selectSql, [id]);
         
@@ -794,7 +782,6 @@ const deleteCar = async (req, res) => {
             });
         }
 
-        // Get attachment path before deleting
         const [record] = await mysqlPool.query(
             "SELECT attachment_path FROM test_nscslcom_nscsl_dashboard.list_car WHERE id = ?",
             [id]
@@ -808,7 +795,6 @@ const deleteCar = async (req, res) => {
             });
         }
 
-        // Delete the record
         const [result] = await mysqlPool.query(
             "DELETE FROM test_nscslcom_nscsl_dashboard.list_car WHERE id = ?",
             [id]
@@ -822,7 +808,6 @@ const deleteCar = async (req, res) => {
             });
         }
 
-        // Delete associated file if exists
         if (record[0].attachment_path) {
             const filePath = path.join(__dirname, '..', record[0].attachment_path);
             fs.unlink(filePath, (err) => {
@@ -970,7 +955,7 @@ module.exports = {
     getFilteredCarList,
     getCarListGroupedByProvince,
     getCarListGrouped,
-    getNextCaseNumber,  // ⭐ New export
+    getNextCaseNumber,
     addCar,
     updateCar,
     updateStatus,

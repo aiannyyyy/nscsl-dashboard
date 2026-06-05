@@ -31,6 +31,13 @@ export interface CheckRemindersResult {
   notifications_sent: number
 }
 
+export interface PhHoliday {
+  date: string        // "2026-01-01"
+  localName: string   // "Bagong Taon"
+  name: string        // "New Year's Day"
+  types: string[]     // ["Public"]
+}
+
 export const fetchEvents = async (): Promise<CalendarEvent[]> => {
   const { data } = await api.get('/calendar')
   return data
@@ -57,5 +64,10 @@ export const deleteEvent = async (event_id: number): Promise<void> => {
 
 export const checkReminders = async (): Promise<CheckRemindersResult> => {
   const { data } = await api.get('/calendar/check-reminders')
+  return data
+}
+
+export const fetchHolidays = async (year: number): Promise<PhHoliday[]> => {
+  const { data } = await api.get(`/calendar/holidays?year=${year}`)
   return data
 }

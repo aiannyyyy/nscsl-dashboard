@@ -95,13 +95,38 @@ export const NSFDetailModal: React.FC<{ record: NSFRecord | null; onClose: () =>
                         </div>
                     </div>
                     <div>
-                        <h3 className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3">Accreditation & PO</h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                            <DetailRow label="Date Accredited"  value={formatDateOnly(record.date_accredited)} />
-                            <DetailRow label="Year Accredited"  value={record.year_accredited} />
-                            <DetailRow label="Last PO Date"     value={formatDateOnly(record.last_po_date)} />
-                            <DetailRow label="PO Number"        value={record.po_number} />
-                            <DetailRow label="Last Sample Sent" value={formatDateTime(record.last_sample_sent)} />
+                        <h3 className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3">
+                            Accreditation & PO
+                        </h3>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <DetailRow
+                                label="Date Accredited"
+                                value={formatDateOnly(record.date_accredited)}
+                            />
+
+                            <DetailRow
+                                label="Year Accredited"
+                                value={record.year_accredited}
+                            />
+
+                            <DetailRow
+                                label="Last PO Date"
+                                value={formatDateOnly(record.last_po_date)}
+                            />
+
+                            <DetailRow
+                                label="PO Number"
+                                value={record.po_number}
+                            />
+
+                            {/* Empty middle cell */}
+                            <div></div>
+
+                            <DetailRow
+                                label="Last Sample Sent"
+                                value={formatDateOnly(record.last_sample_sent)}
+                            />
                         </div>
                     </div>
                     <div>

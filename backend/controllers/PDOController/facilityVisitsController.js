@@ -64,6 +64,9 @@ const getAllVisits = async (req, res) => {
 // ── CREATE FACILITY VISIT ─────────────────────────────────────────────────────
 const createVisit = async (req, res) => {
     try {
+        // ✅ FIX: Force UTF-8 encoding to support special characters like ñ
+        await database.mysqlPool.query("SET NAMES 'utf8'");
+
         const {
             facility_code,
             facility_name,
@@ -130,6 +133,9 @@ const createVisit = async (req, res) => {
 // ── UPDATE FACILITY VISIT ─────────────────────────────────────────────────────
 const updateVisit = async (req, res) => {
     try {
+        // ✅ FIX: Force UTF-8 encoding to support special characters like ñ
+        await database.mysqlPool.query("SET NAMES 'utf8'");
+
         const { id } = req.params;
         const {
             facility_code,

@@ -318,4 +318,19 @@ const checkReminders = async (req, res) => {
   }
 };
 
-module.exports = { getEvents, getUsers, createEvent, updateEvent, deleteEvent, checkReminders };
+const getHolidays = async (req, res) => {
+  try {
+    const year = req.query.year || new Date().getFullYear();
+    const response = await fetch(
+      `https://date.nager.at/api/v3/PublicHolidays/${year}/PH`
+    );
+    if (!response.ok) throw new Error("Failed to fetch holidays");
+    const holidays = await response.json();
+    res.json(holidays);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+
+module.exports = { getEvents, getUsers, createEvent, updateEvent, deleteEvent, checkReminders, getHolidays };

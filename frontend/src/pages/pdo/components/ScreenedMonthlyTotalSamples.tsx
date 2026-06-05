@@ -336,7 +336,7 @@ export const MonthlyTotalSamples: React.FC<Props> = ({
                       border-gray-200 dark:border-gray-700
                       z-20 overflow-hidden"
                     >
-                      {(['png', 'svg', 'excel'] as const).map((fmt) => (
+                      {(['png', 'excel'] as const).map((fmt) => (
                         <button
                           key={fmt}
                           onClick={() => handleDownload(fmt)}
@@ -444,7 +444,7 @@ export const MonthlyTotalSamples: React.FC<Props> = ({
                 <LabelList content={CustomLabel} />
               </Bar>
 
-              <Bar dataKey="year2" name={yearB} fill="#fffb00" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="year2" name={yearB} fill="#FFA500" radius={[4, 4, 0, 0]}>
                 <LabelList content={CustomLabel} />
               </Bar>
             </BarChart>

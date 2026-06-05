@@ -327,7 +327,6 @@ export const TimelinessCharts: React.FC = () => {
                       </button>
                       <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                         <button onClick={() => handleDownload(chart.id, 'png')} className="w-full px-3 py-2 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-lg transition-colors">Download as PNG</button>
-                        <button onClick={() => handleDownload(chart.id, 'svg')} className="w-full px-3 py-2 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">Download as SVG</button>
                         <button onClick={() => handleDownload(chart.id, 'excel')} className="w-full px-3 py-2 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-lg transition-colors">Export to Excel</button>
                       </div>
                     </div>

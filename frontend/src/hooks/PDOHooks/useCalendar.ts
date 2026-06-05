@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   fetchEvents,
   fetchUsers,
+  fetchHolidays,
   createEvent,
   updateEvent,
   deleteEvent,
@@ -9,10 +10,10 @@ import {
 } from '../../services/PDOServices/calendarService'
 import type { CreateEventPayload, UpdateEventPayload } from '../../services/PDOServices/calendarService'
 
-const EVENTS_KEY = ['events']       as const
+const EVENTS_KEY = ['events']        as const
 const USERS_KEY  = ['calendarUsers'] as const
 
-export const useCalendar = () => {
+export const useCalendar = (year: number) => {  // ← accepts year
   const queryClient = useQueryClient()
 
   // ─── GET all events ───────────────────────────────────────────
@@ -32,13 +33,20 @@ export const useCalendar = () => {
     queryFn: fetchUsers,
   })
 
+  // ─── GET PH public holidays for the current year ──────────────
+  const { data: holidays = [] } = useQuery({
+    queryKey: ['holidays', year],           // re-fetches when year changes
+    queryFn: () => fetchHolidays(year),
+    staleTime: 1000 * 60 * 60 * 24,        // cache 24h — holidays don't change daily
+  })
+
   // ─── CHECK reminders every 60 seconds ─────────────────────────
   useQuery({
     queryKey: ['calendarReminders'],
     queryFn: checkReminders,
-    refetchInterval: 60 * 1000,       // every 1 minute
-    refetchIntervalInBackground: true, // keeps running even if tab is not focused
-    retry: false,                      // don't spam retries on failure
+    refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: true,
+    retry: false,
   })
 
   // ─── POST create event ────────────────────────────────────────
@@ -81,6 +89,7 @@ export const useCalendar = () => {
   return {
     events,
     users,
+    holidays,
     isLoading,
     isError,
     error,

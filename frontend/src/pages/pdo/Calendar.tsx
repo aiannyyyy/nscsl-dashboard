@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { CalendarHeader } from './components/CalendarHeader'
 import { CalendarGrid } from './components/CalendarGrid'
 import { EventModal } from './components/EventModal'
@@ -11,18 +11,58 @@ import type { CreateEventPayload } from '../../services/PDOServices/calendarServ
 export const Calendar = () => {
   const { user } = useAuth()
 
-  const [currentDate,     setCurrentDate]     = useState(new Date())
+  const [currentDate, setCurrentDate] = useState(new Date())
 
   // Detail modal (read-only)
-  const [detailEvent,     setDetailEvent]     = useState<CalendarEvent | null>(null)
-  const [isDetailOpen,    setIsDetailOpen]    = useState(false)
+  const [detailEvent,  setDetailEvent]  = useState<CalendarEvent | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
 
   // Edit/Add modal (form)
-  const [isModalOpen,     setIsModalOpen]     = useState(false)
-  const [selectedDate,    setSelectedDate]    = useState<Date | null>(null)
-  const [editEvent,       setEditEvent]       = useState<CalendarEvent | null>(null)
+  const [isModalOpen,  setIsModalOpen]  = useState(false)
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [editEvent,    setEditEvent]    = useState<CalendarEvent | null>(null)
 
-  const { events, users, isLoading, isError, isSaving, isDeleting, handleSave, handleDelete } = useCalendar()
+  const {
+    events,
+    users,
+    holidays,
+    isLoading,
+    isError,
+    isSaving,
+    isDeleting,
+    handleSave,
+    handleDelete,
+  } = useCalendar(currentDate.getFullYear())
+
+  // ─── Convert PH holidays → CalendarEvent shape ────────────────
+  const holidayEvents: CalendarEvent[] = useMemo(
+    () =>
+      holidays.map((h) => ({
+        event_id:        -Number(h.date.replace(/-/g, '')), // negative → never clashes with DB ids
+        title:           h.name,
+        description:     h.localName,
+        start_datetime:  `${h.date}T00:00:00`,
+        end_datetime:    `${h.date}T23:59:59`,
+        is_all_day:      true,
+        color:           '#10b981', // emerald — visually distinct from user events
+        category:        'holiday',
+        participant_ids: [],
+        created_by:      0,
+      })),
+    [holidays]
+  )
+
+  // Holidays rendered behind user events
+  const allEvents: CalendarEvent[] = useMemo(
+    () => [...holidayEvents, ...events],
+    [holidayEvents, events]
+  )
+
+  // Set of "YYYY-MM-DD" strings for O(1) lookup in CalendarGrid
+  const holidayDates: Set<string> = useMemo(
+    () => new Set(holidays.map((h) => h.date)),
+    [holidays]
+  )
 
   // ─── Navigation ───────────────────────────────────────────────
   const handlePrev  = () => setCurrentDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))
@@ -37,13 +77,16 @@ export const Calendar = () => {
   }
 
   // ─── Click on an event badge → open Detail modal ──────────────
+  // Holidays are read-only — don't open the edit modal for them
   const handleEventClick = (event: CalendarEvent) => {
     setDetailEvent(event)
     setIsDetailOpen(true)
   }
 
   // ─── From Detail modal → open Edit modal ──────────────────────
+  // Prevent editing holiday events (negative id)
   const handleEditFromDetail = (event: CalendarEvent) => {
+    if (event.event_id < 0) return
     setEditEvent(event)
     setSelectedDate(null)
     setIsDetailOpen(false)
@@ -74,7 +117,7 @@ export const Calendar = () => {
     setDetailEvent(null)
   }
 
-  // ─── Loading / Error ──────────────────────────────────────────
+  // ─── Loading ──────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full min-h-screen bg-white dark:bg-gray-900">
@@ -86,19 +129,22 @@ export const Calendar = () => {
     )
   }
 
+  // ─── Error ────────────────────────────────────────────────────
   if (isError) {
     return (
       <div className="flex items-center justify-center h-full min-h-screen bg-white dark:bg-gray-900">
         <div className="text-center">
           <p className="text-sm text-red-500 font-medium">Failed to load events</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Please check your connection and try again</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Please check your connection and try again
+          </p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-gray-900 shadow-lg overflow-hidden flex flex-col h-[calc(100vh-80px)]">
+    <div className="rounded-2xl bg-white dark:bg-gray-900 shadow-lg overflow-hidden flex flex-col h-[calc(115vh-90px)]">
       <CalendarHeader
         currentDate={currentDate}
         onPrev={handlePrev}
@@ -109,7 +155,8 @@ export const Calendar = () => {
 
       <CalendarGrid
         currentDate={currentDate}
-        events={events}
+        events={allEvents}
+        holidayDates={holidayDates}
         onDayClick={handleDayClick}
         onEventClick={handleEventClick}
       />
@@ -125,7 +172,7 @@ export const Calendar = () => {
         onDelete={onDelete}
       />
 
-      {/* Add / Edit form modal */}
+      {/* Add / Edit form modal — never opens for holiday events */}
       <EventModal
         isOpen={isModalOpen}
         selectedDate={selectedDate}

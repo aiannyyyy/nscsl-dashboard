@@ -130,7 +130,7 @@ export const FacilityVisitsChart: React.FC<FacilityVisitsChartProps> = ({
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowDownloadMenu(false)} />
                 <div className="absolute right-0 mt-1 w-44 rounded-lg shadow-lg border z-20 overflow-hidden bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                  {(['png', 'svg', 'excel'] as const).map((fmt) => (
+                  {(['png', 'excel'] as const).map((fmt) => (
                     <button key={fmt} onClick={() => handleDownload(fmt)} className="w-full px-4 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors flex items-center gap-2">
                       <Download size={12} />
                       {fmt === 'excel' ? 'Export Data to Excel' : `Download as ${fmt.toUpperCase()}`}

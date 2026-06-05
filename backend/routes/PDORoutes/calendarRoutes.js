@@ -9,5 +9,6 @@ router.get("/check-reminders", verifyToken, calendarController.checkReminders); 
 router.post("/",             verifyToken, calendarController.createEvent);
 router.put("/:id",           verifyToken, calendarController.updateEvent);
 router.delete("/:id",        verifyToken, calendarController.deleteEvent);
+router.get("/holidays", verifyToken, calendarController.getHolidays);
 
 module.exports = router;
