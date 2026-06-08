@@ -1,7 +1,8 @@
+// src/services/LaboratoryServices/censusService.ts
 import api from '../api';
 
-// ✅ Added 'Initial' to the union type
-export type CumulativeSampleType = 'Received' | 'Screened' | 'Initial';
+// Only 'Received' is supported. Screened and Initial have been removed.
+export type CumulativeSampleType = 'Received';
 
 export interface CumulativeCensusParams {
     type: CumulativeSampleType;
@@ -34,9 +35,8 @@ export interface CensusError {
 
 class CensusService {
     /**
-     * Get cumulative monthly census data
-     * @param {CumulativeCensusParams} params - Query parameters
-     * @returns {Promise<CumulativeCensusResponse>}
+     * Get cumulative monthly census data for "Received" samples.
+     * Only fetches live data (2026+); historical data is hardcoded in constants.
      */
     static async getCumulativeMonthlyCensus(
         params: CumulativeCensusParams

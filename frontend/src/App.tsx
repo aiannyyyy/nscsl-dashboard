@@ -29,6 +29,7 @@ import { Calendar } from './pages/pdo/Calendar';
 import { General } from './pages/settings/General';
 import { User } from './pages/settings/User';
 import { ChangePassword } from './pages/settings/ChangePassword';
+import { G6PDReport } from './pages/followup/G6PDReport';
 
 
 // Create a QueryClient instance
@@ -88,6 +89,7 @@ function App() {
               <Route path="followup/logbook-endorsement" element={<LogbookEndorsement />} />
               <Route path="followup/cms-urgent" element={ <CMSUrgent /> } />
               <Route path="followup/patient-information-system" element={<FollowUpPatientInformationSystem />} />
+              <Route path="followup/g6pd-report" element={<G6PDReport />} />
 
               {/* IT Job Order Routes */}
               <Route path="it-job-order" element={<ITJobOrderOverview />} />

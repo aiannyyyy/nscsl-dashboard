@@ -1,12 +1,14 @@
-// controllers/cumulativeMonthlyCensusController.js
 const oracledb = require('oracledb');
 
-// Only 'Received' is supported now. Screened and Initial have been removed.
-const SPECTYPE_VALUES = ["20", "2", "3", "4", "5", "87"];
+const validTypes = {
+    "Received": ["1", "87", "20", "2", "3", "4", "5", "18"],
+    "Screened": ["4", "3", "20", "2", "1"],
+    "Initial":  ["20", "1"]
+};
 
 /**
- * Get Cumulative Monthly Census Samples (Received only)
- * Returns monthly aggregated sample counts from both ARCHIVE and MASTER tables.
+ * Get Cumulative Monthly Census Samples
+ * Returns: Monthly aggregated sample counts by type (Received, Screened, or Initial)
  */
 exports.getCumulativeMonthlyCensus = async (req, res) => {
     let connection;
@@ -18,14 +20,15 @@ exports.getCumulativeMonthlyCensus = async (req, res) => {
 
         const { type } = req.query;
 
-        // Only 'Received' is valid
-        if (!type || type.trim() !== 'Received') {
+        // Validate type parameter
+        if (!type || !validTypes[type.trim()]) {
             console.log('❌ [Cumulative Monthly Census] Invalid type:', type);
             return res.status(400).json({
                 success: false,
                 error: 'Invalid type parameter',
-                message: "Type must be 'Received'",
-                validTypes: ['Received'],
+                // ✅ Updated message to include 'Initial'
+                message: "Type must be 'Received', 'Screened', or 'Initial'",
+                validTypes: Object.keys(validTypes)
             });
         }
 
@@ -36,78 +39,84 @@ exports.getCumulativeMonthlyCensus = async (req, res) => {
             return res.status(500).json({
                 success: false,
                 error: 'Database connection not available',
-                message: 'Oracle connection pool is not initialized',
+                message: 'Oracle connection pool is not initialized'
             });
         }
 
         connection = await oraclePool.getConnection();
         console.log('✅ [Cumulative Monthly Census] Database connection successful');
 
-        // Build bind placeholders
-        const spectypeBinds = SPECTYPE_VALUES.map((_, i) => `:spectype${i}`).join(', ');
+        const spectypeValues = validTypes[type.trim()];
+        console.log('[Cumulative Monthly Census] Spectype Values:', spectypeValues);
 
-        // UNION ALL query across ARCHIVE + MASTER tables
+        // Build bind placeholders once to avoid duplication
+        const spectypeBinds = spectypeValues.map((_, i) => `:spectype${i}`).join(', ');
+
+        // Build query with dynamic parameter placeholders using UNION ALL
         const query = `
             SELECT MONTH, YEAR, SUM(TOTAL_SAMPLES) AS TOTAL_SAMPLES
             FROM (
-                SELECT EXTRACT(MONTH FROM DTRECV) AS MONTH,
-                    EXTRACT(YEAR  FROM DTRECV) AS YEAR,
-                    COUNT(*) AS TOTAL_SAMPLES
+                SELECT EXTRACT(MONTH FROM DTRECV) AS MONTH, 
+                       EXTRACT(YEAR FROM DTRECV) AS YEAR, 
+                       COUNT(*) AS TOTAL_SAMPLES
                 FROM PHMSDS.SAMPLE_DEMOG_ARCHIVE
                 WHERE SPECTYPE IN (${spectypeBinds})
-                AND DTRECV >= DATE '2026-01-01'        -- ← add this
                 GROUP BY EXTRACT(YEAR FROM DTRECV), EXTRACT(MONTH FROM DTRECV)
-
+                
                 UNION ALL
-
-                SELECT EXTRACT(MONTH FROM DTRECV) AS MONTH,
-                    EXTRACT(YEAR  FROM DTRECV) AS YEAR,
-                    COUNT(*) AS TOTAL_SAMPLES
+                
+                SELECT EXTRACT(MONTH FROM DTRECV) AS MONTH, 
+                       EXTRACT(YEAR FROM DTRECV) AS YEAR, 
+                       COUNT(*) AS TOTAL_SAMPLES
                 FROM PHMSDS.SAMPLE_DEMOG_MASTER
                 WHERE SPECTYPE IN (${spectypeBinds})
-                AND DTRECV >= DATE '2026-01-01'        -- ← add this
                 GROUP BY EXTRACT(YEAR FROM DTRECV), EXTRACT(MONTH FROM DTRECV)
             )
             GROUP BY YEAR, MONTH
             ORDER BY YEAR, MONTH
         `;
 
-        // Build params object — same binds used for both subqueries
+        // Build parameters object
         const params = {};
-        SPECTYPE_VALUES.forEach((val, i) => {
+        spectypeValues.forEach((val, i) => {
             params[`spectype${i}`] = val;
         });
 
         console.log('[Cumulative Monthly Census] Executing Query');
+        console.log('[Cumulative Monthly Census] Query Parameters:', params);
 
+        // Execute query
         const result = await connection.execute(query, params, {
-            outFormat: oracledb.OUT_FORMAT_OBJECT,
+            outFormat: oracledb.OUT_FORMAT_OBJECT
         });
 
         const executionTime = Date.now() - startTime;
 
-        console.log(`✅ [Cumulative Monthly Census] Success — ${result.rows.length} records`);
+        console.log(`✅ [Cumulative Monthly Census] Success - Retrieved ${result.rows.length} records`);
 
+        // Send JSON Response
         res.json({
             success: true,
             data: result.rows,
             filters: {
-                type: 'Received',
-                spectypes: SPECTYPE_VALUES,
+                type: type.trim(),
+                spectypes: spectypeValues
             },
             count: result.rows.length,
             executionTime: `${executionTime}ms`,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toISOString()
         });
 
     } catch (error) {
         console.error('❌ [Cumulative Monthly Census] Error:', error);
 
+        const executionTime = Date.now() - startTime;
+
         res.status(500).json({
             success: false,
             error: 'An error occurred while fetching cumulative monthly census data',
             message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
-            executionTime: `${Date.now() - startTime}ms`,
+            executionTime: `${executionTime}ms`
         });
     } finally {
         if (connection) {

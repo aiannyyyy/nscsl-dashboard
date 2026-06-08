@@ -1,3 +1,4 @@
+// src/hooks/LaboratoryHooks/useCensus.ts
 import { useQuery } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 import CensusService from '../../services/LaboratoryServices/censusService';
@@ -8,10 +9,8 @@ import type {
 } from '../../services/LaboratoryServices/censusService';
 
 /**
- * Hook to fetch cumulative monthly census data
- * @param {CumulativeCensusParams} params - Query parameters
- * @param {boolean} enabled - Whether the query should run
- * @returns {UseQueryResult}
+ * Base hook to fetch cumulative monthly census data.
+ * Fetches live data only (2026+). Historical 2013–2025 is merged in the component.
  */
 export const useCumulativeMonthlyCensus = (
     params: CumulativeCensusParams,
@@ -22,35 +21,18 @@ export const useCumulativeMonthlyCensus = (
         queryFn: () => CensusService.getCumulativeMonthlyCensus(params),
         enabled: enabled && !!params.type,
         staleTime: 5 * 60 * 1000,   // 5 minutes
-        gcTime: 10 * 60 * 1000,     // 10 minutes (formerly cacheTime)
+        gcTime:    10 * 60 * 1000,  // 10 minutes
         retry: 2,
         refetchOnWindowFocus: false,
     });
 };
 
 /**
- * Hook to fetch received census data
+ * Convenience hook — always fetches "Received" data.
+ * This is the only supported type; use this instead of useCumulativeMonthlyCensus directly.
  */
 export const useReceivedCensus = (
     enabled: boolean = true
 ): UseQueryResult<CumulativeCensusResponse, CensusError> => {
     return useCumulativeMonthlyCensus({ type: 'Received' }, enabled);
-};
-
-/**
- * Hook to fetch screened census data
- */
-export const useScreenedCensus = (
-    enabled: boolean = true
-): UseQueryResult<CumulativeCensusResponse, CensusError> => {
-    return useCumulativeMonthlyCensus({ type: 'Screened' }, enabled);
-};
-
-/**
- * ✅ Hook to fetch initial census data
- */
-export const useInitialCensus = (
-    enabled: boolean = true
-): UseQueryResult<CumulativeCensusResponse, CensusError> => {
-    return useCumulativeMonthlyCensus({ type: 'Initial' }, enabled);
 };

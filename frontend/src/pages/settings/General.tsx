@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { SystemSettings } from './components/SystemSettings';
-import { NotificationSettings } from './components/NotificationSettings';
-import { Palette, Monitor, Bell } from 'lucide-react';
+import { Palette, Monitor } from 'lucide-react';
 
-type Tab = 'appearance' | 'system' | 'notifications';
+type Tab = 'appearance' | 'system';
 
 const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'appearance', label: 'Appearance', icon: <Palette size={16} /> },
-  { id: 'system', label: 'System', icon: <Monitor size={16} /> },
-  { id: 'notifications', label: 'Notifications', icon: <Bell size={16} /> },
+  { id: 'system',     label: 'System',     icon: <Monitor size={16} /> },
 ];
 
 export const General: React.FC = () => {
@@ -46,8 +44,7 @@ export const General: React.FC = () => {
       {/* Tab Content */}
       <div>
         {activeTab === 'appearance' && <AppearanceSettings />}
-        {activeTab === 'system' && <SystemSettings />}
-        {activeTab === 'notifications' && <NotificationSettings />}
+        {activeTab === 'system'     && <SystemSettings />}
       </div>
     </div>
   );

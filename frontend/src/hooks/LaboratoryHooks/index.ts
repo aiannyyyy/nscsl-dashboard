@@ -43,7 +43,7 @@ export { useLabSupplies } from './useLabSupplies';
 
 export { useLabReagents } from './useLabReagents';
 
-export { useCumulativeMonthlyCensus, useReceivedCensus, useScreenedCensus } from './useCensus';
+export { useCumulativeMonthlyCensus, useReceivedCensus } from './useCensus';
 
 export { useCumulativeAnnualCensus } from './useCumulativeAnnualCencus';
 

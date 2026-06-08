@@ -46,6 +46,7 @@ export const MENU_CONFIG = [
       { key: 'logbook-endorsement',        label: 'Logbook Endorsement',        path: '/dashboard/followup/logbook-endorsement' },
       { key: 'cms-urgent',                 label: 'CMS Urgent',                 path: '/dashboard/followup/cms-urgent' },
       { key: 'patient-information-system', label: 'Patient Information System', path: '/dashboard/followup/patient-information-system' },
+      { key: 'g6pd-report', label: 'G6PD Reports', path: '/dashboard/followup/g6pd-report' },
     ],
   },
   {
