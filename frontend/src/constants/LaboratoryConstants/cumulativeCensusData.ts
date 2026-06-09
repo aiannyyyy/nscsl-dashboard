@@ -1,4 +1,4 @@
-import type { CumulativeCensusDataItem } from '../services/LaboratoryServices/censusService';
+import type { CumulativeCensusDataItem } from '../../services/LaboratoryServices/censusService';
 
 /**
  * Monthly received sample counts per year (2013–2025).

@@ -45,7 +45,7 @@ export { useLabReagents } from './useLabReagents';
 
 export { useCumulativeMonthlyCensus, useReceivedCensus } from './useCensus';
 
-export { useCumulativeAnnualCensus } from './useCumulativeAnnualCencus';
+export { useAnnualCensusReceived, useAnnualCensusScreened, useAnnualCensusInitial } from './useCumulativeAnnualCencus';
 
 // useDemogSummaryCards hooks
 export {

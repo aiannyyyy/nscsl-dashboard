@@ -1,0 +1,356 @@
+import React, { useState } from 'react';
+import { Download, ChevronDown, ChevronRight, Building2, FlaskConical } from 'lucide-react';
+import {
+  useQuezonTotalSamples,
+  useNearbyLopezTotalSamples,
+} from '../../../hooks/PDOHooks/useQuezonTotalSample';
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+const currentDate  = new Date();
+const currentMonth = currentDate.getMonth() + 1;
+const currentYear  = currentDate.getFullYear();
+
+const months = [
+  { label: 'January', value: 1 },  { label: 'February', value: 2 },
+  { label: 'March', value: 3 },    { label: 'April', value: 4 },
+  { label: 'May', value: 5 },      { label: 'June', value: 6 },
+  { label: 'July', value: 7 },     { label: 'August', value: 8 },
+  { label: 'September', value: 9 },{ label: 'October', value: 10 },
+  { label: 'November', value: 11 },{ label: 'December', value: 12 },
+];
+
+const years = Array.from({ length: 16 }, (_, i) => currentYear - i);
+
+const getLastDayOfMonth = (year: number, month: number) =>
+  new Date(year, month, 0).getDate();
+
+const buildDateRange = (year: number, month: number) => {
+  const lastDay = getLastDayOfMonth(year, month);
+  return {
+    date_from: `${year}-${String(month).padStart(2, '0')}-01`,
+    date_to:   `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+  };
+};
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type TableVariant = 'quezon' | 'nearby-lopez';
+
+interface Breakdown {
+  submid: string;
+  descr1: string;
+  total_count: number;
+}
+
+interface RowData {
+  city: string;
+  total_count: number;
+  breakdown: Breakdown[];
+}
+
+// ─── Shared table ─────────────────────────────────────────────────────────────
+
+interface SampleTableProps {
+  data: RowData[];
+  isLoading: boolean;
+  expandedCities: Set<string>;
+  onToggleCity: (city: string) => void;
+}
+
+const SampleTable: React.FC<SampleTableProps> = ({ data, isLoading, expandedCities, onToggleCity }) => {
+  const totalCount = data.reduce((sum, r) => sum + r.total_count, 0);
+
+  return (
+    <div className="max-h-[460px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
+      <table className="w-full text-sm text-left table-fixed">
+        <colgroup>
+          <col className="w-8" />
+          <col />
+          <col className="w-20" />
+          <col className="w-20" />
+        </colgroup>
+        <thead className="sticky top-0 bg-blue-600 dark:bg-blue-700 text-white uppercase text-xs z-10">
+          <tr>
+            <th className="px-3 py-3" />
+            <th className="px-4 py-3">City / Facility</th>
+            <th className="px-4 py-3">Code</th>
+            <th className="px-4 py-3 text-right">Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {isLoading ? (
+            <tr>
+              <td colSpan={4} className="px-4 py-8 text-center">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs text-gray-400">Loading...</span>
+                </div>
+              </td>
+            </tr>
+          ) : data.length === 0 ? (
+            <tr>
+              <td colSpan={4} className="px-4 py-8 text-center text-gray-400 text-xs">
+                No data found.
+              </td>
+            </tr>
+          ) : (
+            <>
+              {data.map((row, index) => {
+                const isExpanded = expandedCities.has(row.city);
+                return (
+                  <React.Fragment key={index}>
+                    <tr
+                      className="border-t border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer bg-gray-50 dark:bg-gray-800/50"
+                      onClick={() => onToggleCity(row.city)}
+                    >
+                      <td className="px-3 py-2.5 text-blue-500">
+                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </td>
+                      <td className="px-4 py-2.5 font-semibold text-gray-800 dark:text-gray-100">
+                        <span className="flex items-center gap-1.5">
+                          <Building2 size={13} className="text-blue-400 shrink-0" />
+                          <span className="truncate">{row.city}</span>
+                          <span className="shrink-0 text-xs font-normal text-gray-400">
+                            ({row.breakdown.length} {row.breakdown.length !== 1 ? 'facilities' : 'facility'})
+                          </span>
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-400 text-xs">—</td>
+                      <td className="px-4 py-2.5 text-right font-bold text-gray-800 dark:text-gray-100">
+                        {row.total_count.toLocaleString()}
+                      </td>
+                    </tr>
+
+                    {isExpanded && row.breakdown.map((b, bIndex) => (
+                      <tr
+                        key={`${index}-${bIndex}`}
+                        className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors bg-white dark:bg-gray-900"
+                      >
+                        <td className="px-3 py-2" />
+                        <td className="px-4 py-2 pl-8 text-gray-600 dark:text-gray-300 text-xs">
+                          <span className="text-gray-400 mr-1.5">└</span>
+                          <span className="truncate">{b.descr1}</span>
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 font-mono">
+                          {b.submid}
+                        </td>
+                        <td className="px-4 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300">
+                          {b.total_count.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+
+              <tr className="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 font-semibold">
+                <td className="px-3 py-2.5" />
+                <td className="px-4 py-2.5 text-gray-800 dark:text-gray-100" colSpan={2}>TOTAL</td>
+                <td className="px-4 py-2.5 text-right text-gray-800 dark:text-gray-100">
+                  {totalCount.toLocaleString()}
+                </td>
+              </tr>
+            </>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export const QuezonNearbyLopezSamplesTable: React.FC = () => {
+  const [selectedMonth,    setSelectedMonth]    = useState(currentMonth);
+  const [selectedYear,     setSelectedYear]     = useState(currentYear);
+  const [activeTab,        setActiveTab]        = useState<TableVariant>('quezon');
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [expandedCities,   setExpandedCities]   = useState<Set<string>>(new Set());
+
+  const { date_from, date_to } = buildDateRange(selectedYear, selectedMonth);
+
+  const quezonQuery      = useQuezonTotalSamples({ date_from, date_to });
+  const nearbyLopezQuery = useNearbyLopezTotalSamples({ date_from, date_to });
+
+  const activeData: RowData[] =
+    activeTab === 'quezon'
+      ? (quezonQuery.data?.data ?? [])
+      : (nearbyLopezQuery.data?.data ?? []);
+
+  const isLoading = activeTab === 'quezon' ? quezonQuery.isLoading : nearbyLopezQuery.isLoading;
+
+  const toggleCity  = (city: string) =>
+    setExpandedCities(prev => {
+      const next = new Set(prev);
+      next.has(city) ? next.delete(city) : next.add(city);
+      return next;
+    });
+
+  const expandAll   = () => setExpandedCities(new Set(activeData.map(d => d.city)));
+  const collapseAll = () => setExpandedCities(new Set());
+
+  const handleTabChange = (tab: TableVariant) => {
+    setActiveTab(tab);
+    setExpandedCities(new Set());
+  };
+
+  const handleExportCSV = () => {
+    setShowDownloadMenu(false);
+    const monthLabel = months.find(m => m.value === selectedMonth)?.label;
+    const tabLabel   = activeTab === 'quezon' ? 'Quezon' : 'NearbyLopez';
+    const headers    = ['City', 'Count', 'SUBMID', 'Description', 'Facility Count'];
+    const rows: (string | number)[][] = [];
+    activeData.forEach(row => {
+      rows.push([row.city, row.total_count, '', '', '']);
+      row.breakdown.forEach(b => rows.push(['', '', b.submid, b.descr1, b.total_count]));
+    });
+    const total = activeData.reduce((sum, r) => sum + r.total_count, 0);
+    rows.push(['TOTAL', total, '', '', '']);
+    const csv  = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${tabLabel}_Samples_${monthLabel}_${selectedYear}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPNG = () => {
+    setShowDownloadMenu(false);
+    const element = document.getElementById('quezon-lopez-samples-table');
+    if (!element) return;
+    import('html2canvas').then(({ default: html2canvas }) => {
+      html2canvas(element, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
+        const link    = document.createElement('a');
+        link.download = `Samples_${activeTab}_${selectedMonth}_${selectedYear}.png`;
+        link.href     = canvas.toDataURL('image/png');
+        link.click();
+      });
+    });
+  };
+
+  return (
+    <div className="w-full flex flex-col rounded-2xl shadow-lg overflow-hidden bg-white dark:bg-gray-900 transition-all duration-300">
+
+      {/* ── Header row 1: title + date selects ── */}
+      <div className="flex items-center justify-between px-5 py-3 border-b bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2 shrink-0">
+          <FlaskConical size={18} className="text-blue-500" />
+          Quezon and Lopez Nearby Total Samples Received (Per Facility)
+        </h3>
+
+        <div className="flex items-center gap-2">
+          <select
+            className="h-8 px-3 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(Number(e.target.value))}
+          >
+            {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+
+          <select
+            className="h-8 px-3 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={selectedYear}
+            onChange={e => setSelectedYear(Number(e.target.value))}
+          >
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* ── Header row 2: actions ── */}
+      <div className="flex items-center gap-2 px-5 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        {activeData.length > 0 && !isLoading && (
+          <>
+            <button
+              onClick={expandAll}
+              className="h-7 px-3 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+            >
+              Expand All
+            </button>
+            <button
+              onClick={collapseAll}
+              className="h-7 px-3 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+            >
+              Collapse
+            </button>
+          </>
+        )}
+
+        <div className="relative ml-auto">
+          <button
+            onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+            disabled={isLoading || activeData.length === 0}
+            className="h-7 px-3 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
+          >
+            <Download size={13} />
+            Export
+            <ChevronDown size={11} />
+          </button>
+          {showDownloadMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowDownloadMenu(false)} />
+              <div className="absolute right-0 mt-1 w-44 rounded-lg shadow-lg border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
+                <button
+                  onClick={handleExportPNG}
+                  className="w-full px-4 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors flex items-center gap-2"
+                >
+                  <Download size={12} /> Download as PNG
+                </button>
+                <button
+                  onClick={handleExportCSV}
+                  className="w-full px-4 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors flex items-center gap-2"
+                >
+                  <Download size={12} /> Export Data to CSV
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Tabs ── */}
+      <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        {([
+          { key: 'quezon',       label: 'Quezon Province' },
+          { key: 'nearby-lopez', label: 'Nearby Lopez' },
+        ] as { key: TableVariant; label: string }[]).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => handleTabChange(tab.key)}
+            className={`px-5 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === tab.key
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            {tab.label}
+            {(() => {
+              const count =
+                tab.key === 'quezon'
+                  ? quezonQuery.data?.total_records
+                  : nearbyLopezQuery.data?.total_records;
+              return count !== undefined ? (
+                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[10px]">
+                  {count.toLocaleString()}
+                </span>
+              ) : null;
+            })()}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Table ── */}
+      <div id="quezon-lopez-samples-table" className="p-4">
+        <SampleTable
+          data={activeData}
+          isLoading={isLoading}
+          expandedCities={expandedCities}
+          onToggleCity={toggleCity}
+        />
+      </div>
+    </div>
+  );
+};

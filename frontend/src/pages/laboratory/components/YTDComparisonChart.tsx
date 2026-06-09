@@ -319,7 +319,7 @@ export const YTDComparisonChart: React.FC<Props> = ({ expanded, onExpand }) => {
               <Bar dataKey="year1" fill="#3b82f6" name={year1.toString()} radius={[4, 4, 0, 0]}>
                 <LabelList dataKey="year1" content={renderCustomLabel} />
               </Bar>
-              <Bar dataKey="year2" fill="#fffb00" name={year2.toString()} radius={[4, 4, 0, 0]}>
+              <Bar dataKey="year2" fill="#f97316" name={year2.toString()} radius={[4, 4, 0, 0]}>
                 <LabelList dataKey="year2" content={renderCustomLabel} />
               </Bar>
             </BarChart>

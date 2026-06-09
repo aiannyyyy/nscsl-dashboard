@@ -57,10 +57,14 @@ export const EventModal: React.FC<EventModalProps> = ({
   onSave,
   onDelete,
 }) => {
-  const defaultStart = selectedDate ? toDateTimeLocal(selectedDate) : toDateTimeLocal(new Date())
-  const defaultEnd   = selectedDate
-    ? toDateTimeLocal(new Date(selectedDate.getTime() + 60 * 60 * 1000))
-    : toDateTimeLocal(new Date(Date.now() + 60 * 60 * 1000))
+  const makeDefault = (date: Date, hours: number, minutes = 0): string => {
+    const d = new Date(date)
+    d.setHours(hours, minutes, 0, 0)
+    return toDateTimeLocal(d)
+  }
+  const baseDate     = selectedDate ?? new Date()
+  const defaultStart = makeDefault(baseDate, 8)
+  const defaultEnd   = makeDefault(baseDate, 17)
 
   const [title,         setTitle]         = useState('')
   const [description,   setDescription]   = useState('')
@@ -86,12 +90,8 @@ export const EventModal: React.FC<EventModalProps> = ({
     } else {
       setTitle('')
       setDescription('')
-      setStartDatetime(selectedDate ? toDateTimeLocal(selectedDate) : defaultStart)
-      setEndDatetime(
-        selectedDate
-          ? toDateTimeLocal(new Date(selectedDate.getTime() + 60 * 60 * 1000))
-          : defaultEnd
-      )
+      setStartDatetime(makeDefault(selectedDate ?? new Date(), 8))
+      setEndDatetime(makeDefault(selectedDate ?? new Date(), 17))
       setIsAllDay(false)
       setColor(COLORS[0])
       setCategory('')

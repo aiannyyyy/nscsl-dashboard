@@ -210,6 +210,9 @@ app.use("/api/nsf", require("./routes/PDORoutes/nsfFacilitiesRoutes"));
 // Calendar
 app.use("/api/calendar", require("./routes/PDORoutes/calendarRoutes"));
 
+// Total Samples of Quezon and Lopez Nearby
+app.use("/api/samples", require("./routes/PDORoutes/quezonTotalSamplesRoutes"));
+
 // Laboratory Card Summary
 app.use("/api/laboratory/card-summary", require("./routes/LaboratoryRoutes/cardSummaryRoutes"));
 

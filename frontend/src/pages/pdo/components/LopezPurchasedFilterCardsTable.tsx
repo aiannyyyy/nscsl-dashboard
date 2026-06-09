@@ -5,15 +5,15 @@ import {
   type FilterCardResult,
 } from '../../../services/PDOServices/lopezFilterCardServices';
 
-const currentDate = new Date();
+const currentDate  = new Date();
 const currentMonth = currentDate.getMonth() + 1;
-const currentYear = currentDate.getFullYear();
+const currentYear  = currentDate.getFullYear();
 
 const months = [
-  { label: 'January', value: 1 }, { label: 'February', value: 2 },
-  { label: 'March', value: 3 },   { label: 'April', value: 4 },
-  { label: 'May', value: 5 },     { label: 'June', value: 6 },
-  { label: 'July', value: 7 },    { label: 'August', value: 8 },
+  { label: 'January', value: 1 },  { label: 'February', value: 2 },
+  { label: 'March', value: 3 },    { label: 'April', value: 4 },
+  { label: 'May', value: 5 },      { label: 'June', value: 6 },
+  { label: 'July', value: 7 },     { label: 'August', value: 8 },
   { label: 'September', value: 9 },{ label: 'October', value: 10 },
   { label: 'November', value: 11 },{ label: 'December', value: 12 },
 ];
@@ -22,22 +22,22 @@ const years = Array.from({ length: 16 }, (_, i) => currentYear - i);
 const getLastDayOfMonth = (year: number, month: number) => new Date(year, month, 0).getDate();
 
 export const LopezPurchasedFilterCardsTable = () => {
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [data, setData] = useState<FilterCardResult[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [selectedMonth,    setSelectedMonth]    = useState(currentMonth);
+  const [selectedYear,     setSelectedYear]     = useState(currentYear);
+  const [data,             setData]             = useState<FilterCardResult[]>([]);
+  const [loading,          setLoading]          = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
-  const [expandedCities, setExpandedCities] = useState<Set<string>>(new Set());
+  const [expandedCities,   setExpandedCities]   = useState<Set<string>>(new Set());
 
   const fetchData = async (month: number, year: number) => {
     setLoading(true);
     try {
-      const lastDay = getLastDayOfMonth(year, month);
+      const lastDay   = getLastDayOfMonth(year, month);
       const date_from = `${year}-${String(month).padStart(2, '0')}-01`;
       const date_to   = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      const result = await getLopezPurchasedFilterCards({ date_from, date_to });
+      const result    = await getLopezPurchasedFilterCards({ date_from, date_to });
       setData(result.data);
-      setExpandedCities(new Set()); // collapse all on new fetch
+      setExpandedCities(new Set());
     } catch (err) {
       console.error('Error fetching data:', err);
       setData([]);
@@ -52,49 +52,36 @@ export const LopezPurchasedFilterCardsTable = () => {
     return () => clearInterval(interval);
   }, [selectedMonth, selectedYear]);
 
-  const toggleCity = (city: string) => {
+  const toggleCity  = (city: string) =>
     setExpandedCities(prev => {
       const next = new Set(prev);
       next.has(city) ? next.delete(city) : next.add(city);
       return next;
     });
-  };
 
-  const expandAll = () => setExpandedCities(new Set(data.map(d => d.city)));
+  const expandAll   = () => setExpandedCities(new Set(data.map(d => d.city)));
   const collapseAll = () => setExpandedCities(new Set());
 
   const handleExportExcel = () => {
-  setShowDownloadMenu(false);
-  const monthLabel = months.find(m => m.value === selectedMonth)?.label;
-
-  // Headers
-  const headers = ['City', 'Count', 'SUBMID', 'Description', 'Facility Count'];
-
-  const rows: (string | number)[][] = [];
-
-  data.forEach(row => {
-    // City row — total count now in column B (index 1)
-    rows.push([row.city, row.total_count, '', '', '']);
-
-    // Breakdown rows — submid in C, description in D, count in E
-    row.breakdown.forEach(b => {
-      rows.push(['', '', b.submid, b.descr1, b.total_count]);
+    setShowDownloadMenu(false);
+    const monthLabel = months.find(m => m.value === selectedMonth)?.label;
+    const headers    = ['City', 'Count', 'SUBMID', 'Description', 'Facility Count'];
+    const rows: (string | number)[][] = [];
+    data.forEach(row => {
+      rows.push([row.city, row.total_count, '', '', '']);
+      row.breakdown.forEach(b => rows.push(['', '', b.submid, b.descr1, b.total_count]));
     });
-  });
-
-  // Grand total row
-  const total = data.reduce((sum, row) => sum + row.total_count, 0);
-  rows.push(['TOTAL', total, '', '', '']);
-
-  const csvContent = [headers, ...rows].map(r => r.join(',')).join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `Lopez_FilterCards_${monthLabel}_${selectedYear}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-};
+    const total = data.reduce((sum, row) => sum + row.total_count, 0);
+    rows.push(['TOTAL', total, '', '', '']);
+    const csvContent = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `Lopez_FilterCards_${monthLabel}_${selectedYear}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleExportPNG = () => {
     setShowDownloadMenu(false);
@@ -102,9 +89,9 @@ export const LopezPurchasedFilterCardsTable = () => {
     if (!element) return;
     import('html2canvas').then(({ default: html2canvas }) => {
       html2canvas(element, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
-        const link = document.createElement('a');
+        const link    = document.createElement('a');
         link.download = `Lopez_FilterCards_${selectedMonth}_${selectedYear}.png`;
-        link.href = canvas.toDataURL('image/png');
+        link.href     = canvas.toDataURL('image/png');
         link.click();
       });
     });
@@ -113,19 +100,19 @@ export const LopezPurchasedFilterCardsTable = () => {
   const totalCount = data.reduce((sum, row) => sum + row.total_count, 0);
 
   return (
-    <div className="w-1/2 flex flex-col rounded-2xl shadow-lg overflow-hidden bg-white dark:bg-gray-900 transition-all duration-300">
+    <div className="w-full flex flex-col rounded-2xl shadow-lg overflow-hidden bg-white dark:bg-gray-900 transition-all duration-300">
 
-      {/* Header */}
+      {/* ── Header row 1: title + date selects ── */}
       <div className="flex items-center justify-between px-5 py-3 border-b bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-          <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2 shrink-0">
+          <svg className="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M9 17v-2a2 2 0 00-2-2H5a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v8m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
-          Lopez Purchased Filter Cards
+          Nearby Lopez Purchased Filter Cards
         </h3>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <select
             className="h-8 px-3 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={selectedMonth}
@@ -141,62 +128,75 @@ export const LopezPurchasedFilterCardsTable = () => {
           >
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-
-          {/* Expand/Collapse All */}
-          {data.length > 0 && !loading && (
-            <div className="flex gap-1">
-              <button
-                onClick={expandAll}
-                className="h-8 px-2 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-              >
-                Expand All
-              </button>
-              <button
-                onClick={collapseAll}
-                className="h-8 px-2 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-              >
-                Collapse
-              </button>
-            </div>
-          )}
-
-          {/* Export Button */}
-          <div className="relative">
-            <button
-              onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-              disabled={loading || data.length === 0}
-              className="h-8 px-3 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
-            >
-              <Download size={14} />
-              Export
-              <ChevronDown size={12} />
-            </button>
-            {showDownloadMenu && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowDownloadMenu(false)} />
-                <div className="absolute right-0 mt-1 w-44 rounded-lg shadow-lg border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
-                  <button onClick={handleExportPNG} className="w-full px-4 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors flex items-center gap-2">
-                    <Download size={12} /> Download as PNG
-                  </button>
-                  <button onClick={handleExportExcel} className="w-full px-4 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors flex items-center gap-2">
-                    <Download size={12} /> Export Data to Excel
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div id="lopez-filter-cards-table" className="p-5">
+      {/* ── Header row 2: actions ── */}
+      <div className="flex items-center gap-2 px-5 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        {data.length > 0 && !loading && (
+          <>
+            <button
+              onClick={expandAll}
+              className="h-7 px-3 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+            >
+              Expand All
+            </button>
+            <button
+              onClick={collapseAll}
+              className="h-7 px-3 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+            >
+              Collapse
+            </button>
+          </>
+        )}
+
+        <div className="relative ml-auto">
+          <button
+            onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+            disabled={loading || data.length === 0}
+            className="h-7 px-3 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
+          >
+            <Download size={13} />
+            Export
+            <ChevronDown size={11} />
+          </button>
+          {showDownloadMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowDownloadMenu(false)} />
+              <div className="absolute right-0 mt-1 w-44 rounded-lg shadow-lg border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
+                <button
+                  onClick={handleExportPNG}
+                  className="w-full px-4 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors flex items-center gap-2"
+                >
+                  <Download size={12} /> Download as PNG
+                </button>
+                <button
+                  onClick={handleExportExcel}
+                  className="w-full px-4 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors flex items-center gap-2"
+                >
+                  <Download size={12} /> Export Data to Excel
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Table ── */}
+      <div id="lopez-filter-cards-table" className="p-4">
         <div className="max-h-[500px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-left table-fixed">
+            <colgroup>
+              <col className="w-8" />
+              <col />
+              <col className="w-20" />
+              <col className="w-20" />
+            </colgroup>
             <thead className="sticky top-0 bg-blue-600 dark:bg-blue-700 text-white uppercase text-xs z-10">
               <tr>
-                <th className="px-4 py-3 w-6"></th>
-                <th className="px-4 py-3">City / Code</th>
-                <th className="px-4 py-3">Facility Code</th>
+                <th className="px-3 py-3" />
+                <th className="px-4 py-3">City / Facility</th>
+                <th className="px-4 py-3">Code</th>
                 <th className="px-4 py-3 text-right">Count</th>
               </tr>
             </thead>
@@ -212,7 +212,9 @@ export const LopezPurchasedFilterCardsTable = () => {
                 </tr>
               ) : data.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-400 text-xs">No data found.</td>
+                  <td colSpan={4} className="px-4 py-8 text-center text-gray-400 text-xs">
+                    No data found.
+                  </td>
                 </tr>
               ) : (
                 <>
@@ -226,16 +228,15 @@ export const LopezPurchasedFilterCardsTable = () => {
                           onClick={() => toggleCity(row.city)}
                         >
                           <td className="px-3 py-2.5 text-blue-500">
-                            {isExpanded
-                              ? <ChevronDown size={14} />
-                              : <ChevronRight size={14} />
-                            }
+                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </td>
-                          <td className="px-4 py-2.5 font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                            <Building2 size={13} className="text-blue-400 shrink-0" />
-                            {row.city}
-                            <span className="ml-1 text-xs font-normal text-gray-400">
-                              ({row.breakdown.length} {row.breakdown.length !== 1 ? 'facilities' : 'facility'})
+                          <td className="px-4 py-2.5 font-semibold text-gray-800 dark:text-gray-100">
+                            <span className="flex items-center gap-1.5">
+                              <Building2 size={13} className="text-blue-400 shrink-0" />
+                              <span className="truncate">{row.city}</span>
+                              <span className="shrink-0 text-xs font-normal text-gray-400">
+                                ({row.breakdown.length} {row.breakdown.length !== 1 ? 'facilities' : 'facility'})
+                              </span>
                             </span>
                           </td>
                           <td className="px-4 py-2.5 text-gray-400 text-xs">—</td>
@@ -250,10 +251,10 @@ export const LopezPurchasedFilterCardsTable = () => {
                             key={`${index}-${bIndex}`}
                             className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors bg-white dark:bg-gray-900"
                           >
-                            <td className="px-3 py-2"></td>
+                            <td className="px-3 py-2" />
                             <td className="px-4 py-2 pl-8 text-gray-600 dark:text-gray-300 text-xs">
                               <span className="text-gray-400 mr-1.5">└</span>
-                              {b.descr1}
+                              <span className="truncate">{b.descr1}</span>
                             </td>
                             <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 font-mono">
                               {b.submid}
@@ -269,7 +270,7 @@ export const LopezPurchasedFilterCardsTable = () => {
 
                   {/* Total row */}
                   <tr className="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 font-semibold">
-                    <td className="px-3 py-2.5"></td>
+                    <td className="px-3 py-2.5" />
                     <td className="px-4 py-2.5 text-gray-800 dark:text-gray-100" colSpan={2}>TOTAL</td>
                     <td className="px-4 py-2.5 text-right text-gray-800 dark:text-gray-100">
                       {totalCount.toLocaleString()}

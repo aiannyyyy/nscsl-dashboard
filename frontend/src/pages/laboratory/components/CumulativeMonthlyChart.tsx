@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useReceivedCensus } from '../../../hooks/LaboratoryHooks/useCensus';
-import { HISTORICAL_CENSUS_DATA } from '../../../constants/cumulativeCensusData';
+import { HISTORICAL_CENSUS_DATA } from '../../../constants/LaboratoryConstants/cumulativeCensusData';
 import type { CumulativeCensusDataItem } from '../../../services/LaboratoryServices/censusService';
 import { downloadChart } from '../../../utils/chartDownloadUtils';
 
