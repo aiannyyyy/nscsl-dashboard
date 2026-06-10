@@ -2,7 +2,6 @@
 const { config, database, corsOptions } = require('./config');
 
 const express = require('express');
-const http = require('http');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
@@ -51,6 +50,7 @@ app.use(express.static(publicPath));
 app.use('/assets', express.static(path.join(publicPath, 'assets')));
 app.use('/css', express.static(publicPath));
 app.use('/js', express.static(publicPath));
+
 app.use('/uploads', express.static(uploadsPath));
 
 // ============================================
@@ -105,9 +105,11 @@ app.get("/api/check-oracle", async (req, res) => {
     }
 
     try {
+        // Test the pool by getting a connection
         const connection = await app.locals.oracleDb.getConnection();
         await connection.execute('SELECT 1 FROM DUAL');
         await connection.close();
+        
         res.json({ 
             message: "✅ Oracle connection pool is active!",
             environment: config.env
@@ -149,6 +151,7 @@ database.createOraclePool()
             app.locals.oracleDb = pool;
             console.log("✅ Oracle connection pool stored in app.locals");
 
+            // Require INSIDE the .then() to make sure it loads after routes
             const nsfController = require('./controllers/PDOController/nsfFacilitiesController');
             if (typeof nsfController.initSyncCron === 'function') {
                 nsfController.initSyncCron(app);
@@ -185,7 +188,7 @@ app.use("/api/facility-visits", require("./routes/PDORoutes/facilityVisitsRoutes
 
 // Notebooks
 app.use("/api/notebooks", require("./routes/PDORoutes/notebooksRoutes"));
-
+ 
 // Timeliness
 app.use("/api/timeliness", require("./routes/PDORoutes/timelinessRoutes"));
 
@@ -240,14 +243,15 @@ app.use("/api/laboratory/demog-summary-cards", require("./routes/LaboratoryRoute
 // Laboratory Speed Monitoring
 app.use("/api/speed-monitoring", require("./routes/LaboratoryRoutes/speedMonitoringRoutes"));
 
-// Common Errors
+// In app.js - change this line:
 app.use("/api/common-errors", require("./routes/LaboratoryRoutes/commonErrorRoutes"));
 
 // Unsat Endorsement
-app.use("/api/endorsements", require("./routes/LaboratoryRoutes/unsatEndorsementRoutes"));
+app.use("/api/endorsements", require("./routes/LaboratoryRoutes/unsatEndorsementRoutes"))
 
 // Laboratory Logbook Endorsement
 app.use("/api/laboratory/logbook-endorsement", require("./routes/LaboratoryRoutes/logbookEndorsementRoutes"));
+
 
 // IT Job Order Routes
 app.use('/api/it-job-order', require('./routes/ITRoutes/itJobOrderRoutes'));
@@ -264,28 +268,22 @@ app.use('/api/followup/logbook-endorsement', require('./routes/FollowupRoutes/lo
 // Followup Summary Cards
 app.use('/api/followup/summary-cards', require('./routes/FollowupRoutes/followupSummaryCardsRoutes'));
 
-// Followup CMS Urgent
+//Followup CMS Urgent
 app.use('/api/followup/cms-urgent', require('./routes/FollowupRoutes/cmsUrgentRoutes'));
 
-// Patient Information System
+//Patient Information System
 app.use('/api/laboratory/pis', require('./routes/LaboratoryRoutes/pisRoutes'));
 
-// User Routes
+//User Routes
 app.use('/api/users', require('./routes/LaboratoryRoutes/userRoutes'));
 
 // Unsatisfactory Analysis
 app.use("/api/unsat", require("./routes/PDORoutes/unsatRoutes"));
 
-// ============================================
-// CHAT ROUTES  ← NEW
-// ============================================
-app.use('/api/chat', require('./routes/ChatRoutes/chatRoutes'));
-
 // NSF Performance
 app.use("/api", require("./routes/PDORoutes/nsfPerformanceRoutes"));
 
 
-console.log("💬 Chat routes loaded");
 
 console.log("📋 API Routes loaded");
 
@@ -293,6 +291,7 @@ console.log("📋 API Routes loaded");
 // ERROR HANDLING
 // ============================================
 
+// Error handling middleware
 app.use((err, req, res, next) => {
     console.error("❌ Server Error:", err.stack || err.message || err);
     res.status(err.status || 500).json({
@@ -306,11 +305,14 @@ app.use((err, req, res, next) => {
 // REACT ROUTER FALLBACK (SPA Support)
 // ============================================
 
+// Handle React Router - serves index.html for all non-API routes
+// This must be AFTER all API routes but BEFORE the 404 handler
 app.get('*', (req, res, next) => {
+    // Don't serve index.html for API routes
     if (req.path.startsWith('/api')) {
         return next();
     }
-
+    
     const indexPath = path.join(publicPath, 'index.html');
     if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
@@ -327,6 +329,8 @@ app.get('*', (req, res, next) => {
 // 404 HANDLER (API Routes Only)
 // ============================================
 
+// This will only trigger for API routes that don't exist
+// since the wildcard route above catches everything else
 app.use("/api/*", (req, res) => {
     res.status(404).json({
         error: "API endpoint not found",
@@ -344,14 +348,6 @@ app.use("/api/*", (req, res) => {
                 verify: "/api/auth/verify",
                 me: "/api/auth/me"
             },
-            chat: {
-                conversations: "/api/chat/conversations",
-                messages: "/api/chat/messages/:conversationId",
-                users: "/api/chat/users",
-                status: "/api/chat/status",
-                reactions: "/api/chat/reactions",
-                upload: "/api/chat/upload"
-            },
             timeliness: "/api/timeliness",
             facilityVisits: "/api/facility-visits",
             notebooks: "/api/notebooks",
@@ -363,41 +359,24 @@ app.use("/api/*", (req, res) => {
 });
 
 // ============================================
-// HTTP SERVER + SOCKET.IO  ← NEW
-// ============================================
-
-const { initSocket } = require('./config/socket.config');
-
-const server = http.createServer(app);
-
-// Initialize Socket.IO (must be before server.listen)
-const io = initSocket(server);
-app.locals.io = io;
-
-// ============================================
 // GRACEFUL SHUTDOWN
 // ============================================
 
 async function gracefulShutdown(signal) {
     console.log(`\n${signal} signal received: closing connections gracefully...`);
-
+    
     try {
-        // Close HTTP server first (stops accepting new connections)
-        server.close(() => {
-            console.log('✅ HTTP server closed');
-        });
-
         // Close Oracle pool
         if (database.closeOraclePool) {
             await database.closeOraclePool();
         }
-
+        
         // Close MySQL pool
         if (database.mysqlPool) {
             await database.mysqlPool.end();
             console.log('✅ MySQL pool closed');
         }
-
+        
         console.log('✅ All connections closed successfully');
         process.exit(0);
     } catch (err) {
@@ -409,6 +388,7 @@ async function gracefulShutdown(signal) {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
+// Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
     console.error('❌ Uncaught Exception:', err);
     gracefulShutdown('uncaughtException');
@@ -426,7 +406,7 @@ process.on('unhandledRejection', (reason, promise) => {
 const PORT = config.server.port;
 const HOST = config.server.host;
 
-server.listen(PORT, HOST, () => {
+app.listen(PORT, HOST, () => {
     console.log('');
     console.log('='.repeat(60));
     console.log('🚀 NSCSL Dashboard API Server');
@@ -434,7 +414,6 @@ server.listen(PORT, HOST, () => {
     console.log(`📍 Environment: ${config.env.toUpperCase()}`);
     console.log(`🌐 Server running on: http://${HOST}:${PORT}`);
     console.log(`🔗 Local access: http://localhost:${PORT}`);
-    console.log(`🔌 Socket.IO: enabled`);
     console.log(`📂 Public path: ${publicPath}`);
     console.log(`📁 Uploads path: ${uploadsPath}`);
     console.log('='.repeat(60));

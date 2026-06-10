@@ -17,7 +17,12 @@ export default defineConfig({
         target: 'http://localhost:5000', // Change to your backend port
         changeOrigin: true,
         secure: false,
-      }
+      },
+      '/uploads': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
     }
   },
   

@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
 import { GlobalJobOrderManager } from '../components/GlobalJobOrderManager';
+import FloatingChat from '../pages/chat/FloatingChat';
 
 const APPEARANCE_KEY = 'nscsl:appearance';
 const SYSTEM_KEY     = 'nscsl:system';
@@ -73,6 +74,8 @@ export const DashboardLayout: React.FC = () => {
       <div className="relative z-[9999]">
         <GlobalJobOrderManager />
       </div>
+
+      <FloatingChat />
     </div>
   );
 };
