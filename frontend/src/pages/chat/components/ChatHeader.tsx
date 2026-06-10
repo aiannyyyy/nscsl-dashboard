@@ -45,10 +45,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-slate-800 truncate leading-tight">
+        <p className="text-base font-semibold text-slate-800 truncate leading-tight">
           {displayName}
         </p>
-        <p className="text-[11px] leading-tight">
+        <p className="text-xs leading-tight">
           {isUserOnline(conversation?.isOnline) ? (
             <span className="text-emerald-500">Active now</span>
           ) : (

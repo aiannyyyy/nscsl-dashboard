@@ -223,7 +223,7 @@ const FloatingChat: React.FC = () => {
 
       {/* Chat widget */}
       {isOpen && (
-        <div className="fixed bottom-5 right-5 z-50 w-[320px] h-[560px] bg-white rounded-2xl shadow-2xl shadow-slate-400/20 flex flex-col overflow-hidden border border-slate-200 animate-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed bottom-5 right-5 z-50 w-[380px] h-[560px] bg-white rounded-2xl shadow-2xl shadow-slate-400/20 flex flex-col overflow-hidden border border-slate-200 animate-in slide-in-from-bottom-4 duration-200">
 
           {/* Top bar — list & new views */}
           {view !== 'chat' && (
@@ -302,10 +302,10 @@ const FloatingChat: React.FC = () => {
                       onChange={(e) => setMsgSearch(e.target.value)}
                       placeholder="Search messages…"
                       autoFocus
-                      className="flex-1 text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-blue-500/20"
+                      className="flex-1 text-sm bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                     {msgSearch && (
-                      <span className="text-[10px] text-slate-400 flex-shrink-0">
+                      <span className="text-xs text-slate-400 flex-shrink-0">
                         {displayedMessages.length} result{displayedMessages.length !== 1 ? 's' : ''}
                       </span>
                     )}
@@ -320,7 +320,7 @@ const FloatingChat: React.FC = () => {
                     </div>
                   ) : displayedMessages.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
-                      <p className="text-xs text-slate-400 text-center">
+                      <p className="text-sm text-slate-400 text-center">
                         {msgSearch
                           ? `No results for "${msgSearch}"`
                           : 'No messages yet. Say hello!'}

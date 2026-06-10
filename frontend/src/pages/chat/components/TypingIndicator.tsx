@@ -31,7 +31,7 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ typingNames }) => {
           style={{ animationDelay: '300ms', animationDuration: '1s' }}
         />
       </div>
-      <span className="text-[10px] text-slate-400 italic">{label}</span>
+      <span className="text-xs text-slate-400 italic">{label}</span>
     </div>
   );
 };

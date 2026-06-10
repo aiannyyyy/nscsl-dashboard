@@ -81,9 +81,9 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
       >
         <FileIcon size={14} className="flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium truncate">{fileName}</p>
+          <p className="text-sm font-medium truncate">{fileName}</p>
           {sizeLabel && (
-            <p className={`text-[10px] ${isSent ? 'text-white/70' : 'text-slate-400'}`}>
+            <p className={`text-xs ${isSent ? 'text-white/70' : 'text-slate-400'}`}>
               {sizeLabel}
             </p>
           )}

@@ -45,7 +45,7 @@ const UserSearch: React.FC<UserSearchProps> = ({ currentUserId, onSelectUser, on
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             autoFocus
-            className="bg-transparent border-none outline-none text-xs text-slate-700 placeholder-slate-400 w-full"
+            className="bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400 w-full"
           />
           {search && (
             <button onClick={() => setSearch('')} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -88,15 +88,15 @@ const UserSearch: React.FC<UserSearchProps> = ({ currentUserId, onSelectUser, on
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-slate-800 truncate">
+                  <p className="text-sm font-medium text-slate-800 truncate">
                     {user.position || user.name}
                   </p>
                   {user.department && (
-                    <p className="text-[10px] text-slate-400 truncate">{user.department}</p>
+                    <p className="text-xs text-slate-400 truncate">{user.department}</p>
                   )}
                 </div>
                 {isUserOnline(user.isOnline) && (
-                  <span className="text-[10px] text-emerald-500 font-medium flex-shrink-0">Online</span>
+                  <span className="text-xs text-emerald-500 font-medium flex-shrink-0">Online</span>
                 )}
               </button>
             ))}

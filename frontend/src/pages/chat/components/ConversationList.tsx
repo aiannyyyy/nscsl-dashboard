@@ -57,7 +57,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
               placeholder="Search…"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="bg-transparent border-none outline-none text-xs text-slate-700 placeholder-slate-400 w-full"
+              className="bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400 w-full"
             />
             {searchQuery && (
               <button onClick={() => onSearchChange('')} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -79,7 +79,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
       {!isConnected && (
         <div className="mx-3 mb-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg flex-shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-          <span className="text-[10px] text-amber-700">Reconnecting…</span>
+          <span className="text-xs text-amber-700">Reconnecting…</span>
         </div>
       )}
 
@@ -95,10 +95,10 @@ const ConversationList: React.FC<ConversationListProps> = ({
               <Search size={16} className="text-slate-400" />
             </div>
             <div>
-              <p className="text-xs font-medium text-slate-600">
+              <p className="text-sm font-medium text-slate-600">
                 {searchQuery ? 'No results' : 'No conversations'}
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-400 mt-0.5">
                 {searchQuery ? `Nothing matched "${searchQuery}"` : 'Start one by tapping +'}
               </p>
             </div>
@@ -137,17 +137,17 @@ const ConversationList: React.FC<ConversationListProps> = ({
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-0.5">
-                      <span className={`text-xs truncate ${hasUnread ? 'font-bold text-slate-900' : 'font-medium text-slate-700'}`}>
+                      <span className={`text-sm truncate ${hasUnread ? 'font-bold text-slate-900' : 'font-medium text-slate-700'}`}>
                         {name}
                       </span>
                       {conv.lastMessageTime && (
-                        <span className={`text-[10px] flex-shrink-0 ${hasUnread ? 'text-blue-600 font-semibold' : 'text-slate-400'}`}>
+                        <span className={`text-xs flex-shrink-0 ${hasUnread ? 'text-blue-600 font-semibold' : 'text-slate-400'}`}>
                           {formatTime(conv.lastMessageTime)}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <p className={`text-[11px] truncate ${hasUnread ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>
+                      <p className={`text-xs truncate ${hasUnread ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>
                         {conv.lastMessage || 'No messages yet'}
                       </p>
                       {/* Only render badge when unread > 0 */}

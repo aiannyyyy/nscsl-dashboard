@@ -127,7 +127,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       >
         {/* Message bubble */}
         <div
-          className={`max-w-[78%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
+          className={`max-w-[78%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
             isDeleted
               ? 'bg-slate-100 border border-dashed border-slate-300 text-slate-400 italic'
               : isSent
@@ -222,7 +222,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                     ? onRemoveReaction(message.id, r.emoji, conversationId)
                     : onAddReaction(message.id, emojiToCode(shownEmoji), conversationId)
                 }
-                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] border transition-colors ${
+                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs border transition-colors ${
                   reacted
                     ? 'bg-blue-50 border-blue-300 text-blue-700'
                     : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -239,10 +239,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
       {/* Timestamp + read receipt */}
       <div className={`flex items-center gap-1 mt-0.5 ${isSent ? 'flex-row-reverse' : ''}`}>
-        <span className="text-[10px] text-slate-400">{formatTime(message.createdAt)}</span>
+        <span className="text-xs text-slate-400">{formatTime(message.createdAt)}</span>
         {isSent && !isDeleted && (
           <span
-            className={`text-[10px] ${isReadByRecipient ? 'text-blue-500' : 'text-slate-400'}`}
+            className={`text-xs ${isReadByRecipient ? 'text-blue-500' : 'text-slate-400'}`}
             aria-label={isReadByRecipient ? 'Read' : 'Sent'}
           >
             {isReadByRecipient ? '✓✓' : '✓'}
