@@ -1,23 +1,23 @@
 import React, { useState } from 'react';
 import { Download, ChevronDown, ChevronRight, Building2, FlaskConical } from 'lucide-react';
 import {
-  useQuezonTotalSamples,
+  useProvinceTotalSamples,
   useNearbyLopezTotalSamples,
 } from '../../../hooks/PDOHooks/useQuezonTotalSample';
 
-// ─── Date helpers ─────────────────────────────────────────────────────────────
+// ─── Date helpers ──────────────────────────────────────────────────────────────
 
 const currentDate  = new Date();
 const currentMonth = currentDate.getMonth() + 1;
 const currentYear  = currentDate.getFullYear();
 
 const months = [
-  { label: 'January', value: 1 },  { label: 'February', value: 2 },
-  { label: 'March', value: 3 },    { label: 'April', value: 4 },
-  { label: 'May', value: 5 },      { label: 'June', value: 6 },
-  { label: 'July', value: 7 },     { label: 'August', value: 8 },
-  { label: 'September', value: 9 },{ label: 'October', value: 10 },
-  { label: 'November', value: 11 },{ label: 'December', value: 12 },
+  { label: 'January',   value: 1  }, { label: 'February', value: 2  },
+  { label: 'March',     value: 3  }, { label: 'April',    value: 4  },
+  { label: 'May',       value: 5  }, { label: 'June',     value: 6  },
+  { label: 'July',      value: 7  }, { label: 'August',   value: 8  },
+  { label: 'September', value: 9  }, { label: 'October',  value: 10 },
+  { label: 'November',  value: 11 }, { label: 'December', value: 12 },
 ];
 
 const years = Array.from({ length: 16 }, (_, i) => currentYear - i);
@@ -33,32 +33,79 @@ const buildDateRange = (year: number, month: number) => {
   };
 };
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Tab config ────────────────────────────────────────────────────────────────
 
-type TableVariant = 'quezon' | 'nearby-lopez';
+const PROVINCE_TABS = [
+  { key: 'CAVITE',   label: 'Cavite'   },
+  { key: 'LAGUNA',   label: 'Laguna'   },
+  { key: 'BATANGAS', label: 'Batangas' },
+  { key: 'RIZAL',    label: 'Rizal'    },
+  { key: 'QUEZON',   label: 'Quezon'   },
+] as const;
+
+type ProvinceKey  = typeof PROVINCE_TABS[number]['key'];
+type TableVariant = ProvinceKey | 'NEARBY_LOPEZ';
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface Breakdown {
-  submid: string;
-  descr1: string;
+  submid:      string;
+  descr1:      string;
   total_count: number;
 }
 
 interface RowData {
-  city: string;
+  city:        string;
   total_count: number;
-  breakdown: Breakdown[];
+  breakdown:   Breakdown[];
 }
 
-// ─── Shared table ─────────────────────────────────────────────────────────────
+interface ProvinceQueriesProps {
+  date_from: string;
+  date_to:   string;
+  activeTab: TableVariant;
+}
+
+// ─── Lazy province queries ─────────────────────────────────────────────────────
+
+const useAllProvinceQueries = ({ date_from, date_to, activeTab }: ProvinceQueriesProps) => ({
+  CAVITE:   useProvinceTotalSamples(
+    { date_from, date_to, county: 'CAVITE'   },
+    { enabled: activeTab === 'CAVITE'   }
+  ),
+  LAGUNA:   useProvinceTotalSamples(
+    { date_from, date_to, county: 'LAGUNA'   },
+    { enabled: activeTab === 'LAGUNA'   }
+  ),
+  BATANGAS: useProvinceTotalSamples(
+    { date_from, date_to, county: 'BATANGAS' },
+    { enabled: activeTab === 'BATANGAS' }
+  ),
+  RIZAL:    useProvinceTotalSamples(
+    { date_from, date_to, county: 'RIZAL'    },
+    { enabled: activeTab === 'RIZAL'    }
+  ),
+  QUEZON:   useProvinceTotalSamples(
+    { date_from, date_to, county: 'QUEZON'   },
+    { enabled: activeTab === 'QUEZON'   }
+  ),
+});
+
+// ─── Shared table ──────────────────────────────────────────────────────────────
 
 interface SampleTableProps {
-  data: RowData[];
-  isLoading: boolean;
+  data:           RowData[];
+  isLoading:      boolean;
   expandedCities: Set<string>;
-  onToggleCity: (city: string) => void;
+  onToggleCity:   (city: string) => void;
 }
 
-const SampleTable: React.FC<SampleTableProps> = ({ data, isLoading, expandedCities, onToggleCity }) => {
+const SampleTable: React.FC<SampleTableProps> = ({
+  data,
+  isLoading,
+  expandedCities,
+  onToggleCity,
+}) => {
   const totalCount = data.reduce((sum, r) => sum + r.total_count, 0);
 
   return (
@@ -105,14 +152,17 @@ const SampleTable: React.FC<SampleTableProps> = ({ data, isLoading, expandedCiti
                       onClick={() => onToggleCity(row.city)}
                     >
                       <td className="px-3 py-2.5 text-blue-500">
-                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        {isExpanded
+                          ? <ChevronDown size={14} />
+                          : <ChevronRight size={14} />}
                       </td>
                       <td className="px-4 py-2.5 font-semibold text-gray-800 dark:text-gray-100">
                         <span className="flex items-center gap-1.5">
                           <Building2 size={13} className="text-blue-400 shrink-0" />
                           <span className="truncate">{row.city}</span>
                           <span className="shrink-0 text-xs font-normal text-gray-400">
-                            ({row.breakdown.length} {row.breakdown.length !== 1 ? 'facilities' : 'facility'})
+                            ({row.breakdown.length}{' '}
+                            {row.breakdown.length !== 1 ? 'facilities' : 'facility'})
                           </span>
                         </span>
                       </td>
@@ -146,7 +196,9 @@ const SampleTable: React.FC<SampleTableProps> = ({ data, isLoading, expandedCiti
 
               <tr className="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 font-semibold">
                 <td className="px-3 py-2.5" />
-                <td className="px-4 py-2.5 text-gray-800 dark:text-gray-100" colSpan={2}>TOTAL</td>
+                <td className="px-4 py-2.5 text-gray-800 dark:text-gray-100" colSpan={2}>
+                  TOTAL
+                </td>
                 <td className="px-4 py-2.5 text-right text-gray-800 dark:text-gray-100">
                   {totalCount.toLocaleString()}
                 </td>
@@ -159,26 +211,33 @@ const SampleTable: React.FC<SampleTableProps> = ({ data, isLoading, expandedCiti
   );
 };
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main component ────────────────────────────────────────────────────────────
 
 export const QuezonNearbyLopezSamplesTable: React.FC = () => {
   const [selectedMonth,    setSelectedMonth]    = useState(currentMonth);
   const [selectedYear,     setSelectedYear]     = useState(currentYear);
-  const [activeTab,        setActiveTab]        = useState<TableVariant>('quezon');
+  const [activeTab,        setActiveTab]        = useState<TableVariant>('BATANGAS');
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [expandedCities,   setExpandedCities]   = useState<Set<string>>(new Set());
 
   const { date_from, date_to } = buildDateRange(selectedYear, selectedMonth);
 
-  const quezonQuery      = useQuezonTotalSamples({ date_from, date_to });
+  const provinceQueries  = useAllProvinceQueries({ date_from, date_to, activeTab });
   const nearbyLopezQuery = useNearbyLopezTotalSamples({ date_from, date_to });
 
-  const activeData: RowData[] =
-    activeTab === 'quezon'
-      ? (quezonQuery.data?.data ?? [])
-      : (nearbyLopezQuery.data?.data ?? []);
+  const isProvinceTab = activeTab !== 'NEARBY_LOPEZ';
 
-  const isLoading = activeTab === 'quezon' ? quezonQuery.isLoading : nearbyLopezQuery.isLoading;
+  const activeData: RowData[] = isProvinceTab
+    ? (provinceQueries[activeTab as ProvinceKey].data?.data ?? [])
+    : (nearbyLopezQuery.data?.data ?? []);
+
+  const isLoading = isProvinceTab
+    ? provinceQueries[activeTab as ProvinceKey].isLoading
+    : nearbyLopezQuery.isLoading;
+
+  const pageTitle = isProvinceTab
+    ? `${PROVINCE_TABS.find(t => t.key === activeTab)?.label} Total Samples Received (Per Facility)`
+    : 'Lopez Nearby Total Samples Received (Per Facility)';
 
   const toggleCity  = (city: string) =>
     setExpandedCities(prev => {
@@ -198,8 +257,10 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
   const handleExportCSV = () => {
     setShowDownloadMenu(false);
     const monthLabel = months.find(m => m.value === selectedMonth)?.label;
-    const tabLabel   = activeTab === 'quezon' ? 'Quezon' : 'NearbyLopez';
-    const headers    = ['City', 'Count', 'SUBMID', 'Description', 'Facility Count'];
+    const tabLabel   = isProvinceTab
+      ? PROVINCE_TABS.find(t => t.key === activeTab)?.label
+      : 'NearbyLopez';
+    const headers = ['City', 'Count', 'SUBMID', 'Description', 'Facility Count'];
     const rows: (string | number)[][] = [];
     activeData.forEach(row => {
       rows.push([row.city, row.total_count, '', '', '']);
@@ -219,7 +280,7 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
 
   const handleExportPNG = () => {
     setShowDownloadMenu(false);
-    const element = document.getElementById('quezon-lopez-samples-table');
+    const element = document.getElementById('province-samples-table');
     if (!element) return;
     import('html2canvas').then(({ default: html2canvas }) => {
       html2canvas(element, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
@@ -238,7 +299,7 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
       <div className="flex items-center justify-between px-5 py-3 border-b bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
         <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2 shrink-0">
           <FlaskConical size={18} className="text-blue-500" />
-          Quezon and Lopez Nearby Total Samples Received (Per Facility)
+          {pageTitle}
         </h3>
 
         <div className="flex items-center gap-2">
@@ -247,7 +308,9 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
             value={selectedMonth}
             onChange={e => setSelectedMonth(Number(e.target.value))}
           >
-            {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            {months.map(m => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
           </select>
 
           <select
@@ -255,7 +318,9 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
             value={selectedYear}
             onChange={e => setSelectedYear(Number(e.target.value))}
           >
-            {years.map(y => <option key={y} value={y}>{y}</option>)}
+            {years.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -312,38 +377,59 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
       </div>
 
       {/* ── Tabs ── */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        {([
-          { key: 'quezon',       label: 'Quezon Province' },
-          { key: 'nearby-lopez', label: 'Nearby Lopez' },
-        ] as { key: TableVariant; label: string }[]).map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => handleTabChange(tab.key)}
-            className={`px-5 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === tab.key
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            {tab.label}
-            {(() => {
-              const count =
-                tab.key === 'quezon'
-                  ? quezonQuery.data?.total_records
-                  : nearbyLopezQuery.data?.total_records;
-              return count !== undefined ? (
+      <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-x-auto">
+
+        {/* Province tabs */}
+        {PROVINCE_TABS.map(tab => {
+          const query = provinceQueries[tab.key];
+          const count = query.data?.total_records;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => handleTabChange(tab.key)}
+              className={`px-5 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+                activeTab === tab.key
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              {tab.label}
+              {count !== undefined ? (
                 <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[10px]">
                   {count.toLocaleString()}
                 </span>
-              ) : null;
-            })()}
-          </button>
-        ))}
+              ) : query.isLoading && activeTab === tab.key ? (
+                <span className="ml-1.5 inline-block w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin align-middle" />
+              ) : null}
+            </button>
+          );
+        })}
+
+        {/* Divider */}
+        <div className="w-px bg-gray-200 dark:bg-gray-700 my-1.5 mx-1 shrink-0" />
+
+        {/* Nearby Lopez tab */}
+        <button
+          onClick={() => handleTabChange('NEARBY_LOPEZ')}
+          className={`px-5 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+            activeTab === 'NEARBY_LOPEZ'
+              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          Nearby Lopez
+          {nearbyLopezQuery.data?.total_records !== undefined ? (
+            <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[10px]">
+              {nearbyLopezQuery.data.total_records.toLocaleString()}
+            </span>
+          ) : nearbyLopezQuery.isLoading ? (
+            <span className="ml-1.5 inline-block w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin align-middle" />
+          ) : null}
+        </button>
       </div>
 
       {/* ── Table ── */}
-      <div id="quezon-lopez-samples-table" className="p-4">
+      <div id="province-samples-table" className="p-4">
         <SampleTable
           data={activeData}
           isLoading={isLoading}

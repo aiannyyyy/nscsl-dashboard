@@ -21,7 +21,7 @@ export const MENU_CONFIG = [
       { key: 'unsatisfactory',  label: 'Unsatisfactory',  path: '/dashboard/pdo/unsatisfactory' },
       { key: 'nsf-performance', label: 'NSF Performance', path: '/dashboard/pdo/nsf-performance' },
       { key: 'list-of-car',     label: 'List of Car',     path: '/dashboard/pdo/list-of-car' },
-      { key: 'lopez-quezon',    label: 'Lopez Quezon',    path: '/dashboard/pdo/lopez-quezon' },
+      { key: 'lopez-quezon',    label: 'Samples and PO Per Facility',    path: '/dashboard/pdo/lopez-quezon' },
       { key: 'calendar',        label: 'Calendar',        path: '/dashboard/pdo/calendar' },
     ],
   },

@@ -22,6 +22,7 @@ export interface SampleNearbyResult {
 export interface QuezonSampleApiResponse {
   success: boolean;
   total_records: number;
+  county: string;
   data: SampleCityResult[];
 }
 
@@ -34,14 +35,21 @@ export interface NearbyLopezSampleApiResponse {
 export interface SampleParams {
   date_from: string;
   date_to: string;
+  county: string;
+}
+
+export interface NearbyLopezParams {
+  date_from: string;
+  date_to: string;
 }
 
 export const getQuezonTotalSamples = async ({
   date_from,
   date_to,
+  county,
 }: SampleParams): Promise<QuezonSampleApiResponse> => {
   const { data } = await api.get<QuezonSampleApiResponse>('/samples/quezon', {
-    params: { date_from, date_to },
+    params: { date_from, date_to, county },
   });
   return data;
 };
@@ -49,7 +57,7 @@ export const getQuezonTotalSamples = async ({
 export const getNearbyLopezTotalSamples = async ({
   date_from,
   date_to,
-}: SampleParams): Promise<NearbyLopezSampleApiResponse> => {
+}: NearbyLopezParams): Promise<NearbyLopezSampleApiResponse> => {
   const { data } = await api.get<NearbyLopezSampleApiResponse>('/samples/nearby-lopez', {
     params: { date_from, date_to },
   });
