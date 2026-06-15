@@ -38,6 +38,7 @@ export const UserTable: React.FC<UserTableProps> = ({ onEditAccess, onCreateUser
     const matchesSearch =
       u.name.toLowerCase().includes(search.toLowerCase())     ||
       u.username.toLowerCase().includes(search.toLowerCase()) ||
+      u.email.toLowerCase().includes(search.toLowerCase())    ||
       u.dept.toLowerCase().includes(search.toLowerCase());
     const matchesDept = deptFilter ? u.dept === deptFilter : true;
     return matchesSearch && matchesDept;
@@ -137,13 +138,16 @@ export const UserTable: React.FC<UserTableProps> = ({ onEditAccess, onCreateUser
                     key={user.user_id}
                     className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors duration-150"
                   >
-                    {/* Name */}
+                    {/* Name + Email */}
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-semibold text-xs shrink-0">
                           {user.name.charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-medium text-gray-800 dark:text-gray-100">{user.name}</span>
+                        <div>
+                          <div className="font-medium text-gray-800 dark:text-gray-100">{user.name}</div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500">{user.email}</div>
+                        </div>
                       </div>
                     </td>
 

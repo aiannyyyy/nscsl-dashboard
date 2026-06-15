@@ -16,6 +16,7 @@ const requiredEnvVars = [
     'USER_DB',
     'PASS_DB',
     'DATABASE_DB',
+    'INTRANET_DB',
     'PORT',
     'FRONTEND_URL'
 ];
@@ -40,12 +41,17 @@ module.exports = {
         connectString: process.env.ORACLE_CONN_STRING
     },
 
-    // MySQL Database
+    // MySQL - Dashboard Database
     mysql: {
         host: process.env.HOST_DB,
         user: process.env.USER_DB,
         password: process.env.PASS_DB,
         database: process.env.DATABASE_DB
+    },
+
+    // MySQL - Intranet Database (same server, different DB)
+    intranet: {
+        database: process.env.INTRANET_DB
     },
 
     // Server

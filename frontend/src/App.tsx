@@ -30,6 +30,9 @@ import { General } from './pages/settings/General';
 import { User } from './pages/settings/User';
 import { ChangePassword } from './pages/settings/ChangePassword';
 import { G6PDReport } from './pages/followup/G6PDReport';
+import { Overview } from './pages/intranet/Overview';
+import { Categories } from './pages/intranet/Categories';
+import { Files } from './pages/intranet/Files';
 
 
 // Create a QueryClient instance
@@ -94,6 +97,11 @@ function App() {
               {/* IT Job Order Routes */}
               <Route path="it-job-order" element={<ITJobOrderOverview />} />
               <Route path="it-job-order/summary" element={ <ITJobOrderSummary />} />
+
+              {/* Intranet File Management System */}
+              <Route path="intranet-file-management" element={<Overview />} />
+              <Route path="intranet-file-management/categories" element={<Categories />} />
+              <Route path="intranet-file-management/files" element={<Files />} />
 
               {/* Settings Routes */}
               <Route path="settings/general" element={<General />} />

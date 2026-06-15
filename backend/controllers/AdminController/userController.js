@@ -7,7 +7,7 @@ const getAllUsers = async (req, res, next) => {
   try {
     const pool = getPool(req);
     const [rows] = await pool.query(
-      'SELECT user_id, username, name, dept, position, role FROM `user` ORDER BY user_id DESC'
+      'SELECT user_id, username, name, dept, email, position, role FROM `user` ORDER BY user_id DESC'
     );
     res.json(rows);
   } catch (err) {
@@ -19,9 +19,9 @@ const getAllUsers = async (req, res, next) => {
 const createUser = async (req, res, next) => {
   try {
     const pool = getPool(req);
-    const { username, password, name, dept, position, role = 'user' } = req.body;
+    const { username, password, name, dept, email, position, role = 'user' } = req.body;
 
-    if (!username || !password || !name || !dept || !position) {
+    if (!username || !password || !name || !dept || !email || !position) {
       return res.status(400).json({ error: 'All fields are required.' });
     }
 
@@ -36,8 +36,8 @@ const createUser = async (req, res, next) => {
     const hashed = await bcrypt.hash(password, 10);
 
     const [result] = await pool.query(
-      'INSERT INTO `user` (username, password, name, dept, position, role) VALUES (?, ?, ?, ?, ?, ?)',
-      [username, hashed, name, dept, position, role]
+      'INSERT INTO `user` (username, password, name, dept, email, position, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [username, hashed, name, dept, email, position, role]
     );
 
     res.status(201).json({
@@ -45,6 +45,7 @@ const createUser = async (req, res, next) => {
       username,
       name,
       dept,
+      email,
       position,
       role,
     });

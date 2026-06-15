@@ -55,7 +55,9 @@ async function closeOraclePool() {
     }
 }
 
-// MySQL Connection Pool
+// ============================================
+// DASHBOARD MySQL Connection Pool
+// ============================================
 const mysqlPool = mysql.createPool({
     host: config.mysql.host,
     user: config.mysql.user,
@@ -69,15 +71,46 @@ const mysqlPool = mysql.createPool({
     multipleStatements: false
 });
 
-// Test MySQL connection on startup
+// Test Dashboard MySQL connection on startup
 (async () => {
     try {
         const connection = await mysqlPool.getConnection();
         const envLabel = config.isProduction ? 'PRODUCTION' : 'DEVELOPMENT';
-        console.log(`✅ Connected to MySQL server [${envLabel}]`);
+        console.log(`✅ Connected to Dashboard MySQL [${envLabel}] → ${config.mysql.database}`);
         connection.release();
     } catch (err) {
-        console.error(`❌ MySQL connection failed:`, err.message);
+        console.error(`❌ Dashboard MySQL connection failed:`, err.message);
+        if (config.isProduction) {
+            process.exit(1);
+        }
+    }
+})();
+
+// ============================================
+// INTRANET MySQL Connection Pool
+// ============================================
+const inhousePool = mysql.createPool({
+    host: config.mysql.host,
+    user: config.mysql.user,
+    password: config.mysql.password,
+    database: config.intranet.database,
+    waitForConnections: true,
+    connectionLimit: config.isProduction ? 20 : 10,
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 0,
+    multipleStatements: false
+});
+
+// Test Intranet MySQL connection on startup
+(async () => {
+    try {
+        const connection = await inhousePool.getConnection();
+        const envLabel = config.isProduction ? 'PRODUCTION' : 'DEVELOPMENT';
+        console.log(`✅ Connected to Intranet MySQL [${envLabel}] → ${config.intranet.database}`);
+        connection.release();
+    } catch (err) {
+        console.error(`❌ Intranet MySQL connection failed:`, err.message);
         if (config.isProduction) {
             process.exit(1);
         }
@@ -89,6 +122,7 @@ module.exports = {
     getOracleConnection,
     closeOraclePool,
     mysqlPool,
+    inhousePool,
     // Legacy support
     connectOracle: createOraclePool
 };

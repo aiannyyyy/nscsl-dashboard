@@ -12,6 +12,8 @@ interface CreateUserProps {
 const DEPARTMENTS = ['Admin', 'Laboratory', 'Followup', 'Program'];
 const ROLES: Array<'admin' | 'user'> = ['user', 'admin'];
 
+const EMAIL_DOMAIN = '@nscsl.com.ph';
+
 type FormState = CreateUserPayload;
 
 const INITIAL_FORM: FormState = {
@@ -19,13 +21,17 @@ const INITIAL_FORM: FormState = {
   password: '',
   name:     '',
   dept:     '',
+  email:    '',
   position: '',
   role:     'user',
 };
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export const CreateUser: React.FC<CreateUserProps> = ({ onClose, onCreated }) => {
-  const [form, setForm]     = useState<FormState>(INITIAL_FORM);
-  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const [form, setForm]         = useState<FormState>(INITIAL_FORM);
+  const [emailLocal, setEmailLocal] = useState('');
+  const [errors, setErrors]     = useState<Partial<Record<keyof FormState, string>>>({});
 
   const { mutate: createUser, isPending, isError, error } = useCreateUser();
 
@@ -36,6 +42,11 @@ export const CreateUser: React.FC<CreateUserProps> = ({ onClose, onCreated }) =>
     if (!form.password.trim()) e.password = 'Password is required.';
     if (!form.position.trim()) e.position = 'Position is required.';
     if (!form.dept)            e.dept     = 'Department is required.';
+    if (!emailLocal.trim()) {
+      e.email = 'Email is required.';
+    } else if (!EMAIL_REGEX.test(form.email)) {
+      e.email = 'Enter a valid email address.';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -53,6 +64,13 @@ export const CreateUser: React.FC<CreateUserProps> = ({ onClose, onCreated }) =>
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     };
+
+  const handleEmailLocalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const local = e.target.value.trim();
+    setEmailLocal(local);
+    setForm((prev) => ({ ...prev, email: local ? `${local}${EMAIL_DOMAIN}` : '' }));
+    setErrors((prev) => ({ ...prev, email: undefined }));
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -108,6 +126,23 @@ export const CreateUser: React.FC<CreateUserProps> = ({ onClose, onCreated }) =>
               />
             </Field>
           </div>
+
+          <Field label="Email" error={errors.email}>
+            <div className={`flex items-stretch rounded-lg border transition focus-within:ring-2 focus-within:ring-blue-500 bg-white dark:bg-gray-800 ${
+              errors.email ? 'border-red-400 dark:border-red-500' : 'border-gray-200 dark:border-gray-700'
+            }`}>
+              <input
+                type="text"
+                placeholder="jdelacruz"
+                value={emailLocal}
+                onChange={handleEmailLocalChange}
+                className="flex-1 px-3 py-2 text-sm bg-transparent text-gray-700 dark:text-gray-200 focus:outline-none rounded-l-lg"
+              />
+              <span className="flex items-center px-3 text-sm text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/50 border-l border-gray-200 dark:border-gray-700 rounded-r-lg whitespace-nowrap">
+                {EMAIL_DOMAIN}
+              </span>
+            </div>
+          </Field>
 
           <Field label="Position" error={errors.position}>
             <input

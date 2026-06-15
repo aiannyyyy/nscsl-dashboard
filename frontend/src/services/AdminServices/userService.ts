@@ -6,6 +6,7 @@ export interface CreateUserPayload {
   password: string;
   name: string;
   dept: string;
+  email: string;
   position: string;
   role: 'admin' | 'user';
 }
