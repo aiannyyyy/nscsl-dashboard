@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Download, ChevronDown, ChevronRight, Building2, FlaskConical } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Download, ChevronDown, ChevronRight, Building2, FlaskConical, Search, X } from 'lucide-react';
 import {
   useProvinceTotalSamples,
   useNearbyLopezTotalSamples,
@@ -66,6 +66,16 @@ interface ProvinceQueriesProps {
   activeTab: TableVariant;
 }
 
+// ─── Search result type ────────────────────────────────────────────────────────
+
+interface SearchMatch {
+  tab:          TableVariant;
+  tabLabel:     string;
+  city:         string;
+  facilityName: string;
+  submid:       string;
+}
+
 // ─── Lazy province queries ─────────────────────────────────────────────────────
 
 const useAllProvinceQueries = ({ date_from, date_to, activeTab }: ProvinceQueriesProps) => ({
@@ -94,10 +104,12 @@ const useAllProvinceQueries = ({ date_from, date_to, activeTab }: ProvinceQuerie
 // ─── Shared table ──────────────────────────────────────────────────────────────
 
 interface SampleTableProps {
-  data:           RowData[];
-  isLoading:      boolean;
-  expandedCities: Set<string>;
-  onToggleCity:   (city: string) => void;
+  data:              RowData[];
+  isLoading:         boolean;
+  expandedCities:    Set<string>;
+  onToggleCity:      (city: string) => void;
+  searchQuery:       string;
+  highlightFacility: string | null; // submid to highlight
 }
 
 const SampleTable: React.FC<SampleTableProps> = ({
@@ -105,8 +117,44 @@ const SampleTable: React.FC<SampleTableProps> = ({
   isLoading,
   expandedCities,
   onToggleCity,
+  searchQuery,
+  highlightFacility,
 }) => {
-  const totalCount = data.reduce((sum, r) => sum + r.total_count, 0);
+  const totalCount     = data.reduce((sum, r) => sum + r.total_count, 0);
+  const highlightRef   = useRef<HTMLTableRowElement>(null);
+  const query          = searchQuery.toLowerCase().trim();
+
+  // Scroll highlighted row into view when it mounts / changes
+  useEffect(() => {
+    if (highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightFacility]);
+
+  // Filter rows if searching
+  const filteredData = query
+    ? data.filter(row =>
+        row.city.toLowerCase().includes(query) ||
+        row.breakdown.some(
+          b => b.descr1.toLowerCase().includes(query) || b.submid.toLowerCase().includes(query)
+        )
+      )
+    : data;
+
+  const highlight = (text: string) => {
+    if (!query) return <>{text}</>;
+    const idx = text.toLowerCase().indexOf(query);
+    if (idx === -1) return <>{text}</>;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark className="bg-yellow-200 dark:bg-yellow-700/60 text-inherit rounded px-0.5">
+          {text.slice(idx, idx + query.length)}
+        </mark>
+        {text.slice(idx + query.length)}
+      </>
+    );
+  };
 
   return (
     <div className="max-h-[460px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
@@ -135,16 +183,20 @@ const SampleTable: React.FC<SampleTableProps> = ({
                 </div>
               </td>
             </tr>
-          ) : data.length === 0 ? (
+          ) : filteredData.length === 0 ? (
             <tr>
               <td colSpan={4} className="px-4 py-8 text-center text-gray-400 text-xs">
-                No data found.
+                {query ? `No facilities match "${searchQuery}".` : 'No data found.'}
               </td>
             </tr>
           ) : (
             <>
-              {data.map((row, index) => {
+              {filteredData.map((row, index) => {
                 const isExpanded = expandedCities.has(row.city);
+                // Auto-expand city if it contains a highlighted facility
+                const shouldAutoExpand = highlightFacility !== null &&
+                  row.breakdown.some(b => b.submid === highlightFacility);
+
                 return (
                   <React.Fragment key={index}>
                     <tr
@@ -152,14 +204,14 @@ const SampleTable: React.FC<SampleTableProps> = ({
                       onClick={() => onToggleCity(row.city)}
                     >
                       <td className="px-3 py-2.5 text-blue-500">
-                        {isExpanded
+                        {(isExpanded || shouldAutoExpand)
                           ? <ChevronDown size={14} />
                           : <ChevronRight size={14} />}
                       </td>
                       <td className="px-4 py-2.5 font-semibold text-gray-800 dark:text-gray-100">
                         <span className="flex items-center gap-1.5">
                           <Building2 size={13} className="text-blue-400 shrink-0" />
-                          <span className="truncate">{row.city}</span>
+                          <span className="truncate">{highlight(row.city)}</span>
                           <span className="shrink-0 text-xs font-normal text-gray-400">
                             ({row.breakdown.length}{' '}
                             {row.breakdown.length !== 1 ? 'facilities' : 'facility'})
@@ -172,24 +224,32 @@ const SampleTable: React.FC<SampleTableProps> = ({
                       </td>
                     </tr>
 
-                    {isExpanded && row.breakdown.map((b, bIndex) => (
-                      <tr
-                        key={`${index}-${bIndex}`}
-                        className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors bg-white dark:bg-gray-900"
-                      >
-                        <td className="px-3 py-2" />
-                        <td className="px-4 py-2 pl-8 text-gray-600 dark:text-gray-300 text-xs">
-                          <span className="text-gray-400 mr-1.5">└</span>
-                          <span className="truncate">{b.descr1}</span>
-                        </td>
-                        <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 font-mono">
-                          {b.submid}
-                        </td>
-                        <td className="px-4 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300">
-                          {b.total_count.toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
+                    {(isExpanded || shouldAutoExpand) && row.breakdown.map((b, bIndex) => {
+                      const isHighlighted = b.submid === highlightFacility;
+                      return (
+                        <tr
+                          key={`${index}-${bIndex}`}
+                          ref={isHighlighted ? highlightRef : undefined}
+                          className={`border-t border-gray-100 dark:border-gray-700 transition-colors ${
+                            isHighlighted
+                              ? 'bg-yellow-50 dark:bg-yellow-900/20 ring-1 ring-inset ring-yellow-300 dark:ring-yellow-600'
+                              : 'hover:bg-gray-50 dark:hover:bg-gray-800 bg-white dark:bg-gray-900'
+                          }`}
+                        >
+                          <td className="px-3 py-2" />
+                          <td className="px-4 py-2 pl-8 text-gray-600 dark:text-gray-300 text-xs">
+                            <span className="text-gray-400 mr-1.5">└</span>
+                            <span className="truncate">{highlight(b.descr1)}</span>
+                          </td>
+                          <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 font-mono">
+                            {highlight(b.submid)}
+                          </td>
+                          <td className="px-4 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300">
+                            {b.total_count.toLocaleString()}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </React.Fragment>
                 );
               })}
@@ -220,11 +280,140 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [expandedCities,   setExpandedCities]   = useState<Set<string>>(new Set());
 
+  // ── Search state ──
+  const [searchQuery,       setSearchQuery]       = useState('');
+  const [searchMatches,     setSearchMatches]     = useState<SearchMatch[]>([]);
+  const [showSuggestions,   setShowSuggestions]   = useState(false);
+  const [highlightFacility, setHighlightFacility] = useState<string | null>(null);
+  const [searchFoundInTab,  setSearchFoundInTab]  = useState<string | null>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+
   const { date_from, date_to } = buildDateRange(selectedYear, selectedMonth);
 
-  const provinceQueries  = useAllProvinceQueries({ date_from, date_to, activeTab });
+  // All queries — we need ALL tab data loaded to search across tabs.
+  // We enable them all whenever a search query is active.
+  const searching = searchQuery.trim().length > 0;
+
+  const provinceQueries = {
+    CAVITE:   useProvinceTotalSamples(
+      { date_from, date_to, county: 'CAVITE'   },
+      { enabled: activeTab === 'CAVITE'   || searching }
+    ),
+    LAGUNA:   useProvinceTotalSamples(
+      { date_from, date_to, county: 'LAGUNA'   },
+      { enabled: activeTab === 'LAGUNA'   || searching }
+    ),
+    BATANGAS: useProvinceTotalSamples(
+      { date_from, date_to, county: 'BATANGAS' },
+      { enabled: activeTab === 'BATANGAS' || searching }
+    ),
+    RIZAL:    useProvinceTotalSamples(
+      { date_from, date_to, county: 'RIZAL'    },
+      { enabled: activeTab === 'RIZAL'    || searching }
+    ),
+    QUEZON:   useProvinceTotalSamples(
+      { date_from, date_to, county: 'QUEZON'   },
+      { enabled: activeTab === 'QUEZON'   || searching }
+    ),
+  };
+
   const nearbyLopezQuery = useNearbyLopezTotalSamples({ date_from, date_to });
 
+  // ── Close suggestions on outside click ──
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // ── Build cross-tab search results ──
+  const buildMatches = useCallback((query: string): SearchMatch[] => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    const results: SearchMatch[] = [];
+
+    const tabDataMap: { tab: TableVariant; label: string; data: RowData[] }[] = [
+      ...PROVINCE_TABS.map(t => ({
+        tab:   t.key as TableVariant,
+        label: t.label,
+        data:  provinceQueries[t.key].data?.data ?? [],
+      })),
+      {
+        tab:   'NEARBY_LOPEZ' as TableVariant,
+        label: 'Nearby Lopez',
+        data:  nearbyLopezQuery.data?.data ?? [],
+      },
+    ];
+
+    for (const { tab, label, data } of tabDataMap) {
+      for (const row of data) {
+        for (const b of row.breakdown) {
+          if (
+            b.descr1.toLowerCase().includes(q) ||
+            b.submid.toLowerCase().includes(q) ||
+            row.city.toLowerCase().includes(q)
+          ) {
+            results.push({
+              tab,
+              tabLabel:     label,
+              city:         row.city,
+              facilityName: b.descr1,
+              submid:       b.submid,
+            });
+          }
+        }
+      }
+    }
+    return results;
+  }, [provinceQueries, nearbyLopezQuery]);
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setHighlightFacility(null);
+    setSearchFoundInTab(null);
+    if (value.trim()) {
+      const matches = buildMatches(value);
+      setSearchMatches(matches);
+      setShowSuggestions(true);
+    } else {
+      setSearchMatches([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSelectMatch = (match: SearchMatch) => {
+    setShowSuggestions(false);
+    setSearchQuery(match.facilityName);
+    setHighlightFacility(match.submid);
+
+    // Switch tab if needed
+    if (match.tab !== activeTab) {
+      setSearchFoundInTab(match.tabLabel);
+      setActiveTab(match.tab);
+      setExpandedCities(new Set([match.city]));
+    } else {
+      setSearchFoundInTab(null);
+      setExpandedCities(prev => {
+        const next = new Set(prev);
+        next.add(match.city);
+        return next;
+      });
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchMatches([]);
+    setShowSuggestions(false);
+    setHighlightFacility(null);
+    setSearchFoundInTab(null);
+  };
+
+  // ── Existing logic ──
   const isProvinceTab = activeTab !== 'NEARBY_LOPEZ';
 
   const activeData: RowData[] = isProvinceTab
@@ -252,6 +441,8 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
   const handleTabChange = (tab: TableVariant) => {
     setActiveTab(tab);
     setExpandedCities(new Set());
+    setHighlightFacility(null);
+    setSearchFoundInTab(null);
   };
 
   const handleExportCSV = () => {
@@ -292,6 +483,14 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
     });
   };
 
+  // Group matches by tab for the dropdown
+  const matchesByTab = searchMatches.reduce<Record<string, SearchMatch[]>>((acc, m) => {
+    const key = m.tabLabel;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(m);
+    return acc;
+  }, {});
+
   return (
     <div className="w-full flex flex-col rounded-2xl shadow-lg overflow-hidden bg-white dark:bg-gray-900 transition-all duration-300">
 
@@ -325,8 +524,72 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Header row 2: actions ── */}
+      {/* ── Header row 2: search + actions ── */}
       <div className="flex items-center gap-2 px-5 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+
+        {/* Search box */}
+        <div ref={searchRef} className="relative flex-1 max-w-xs">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search facility name…"
+            value={searchQuery}
+            onChange={e => handleSearchChange(e.target.value)}
+            onFocus={() => searchQuery.trim() && setShowSuggestions(true)}
+            className="w-full h-7 pl-7 pr-7 text-xs rounded-lg border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {searchQuery && (
+            <button
+              onClick={clearSearch}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X size={12} />
+            </button>
+          )}
+
+          {/* Suggestions dropdown */}
+          {showSuggestions && searchQuery.trim() && (
+            <div className="absolute left-0 top-full mt-1 w-80 max-h-64 overflow-y-auto rounded-lg shadow-xl border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 z-30">
+              {searchMatches.length === 0 ? (
+                <div className="px-4 py-3 text-xs text-gray-400">
+                  No facilities found across all tabs.
+                </div>
+              ) : (
+                Object.entries(matchesByTab).map(([tabLabel, matches]) => (
+                  <div key={tabLabel}>
+                    <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-blue-500 bg-blue-50 dark:bg-blue-900/20 sticky top-0">
+                      {tabLabel} · {matches.length} result{matches.length !== 1 ? 's' : ''}
+                    </div>
+                    {matches.map((m, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSelectMatch(m)}
+                        className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-t border-gray-100 dark:border-gray-700 first:border-0"
+                      >
+                        <div className="text-xs text-gray-800 dark:text-gray-100 truncate font-medium">
+                          {m.facilityName}
+                        </div>
+                        <div className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
+                          <span className="font-mono">{m.submid}</span>
+                          <span>·</span>
+                          <span>{m.city}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Tab-switched notice */}
+        {searchFoundInTab && (
+          <span className="text-[10px] text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-md shrink-0">
+            Switched to <strong>{searchFoundInTab}</strong>
+          </span>
+        )}
+
         {activeData.length > 0 && !isLoading && (
           <>
             <button
@@ -378,8 +641,6 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
 
       {/* ── Tabs ── */}
       <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-x-auto">
-
-        {/* Province tabs */}
         {PROVINCE_TABS.map(tab => {
           const query = provinceQueries[tab.key];
           const count = query.data?.total_records;
@@ -405,10 +666,8 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
           );
         })}
 
-        {/* Divider */}
         <div className="w-px bg-gray-200 dark:bg-gray-700 my-1.5 mx-1 shrink-0" />
 
-        {/* Nearby Lopez tab */}
         <button
           onClick={() => handleTabChange('NEARBY_LOPEZ')}
           className={`px-5 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
@@ -435,6 +694,8 @@ export const QuezonNearbyLopezSamplesTable: React.FC = () => {
           isLoading={isLoading}
           expandedCities={expandedCities}
           onToggleCity={toggleCity}
+          searchQuery={searchQuery}
+          highlightFacility={highlightFacility}
         />
       </div>
     </div>
