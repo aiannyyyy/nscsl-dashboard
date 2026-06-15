@@ -34,7 +34,7 @@ const mapUserToFrontend = (user) => {
 
   return {
     id: user.user_id.toString(),
-    email: user.username,
+    email: user.email,
     name: user.name,
     role: role,
     department: department,
@@ -124,9 +124,9 @@ exports.login = async (req, res) => {
 // @access  Public
 exports.register = async (req, res) => {
   try {
-    const { username, password, name, dept, position, role } = req.body;
+    const { username, password, name, dept, email, position, role } = req.body;
 
-    if (!username || !password || !name || !dept || !position) {
+    if (!username || !password || !name || !dept || !email || !position) {
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields'
@@ -150,8 +150,8 @@ exports.register = async (req, res) => {
     // Insert user with hashed password
     const userRole = role || 'user';
     const [result] = await db.query(
-      'INSERT INTO user (username, password, name, dept, position, role) VALUES (?, ?, ?, ?, ?, ?)',
-      [username, hashedPassword, name, dept, position, userRole]
+      'INSERT INTO user (username, password, name, dept, email, position, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [username, hashedPassword, name, dept, email, position, userRole]
     );
 
     // Generate token
@@ -159,7 +159,7 @@ exports.register = async (req, res) => {
 
     const userData = {
       id: result.insertId.toString(),
-      email: username,
+      email: email,
       name: name,
       role: userRole,
       department: dept.toLowerCase(),
