@@ -166,6 +166,7 @@ database.createOraclePool()
 
 // Store MySQL pool in app.locals
 app.locals.mysqlDb = database.mysqlPool;
+app.locals.inhouseDb = database.inhousePool;
 
 // ============================================
 // API ROUTES
@@ -267,6 +268,9 @@ app.use('/api/followup/summary-cards', require('./routes/FollowupRoutes/followup
 // Followup CMS Urgent
 app.use('/api/followup/cms-urgent', require('./routes/FollowupRoutes/cmsUrgentRoutes'));
 
+// Followup auto Mailer
+app.use('/api/followup/auto-mailer', require('./routes/FollowupRoutes/autoMailerRoutes'));
+
 // Patient Information System
 app.use('/api/laboratory/pis', require('./routes/LaboratoryRoutes/pisRoutes'));
 
@@ -277,9 +281,24 @@ app.use('/api/users', require('./routes/LaboratoryRoutes/userRoutes'));
 app.use("/api/unsat", require("./routes/PDORoutes/unsatRoutes"));
 
 // ============================================
-// CHAT ROUTES  ← NEW
+// CHAT ROUTES
 // ============================================
 app.use('/api/chat', require('./routes/ChatRoutes/chatRoutes'));
+
+
+
+// ============================================
+// INTRANET ROUTES
+// ============================================
+app.use('/api/intranet/share', require('./routes/IntranetRoutes/shareRoutes'));
+
+app.use('/api/intranet/files', require('./routes/IntranetRoutes/fileRoutes'));
+
+app.use('/api/intranet/categories', require('./routes/IntranetRoutes/categoryRoutes'));
+
+app.use('/api/intranet/move', require('./routes/IntranetRoutes/moveRoutes'));
+
+app.use('/api/intranet/category-move', require('./routes/IntranetRoutes/categoryMoveRoutes'));
 
 // NSF Performance
 app.use("/api", require("./routes/PDORoutes/nsfPerformanceRoutes"));
@@ -396,6 +415,11 @@ async function gracefulShutdown(signal) {
         if (database.mysqlPool) {
             await database.mysqlPool.end();
             console.log('✅ MySQL pool closed');
+        }
+
+        if (database.inhousePool) {
+            await database.inhousePool.end();
+            console.log('✅ Intranet MySQL pool closed');
         }
 
         console.log('✅ All connections closed successfully');

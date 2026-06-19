@@ -10,7 +10,25 @@ import {
 } from 'lucide-react';
 import { useNSFSummaryCards, useNSFSummaryTrend } from '../../../hooks/PDOHooks/useNSFFacilities';
 
-export const NSFSummaryCards: React.FC = () => {
+// ── BEFORE ────────────────────────────────────────────────────────────────────
+// export const NSFSummaryCards: React.FC = () => {
+//   const { data: current,  isLoading: curLoading  } = useNSFSummaryCards();
+//   const { data: thisTrend, isLoading: thisLoading } = useNSFSummaryTrend({ month: curMonth,  year: curYear  });
+//   const { data: lastTrend, isLoading: prevLoading } = useNSFSummaryTrend({ month: prevMonth, year: prevYear });
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── AFTER ─────────────────────────────────────────────────────────────────────
+// 1. Added NSFSummaryCardsProps interface with optional province
+// 2. Component accepts province prop
+// 3. province forwarded to all 3 hook calls so cards + trend deltas
+//    all reflect the selected province (or all provinces if undefined)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface NSFSummaryCardsProps {
+  province?: string;
+}
+
+export const NSFSummaryCards: React.FC<NSFSummaryCardsProps> = ({ province }) => {
   const now = new Date();
 
   const curMonth  = String(now.getMonth() + 1);
@@ -21,11 +39,13 @@ export const NSFSummaryCards: React.FC = () => {
   const prevYear  = String(prevDate.getFullYear());
 
   // All-time totals — big displayed numbers
-  const { data: current, isLoading: curLoading } = useNSFSummaryCards();
+  // CHANGED: added province to params
+  const { data: current, isLoading: curLoading } = useNSFSummaryCards({ province });
 
   // Trend — from reactivation_logs, this month vs last month
-  const { data: thisTrend, isLoading: thisLoading } = useNSFSummaryTrend({ month: curMonth,  year: curYear  });
-  const { data: lastTrend, isLoading: prevLoading } = useNSFSummaryTrend({ month: prevMonth, year: prevYear });
+  // CHANGED: added province to both trend calls
+  const { data: thisTrend, isLoading: thisLoading } = useNSFSummaryTrend({ month: curMonth,  year: curYear,  province });
+  const { data: lastTrend, isLoading: prevLoading } = useNSFSummaryTrend({ month: prevMonth, year: prevYear, province });
 
   const cur    = current   ?? { total: 0, active: 0, inactive: 0, closed: 0, partner: 0 };
   const thisMo = thisTrend ?? { total: 0, active: 0, inactive: 0, closed: 0, partner: 0 };

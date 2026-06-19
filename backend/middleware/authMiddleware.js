@@ -1,4 +1,5 @@
 // middleware/authMiddleware.js
+
 const jwt = require('jsonwebtoken');
 const { database } = require('../config');
 

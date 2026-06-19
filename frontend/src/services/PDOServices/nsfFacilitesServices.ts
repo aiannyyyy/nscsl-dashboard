@@ -8,7 +8,7 @@ export type NSFReactivationFlag  = 'needs_reactivation' | 'ok';
 
 export interface NSFFacility {
     id?: number;
-    facility_code: string;                // ← varchar
+    facility_code: string;
     facility_name: string;
     category?: string | null;
     type1?: string | null;
@@ -24,7 +24,7 @@ export interface NSFFacility {
     province?: string | null;
     region?: string | null;
     date_accredited?: string | null;
-    year_accredited?: string | null;      // ← varchar
+    year_accredited?: string | null;
     status: NSFStatus;
     last_po_date?: string | null;
     po_number?: string | null;
@@ -51,7 +51,7 @@ export interface NSFStatusDistribution {
 
 export interface NSFReactivationRecord {
     id: number;
-    facility_code: string;                // ← varchar
+    facility_code: string;
     facility_name: string;
     status: NSFStatus;
     last_sample_sent: string | null;
@@ -66,7 +66,7 @@ export interface NSFReactivationLog {
     id: number;
     facility_id: number;
     facility_name: string;
-    facility_code: string;                // ← varchar
+    facility_code: string;
     province: string | null;
     action: NSFLogAction;
     old_status: NSFStatus | null;
@@ -76,7 +76,6 @@ export interface NSFReactivationLog {
     created_at: string;
 }
 
-// ── Reactivated by province (chart data) ─────────────────────────────────────
 export interface NSFReactivatedByProvince {
     province: string;
     count: number;
@@ -98,6 +97,7 @@ export interface NSFReactivationParams {
     month?: string;
     year?: string;
     action?: 'reactivated' | 'deactivated';
+    province?: string;
 }
 
 export interface NSFReactivationLogsParams {
@@ -107,6 +107,13 @@ export interface NSFReactivationLogsParams {
     limit?: number;
     month?: string;
     year?: string;
+    province?: string;
+}
+
+export interface NSFSummaryTrendParams {
+    month?: string;
+    year?: string;
+    province?: string;
 }
 
 // ── PAGINATED RESPONSE ────────────────────────────────────────────────────────
@@ -123,6 +130,8 @@ export interface PaginatedResponse<T> {
 
 class NSFFacilitiesService {
 
+    // ── Facilities CRUD ───────────────────────────────────────────────────────
+
     async getAll(params?: NSFFilterParams): Promise<PaginatedResponse<NSFFacility>> {
         const response = await api.get('/nsf', { params });
         return response.data;
@@ -130,43 +139,6 @@ class NSFFacilitiesService {
 
     async getById(id: number): Promise<NSFFacility> {
         const response = await api.get(`/nsf/${id}`);
-        return response.data.data;
-    }
-
-    async getSummaryCards(params?: NSFFilterParams): Promise<NSFSummaryCards> {
-        const response = await api.get('/nsf/summary', { params });
-        return response.data;
-    }
-
-    async getStatusDistribution(): Promise<NSFStatusDistribution[]> {
-        const response = await api.get('/nsf/distribution');
-        return response.data.data;
-    }
-
-    // Pure read — no mutations, safe to call freely
-    async getReactivationStatus(params?: NSFReactivationParams): Promise<{
-        data: NSFReactivationRecord[];
-    }> {
-        const response = await api.get('/nsf/reactivation', { params });
-        return response.data;
-    }
-
-    // ✅ Chart data — only reactivated facilities grouped by province
-    async getReactivatedByProvince(params?: NSFReactivationParams): Promise<{
-        data: NSFReactivatedByProvince[];
-        total: number;
-    }> {
-        const response = await api.get('/nsf/reactivation/by-province', { params });
-        return response.data;
-    }
-
-    async getReactivationLogs(params?: NSFReactivationLogsParams): Promise<PaginatedResponse<NSFReactivationLog>> {
-        const response = await api.get('/nsf/reactivation/logs', { params });
-        return response.data;
-    }
-
-    async getProvinces(): Promise<string[]> {
-        const response = await api.get('/nsf/provinces');
         return response.data.data;
     }
 
@@ -192,10 +164,53 @@ class NSFFacilitiesService {
         return response.data;
     }
 
-    async getSummaryTrend(params?: { month?: string; year?: string }): Promise<NSFSummaryCards> {
+    // ── Charts & Cards ────────────────────────────────────────────────────────
+
+    async getSummaryCards(params?: NSFFilterParams): Promise<NSFSummaryCards> {
+        const response = await api.get('/nsf/summary', { params });
+        return response.data;
+    }
+
+    async getSummaryTrend(params?: NSFSummaryTrendParams): Promise<NSFSummaryCards> {
         const response = await api.get('/nsf/summary/trend', { params });
         return response.data;
     }
+
+    async getStatusDistribution(params?: Pick<NSFFilterParams, 'province'>): Promise<NSFStatusDistribution[]> {
+        const response = await api.get('/nsf/distribution', { params });
+        return response.data.data;
+    }
+
+    // ── Reactivation ──────────────────────────────────────────────────────────
+
+    async getReactivationStatus(params?: NSFReactivationParams): Promise<{
+        data: NSFReactivationRecord[];
+    }> {
+        const response = await api.get('/nsf/reactivation', { params });
+        return response.data;
+    }
+
+    async getReactivatedByProvince(params?: NSFReactivationParams): Promise<{
+        data: NSFReactivatedByProvince[];
+        total: number;
+    }> {
+        const response = await api.get('/nsf/reactivation/by-province', { params });
+        return response.data;
+    }
+
+    async getReactivationLogs(params?: NSFReactivationLogsParams): Promise<PaginatedResponse<NSFReactivationLog>> {
+        const response = await api.get('/nsf/reactivation/logs', { params });
+        return response.data;
+    }
+
+    // ── Provinces ─────────────────────────────────────────────────────────────
+
+    async getProvinces(): Promise<string[]> {
+        const response = await api.get('/nsf/provinces');
+        return response.data.data;
+    }
+
+    // ── Sync ──────────────────────────────────────────────────────────────────
 
     async syncLastSampleSent(): Promise<{
         message: string;

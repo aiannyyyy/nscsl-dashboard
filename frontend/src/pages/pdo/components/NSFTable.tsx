@@ -2,11 +2,35 @@
 import React, { useState, useMemo } from 'react';
 import { Eye, Edit, FileDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { usePermissions } from '../../../hooks/usePermission';
-import { useNSFFacilities } from '../../../hooks/PDOHooks/useNSFFacilities';
+import { usePermissions }    from '../../../hooks/usePermission';
+import { useNSFFacilities }  from '../../../hooks/PDOHooks/useNSFFacilities';
 import { AddNSFFacilityModal } from './AddNSFFacilityModal';
-import { NSFDetailModal } from './NSFDetailModal';
+import { NSFDetailModal }      from './NSFDetailModal';
 import type { NSFFacility, NSFFilterParams } from '../../../services/PDOServices/nsfFacilitesServices';
+
+// ── BEFORE ────────────────────────────────────────────────────────────────────
+// interface NSFTableProps {
+//     filterParams?:      NSFFilterParams;
+//     filterLabel?:       string;
+//     searchPlaceholder?: string;
+//     deletedBy?:         string;
+//     provinces?:         string[];
+// }
+//
+// No changes to props — NSFTable already accepted filterParams and spread it
+// into the API call. The parent now passes { province } inside filterParams,
+// which flows through automatically. The only additions are:
+//   1. Province badge shown in the toolbar when filterLabel is set
+//   2. Empty-state message updated to mention the province
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── AFTER ─────────────────────────────────────────────────────────────────────
+// Props are unchanged — province arrives via filterParams.province.
+// Visual additions:
+//   - Filter badge in toolbar shows the active province label
+//   - Empty state distinguishes between "no results for this province"
+//     vs "no records at all"
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type NSFRecord = NSFFacility & { [key: string]: any };
@@ -73,8 +97,9 @@ export const NSFTable: React.FC<NSFTableProps> = ({
     const [editOpen,     setEditOpen]     = useState(false);
     const [addOpen,      setAddOpen]      = useState(false);
 
+    // province arrives via filterParams.province — no extra state needed
     const params: NSFFilterParams = useMemo(() => ({
-        ...filterParams,
+        ...filterParams,               // ← province comes through here
         search: search.trim() || undefined,
         page,
         limit,
@@ -99,6 +124,7 @@ export const NSFTable: React.FC<NSFTableProps> = ({
     const handleSearch = (v: string) => { setSearch(v); setPage(1); };
     const handleLimit  = (v: number) => { setLimit(v);  setPage(1); };
 
+    // CHANGED: reset to page 1 whenever filterParams changes (e.g. province switch)
     const filterParamsKey = JSON.stringify(filterParams);
     React.useEffect(() => { setPage(1); }, [filterParamsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -137,7 +163,9 @@ export const NSFTable: React.FC<NSFTableProps> = ({
             ws['!cols'] = Array(22).fill({ wch: 20 });
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'NSF Data');
-            XLSX.writeFile(wb, `NSF_Data_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            // CHANGED: include province in filename when filtered
+            const provinceSuffix = filterParams?.province ? `_${filterParams.province.replace(/\s+/g, '_')}` : '';
+            XLSX.writeFile(wb, `NSF_Data${provinceSuffix}_${new Date().toISOString().slice(0, 10)}.xlsx`);
         } catch (err) {
             console.error('Export failed:', err);
             alert('Failed to export to Excel.');
@@ -155,11 +183,14 @@ export const NSFTable: React.FC<NSFTableProps> = ({
                     {/* Toolbar */}
                     <div className="flex justify-between items-center mb-4 gap-4 flex-wrap">
                         <div className="flex gap-2 items-center flex-wrap">
+
+                            {/* CHANGED: province badge — shown when a province is active */}
                             {filterLabel && (
                                 <span className="h-9 px-3 flex items-center text-xs rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-medium gap-1.5">
-                                    <span className="opacity-60">Filters:</span> {filterLabel}
+                                    <span className="opacity-60">Province:</span> {filterLabel}
                                 </span>
                             )}
+
                             <select
                                 value={limit}
                                 onChange={e => handleLimit(Number(e.target.value))}
@@ -167,6 +198,7 @@ export const NSFTable: React.FC<NSFTableProps> = ({
                             >
                                 {PAGE_SIZES.map(s => <option key={s} value={s}>Show {s}</option>)}
                             </select>
+
                             {isLoading && (
                                 <div className="w-4 h-4 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
                             )}
@@ -211,10 +243,20 @@ export const NSFTable: React.FC<NSFTableProps> = ({
                         ) : !isLoading && records.length === 0 ? (
                             <div className="bg-gray-50 dark:bg-gray-800 py-20 text-center">
                                 <h5 className="text-gray-800 dark:text-gray-200 font-semibold text-lg mb-1">
-                                    {search ? 'No matching records found' : 'No records found'}
+                                    {/* CHANGED: province-aware empty state heading */}
+                                    {search
+                                        ? 'No matching records found'
+                                        : filterParams?.province
+                                            ? `No records found in ${filterParams.province}`
+                                            : 'No records found'
+                                    }
                                 </h5>
                                 <p className="text-gray-500 dark:text-gray-400 text-sm">
-                                    {search ? `No records match "${search}"` : 'Try adjusting your filters.'}
+                                    {/* CHANGED: province-aware empty state sub-text */}
+                                    {search
+                                        ? `No records match "${search}"${filterParams?.province ? ` in ${filterParams.province}` : ''}`
+                                        : 'Try adjusting your filters.'
+                                    }
                                 </p>
                             </div>
                         ) : (
@@ -285,6 +327,10 @@ export const NSFTable: React.FC<NSFTableProps> = ({
                                         <span className="font-medium">{(page - 1) * limit + 1}–{Math.min(page * limit, total)}</span>
                                         {' '}of{' '}
                                         <span className="font-medium">{total.toLocaleString()}</span> records
+                                        {/* CHANGED: show province context in record count */}
+                                        {filterParams?.province && (
+                                            <span className="text-gray-400"> in {filterParams.province}</span>
+                                        )}
                                     </>
                                 )}
                             </p>

@@ -29,10 +29,10 @@ import { Calendar } from './pages/pdo/Calendar';
 import { General } from './pages/settings/General';
 import { User } from './pages/settings/User';
 import { ChangePassword } from './pages/settings/ChangePassword';
-import { G6PDReport } from './pages/followup/G6PDReport';
+import { AutoMailerReport } from './pages/followup/AutoMailerReport';
 import { Overview } from './pages/intranet/Overview';
 import { Categories } from './pages/intranet/Categories';
-import { Files } from './pages/intranet/Files';
+import { Files } from './pages/intranet/Files'
 
 
 // Create a QueryClient instance
@@ -92,7 +92,7 @@ function App() {
               <Route path="followup/logbook-endorsement" element={<LogbookEndorsement />} />
               <Route path="followup/cms-urgent" element={ <CMSUrgent /> } />
               <Route path="followup/patient-information-system" element={<FollowUpPatientInformationSystem />} />
-              <Route path="followup/g6pd-report" element={<G6PDReport />} />
+              <Route path="followup/automailer-report" element={<AutoMailerReport />} />
 
               {/* IT Job Order Routes */}
               <Route path="it-job-order" element={<ITJobOrderOverview />} />

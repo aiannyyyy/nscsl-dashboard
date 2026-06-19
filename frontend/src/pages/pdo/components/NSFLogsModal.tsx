@@ -23,6 +23,7 @@ interface NSFLogsModalProps {
     facilityId?: number;
     month?:      string;
     year?:       string;
+    province?:   string;   // ← ADDED: filters logs to selected province
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -112,7 +113,7 @@ const RemarksCell: React.FC<{ text: string | null }> = ({ text }) => {
 };
 
 // ─── CSV Export Helper ────────────────────────────────────────────────────────
-const exportToCSV = (logs: any[], title: string, periodLabel: string) => {
+const exportToCSV = (logs: any[], title: string, periodLabel: string, province?: string) => {
     const headers = ['Facility Name', 'Facility Code', 'Action', 'Old Status', 'New Status', 'Province', 'Remarks', 'By', 'Date'];
     const rows = logs.map(log => [
         log.facility_name ?? '',
@@ -132,7 +133,9 @@ const exportToCSV = (logs: any[], title: string, periodLabel: string) => {
     const url  = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href     = url;
-    link.download = `${title.replace(/[^a-zA-Z0-9]/g, '_')}${periodLabel ? `_${periodLabel.replace(/\s+/g, '_')}` : ''}.csv`;
+    // CHANGED: include province in filename when filtered
+    const provincePart = province ? `_${province.replace(/\s+/g, '_')}` : '';
+    link.download = `${title.replace(/[^a-zA-Z0-9]/g, '_')}${provincePart}${periodLabel ? `_${periodLabel.replace(/\s+/g, '_')}` : ''}.csv`;
     link.click();
     URL.revokeObjectURL(url);
 };
@@ -168,18 +171,20 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
     facilityId,
     month,
     year,
+    province,   // ← ADDED
 }) => {
     const [page,               setPage]               = React.useState(1);
     const [activeFilter,       setActiveFilter]       = React.useState<FilterAction>('all');
     const [knownActions,       setKnownActions]       = React.useState<Set<string>>(new Set());
     const [selectedFacilityId, setSelectedFacilityId] = React.useState<number | null>(null);
 
+    // CHANGED: reset page when province changes too
     React.useEffect(() => {
         setPage(1);
         setActiveFilter(actionProp ?? 'all');
         setKnownActions(new Set());
         setSelectedFacilityId(null);
-    }, [month, year, actionProp, facilityId, open]);
+    }, [month, year, actionProp, facilityId, province, open]); // ← added province
 
     const LIMIT = 8;
     const resolvedAction = activeFilter === 'all' ? undefined : activeFilter;
@@ -193,6 +198,7 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
                 limit:       LIMIT,
                 month:       month !== 'All' ? month : undefined,
                 year,
+                province,    // ← ADDED: passed straight to the hook → API
             }
             : undefined
     );
@@ -247,6 +253,14 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
                                         {periodLabel}
                                     </span>
                                 )}
+
+                                {/* CHANGED: province badge shown in header when filtered */}
+                                {province && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-700 text-xs font-medium text-violet-700 dark:text-violet-300">
+                                        {province}
+                                    </span>
+                                )}
+
                                 {!isLoading && (
                                     <span className="text-xs text-gray-400 dark:text-gray-500">
                                         {total.toLocaleString()} log{total !== 1 ? 's' : ''} found
@@ -288,7 +302,7 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
                                 </div>
                             )}
 
-                            {/* Show a locked badge instead when opened from the chart */}
+                            {/* Locked badge when opened from a chart */}
                             {!isLoading && total > 0 && actionProp && (
                                 <div className="flex items-center gap-1.5 mt-2">
                                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full ${ACTION_ACTIVE_STYLES[actionProp]}`}>
@@ -319,6 +333,10 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
                         ) : logs.length === 0 ? (
                             <div className="py-20 text-center text-sm text-gray-400 dark:text-gray-500">
                                 No logs found
+                                {/* CHANGED: province-aware empty state */}
+                                {province && (
+                                    <> in <span className="font-medium text-gray-600 dark:text-gray-300">{province}</span></>
+                                )}
                                 {periodLabel && (
                                     <> for <span className="font-medium text-gray-600 dark:text-gray-300">{periodLabel}</span></>
                                 )}
@@ -452,8 +470,9 @@ export const NSFLogsModal: React.FC<NSFLogsModalProps> = ({
                             </button>
                         </div>
                         <div className="flex items-center gap-2">
+                            {/* CHANGED: pass province to exportToCSV for filename */}
                             <button
-                                onClick={() => exportToCSV(logs, title, periodLabel)}
+                                onClick={() => exportToCSV(logs, title, periodLabel, province)}
                                 disabled={logs.length === 0 || isLoading}
                                 className="h-8 px-3 text-xs rounded-lg border border-teal-500 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
                             >

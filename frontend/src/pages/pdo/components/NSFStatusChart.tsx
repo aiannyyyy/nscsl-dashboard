@@ -8,6 +8,18 @@ import { downloadChart } from '../../../utils/chartDownloadUtils';
 import { useNSFStatusDistribution } from '../../../hooks/PDOHooks/useNSFFacilities';
 import { NSFLogsModal } from './NSFLogsModal';
 
+// ── BEFORE ────────────────────────────────────────────────────────────────────
+// export const NSFStatusChart: React.FC = () => {
+//   const { data = [], isLoading, isError } = useNSFStatusDistribution();
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── AFTER ─────────────────────────────────────────────────────────────────────
+// 1. Added NSFStatusChartProps interface with optional province
+// 2. Component accepts province prop
+// 3. province forwarded to useNSFStatusDistribution so the pie chart
+//    reflects only facilities in the selected province (or all if undefined)
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const ALLOWED_STATUSES = ['active', 'inactive', 'closed', 'partner'];
 
@@ -18,9 +30,16 @@ const STATUS_COLORS: Record<string, string> = {
   partner:  '#FFCE56',
 };
 
+// ─── Props ────────────────────────────────────────────────────────────────────
+interface NSFStatusChartProps {
+  province?: string; // CHANGED: added province prop
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
-export const NSFStatusChart: React.FC = () => {
-  const { data = [], isLoading, isError } = useNSFStatusDistribution();
+export const NSFStatusChart: React.FC<NSFStatusChartProps> = ({ province }) => {
+  // CHANGED: pass province to hook so chart filters by selected province
+  const { data = [], isLoading, isError } = useNSFStatusDistribution({ province });
+
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [logsOpen,         setLogsOpen]         = useState(false);
 
@@ -54,9 +73,9 @@ export const NSFStatusChart: React.FC = () => {
   const renderCustomLabel = ({ cx, cy, midAngle, outerRadius, value, name }: any) => {
     if (!name || value === undefined || total === 0) return null;
     const pct = (value / total) * 100;
-    if (pct < 5) return null; // skip tiny slices
+    if (pct < 5) return null;
 
-    const RADIAN     = Math.PI / 180;
+    const RADIAN      = Math.PI / 180;
     const labelRadius = outerRadius + 45;
     const x           = cx + labelRadius * Math.cos(-midAngle * RADIAN);
     const y           = cy + labelRadius * Math.sin(-midAngle * RADIAN);
@@ -86,7 +105,13 @@ export const NSFStatusChart: React.FC = () => {
         <div className="flex justify-between items-start px-5 py-4 border-b bg-gray-50 dark:bg-gray-800 dark:border-gray-700 rounded-t-2xl">
           <div>
             <h4 className="font-semibold text-gray-800 dark:text-gray-100">NSF Status Distribution</h4>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Active · Inactive · Closed · Partner</p>
+            {/* CHANGED: show province in subtitle when one is selected */}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Active · Inactive · Closed · Partner
+              {province && (
+                <span className="ml-1 text-blue-500 dark:text-blue-400">— {province}</span>
+              )}
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -134,7 +159,10 @@ export const NSFStatusChart: React.FC = () => {
           ) : isError ? (
             <span className="text-sm text-red-500">Failed to load chart data</span>
           ) : chartData.length === 0 ? (
-            <span className="text-sm text-gray-400 dark:text-gray-500">No data available</span>
+            <span className="text-sm text-gray-400 dark:text-gray-500">
+              {/* CHANGED: show province name in empty state */}
+              No data available{province ? ` for ${province}` : ''}
+            </span>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart margin={{ top: 30, right: 80, bottom: 30, left: 80 }}>
@@ -180,12 +208,13 @@ export const NSFStatusChart: React.FC = () => {
         )}
       </div>
 
-      {/* Logs Modal — shows all status change logs (reactivated + deactivated) */}
+      {/* Logs Modal */}
       <NSFLogsModal
         open={logsOpen}
         onClose={() => setLogsOpen(false)}
         title="Facility Status Change Logs"
         subtitle="All reactivation and deactivation history across facilities"
+        province={province}
       />
     </>
   );

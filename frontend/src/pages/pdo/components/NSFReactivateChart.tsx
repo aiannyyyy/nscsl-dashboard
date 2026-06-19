@@ -8,6 +8,23 @@ import { downloadChart } from '../../../utils/chartDownloadUtils';
 import { useNSFReactivatedByProvince } from '../../../hooks/PDOHooks/useNSFFacilities';
 import { NSFLogsModal } from './NSFLogsModal';
 
+// ── BEFORE ────────────────────────────────────────────────────────────────────
+// export const NSFReactivateChart: React.FC = () => {
+//   const filterParams = useMemo(() => ({
+//     month:  month !== 'All' ? month : undefined,
+//     year,
+//     action: actionFilter,
+//   }), [month, year, actionFilter]);
+//   const { data: resp, isLoading, isError } = useNSFReactivatedByProvince(filterParams);
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── AFTER ─────────────────────────────────────────────────────────────────────
+// 1. Added NSFReactivateChartProps interface with optional province
+// 2. Component accepts province prop
+// 3. province added to filterParams memo (and its dependency array)
+//    so the chart refetches whenever the province changes
+// ─────────────────────────────────────────────────────────────────────────────
+
 const PROVINCE_COLORS = [
   '#4F86C6', '#F4A261', '#2A9D8F', '#E76F51', '#8B5CF6',
   '#06B6D4', '#F59E0B', '#10B981', '#EF4444', '#EC4899',
@@ -56,7 +73,12 @@ const ACTION_THEME: Record<ActionFilter, {
 
 const selectCls = "h-8 px-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500";
 
-export const NSFReactivateChart: React.FC = () => {
+// ─── Props ────────────────────────────────────────────────────────────────────
+interface NSFReactivateChartProps {
+  province?: string; // CHANGED: added province prop
+}
+
+export const NSFReactivateChart: React.FC<NSFReactivateChartProps> = ({ province }) => {
   const now = new Date();
 
   const [month,            setMonth]            = useState(String(now.getMonth() + 1));
@@ -69,11 +91,13 @@ export const NSFReactivateChart: React.FC = () => {
     String(now.getFullYear() - 3 + i)
   );
 
+  // CHANGED: province added to filterParams and its dependency array
   const filterParams = useMemo(() => ({
-    month:  month !== 'All' ? month : undefined,
+    month:    month !== 'All' ? month : undefined,
     year,
-    action: actionFilter,
-  }), [month, year, actionFilter]);
+    action:   actionFilter,
+    province, // ← new
+  }), [month, year, actionFilter, province]);
 
   const { data: resp, isLoading, isError } = useNSFReactivatedByProvince(filterParams);
 
@@ -129,10 +153,9 @@ export const NSFReactivateChart: React.FC = () => {
   }: any) => {
     if (!name || value === undefined || total === 0) return null;
     const pct = (value / total) * 100;
-    if (pct < 5) return null; // skip tiny slices
+    if (pct < 5) return null;
 
-    const RADIAN     = Math.PI / 180;
-    // Place label at midpoint between inner edge and well outside outer edge
+    const RADIAN      = Math.PI / 180;
     const labelRadius = outerRadius + 45;
     const x           = cx + labelRadius * Math.cos(-midAngle * RADIAN);
     const y           = cy + labelRadius * Math.sin(-midAngle * RADIAN);
@@ -168,8 +191,12 @@ export const NSFReactivateChart: React.FC = () => {
               </h4>
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${theme.dot}`} />
             </div>
+            {/* CHANGED: show province in subtitle when one is selected */}
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 whitespace-nowrap">
               {actionLabel} facilities by province — {periodLabel}
+              {province && (
+                <span className="ml-1 text-blue-500 dark:text-blue-400">— {province}</span>
+              )}
             </p>
           </div>
 
@@ -249,7 +276,8 @@ export const NSFReactivateChart: React.FC = () => {
             <span className="text-sm text-red-500">Failed to load chart data</span>
           ) : chartData.length === 0 ? (
             <span className="text-sm text-gray-400 dark:text-gray-500">
-              {theme.empty} for {periodLabel}
+              {/* CHANGED: show province name in empty state */}
+              {theme.empty}{province ? ` in ${province}` : ''} for {periodLabel}
             </span>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -310,6 +338,7 @@ export const NSFReactivateChart: React.FC = () => {
         action={actionFilter}
         month={month}
         year={year}
+        province={province}
       />
     </>
   );

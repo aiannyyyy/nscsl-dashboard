@@ -221,7 +221,7 @@ const initSyncCron = (app) => {
     console.log('[Cron] ✅ All syncs scheduled (last_sample_sent @ :00, reactivation @ :05)');
 };
 
-
+/*
 // ── GET ALL FACILITIES (pagination + search) ──────────────────────────────────
 const getAllNSFFacilities = async (req, res) => {
     try {
@@ -263,6 +263,43 @@ const getAllNSFFacilities = async (req, res) => {
             limit:       limit,
             total_pages: Math.ceil(total / limit),
         });
+    } catch (err) {
+        console.error("getAllNSFFacilities error:", err);
+        res.status(500).json({ error: "Failed to fetch facilities", message: err.message });
+    }
+};
+*/
+const getAllNSFFacilities = async (req, res) => {
+    try {
+        const page     = parseInt(req.query.page)  || 1;
+        const limit    = parseInt(req.query.limit) || 20;
+        const offset   = (page - 1) * limit;
+        const search   = req.query.search?.trim()   || null;
+        const province = req.query.province?.trim() || null; // ← add
+
+        const conditions = [];
+        const params     = [];
+
+        if (search) {
+            conditions.push(`(facility_name LIKE ? OR facility_code LIKE ?)`);
+            params.push(`%${search}%`, `%${search}%`);
+        }
+        if (province) {                              // ← add
+            conditions.push(`province = ?`);
+            params.push(province);
+        }
+
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const [[{ total }]] = await database.mysqlPool.query(
+            `SELECT COUNT(*) AS total FROM nsf_facilities ${where}`, params
+        );
+        const [results] = await database.mysqlPool.query(
+            `SELECT * FROM nsf_facilities ${where} ORDER BY date_accredited DESC LIMIT ? OFFSET ?`,
+            [...params, limit, offset]
+        );
+
+        res.json({ data: results, total: Number(total), page, limit, total_pages: Math.ceil(total / limit) });
     } catch (err) {
         console.error("getAllNSFFacilities error:", err);
         res.status(500).json({ error: "Failed to fetch facilities", message: err.message });
@@ -470,7 +507,7 @@ const deleteNSFFacility = async (req, res) => {
     }
 };
 
-
+/*
 // ── SUMMARY CARDS ─────────────────────────────────────────────────────────────
 const getNSFSummaryCards = async (req, res) => {
     try {
@@ -525,8 +562,56 @@ const getNSFSummaryCards = async (req, res) => {
         res.status(500).json({ error: "Failed to fetch summary cards", message: err.message });
     }
 };
+*/
+const getNSFSummaryCards = async (req, res) => {
+    try {
+        const { month, year, province } = req.query; // ← add province
 
+        const conditions  = [];
+        const params      = [];
 
+        if (month && month !== 'All') {
+            conditions.push('MONTH(created_date) = ?');
+            params.push(parseInt(month));
+        }
+        if (year) {
+            conditions.push('YEAR(created_date) = ?');
+            params.push(parseInt(year));
+        }
+        if (province) {                              // ← add
+            conditions.push('province = ?');
+            params.push(province);
+        }
+
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const [[totalRow]]  = await database.mysqlPool.query(
+            `SELECT COUNT(*) AS total FROM nsf_facilities ${where}`, params
+        );
+        const [[statusRow]] = await database.mysqlPool.query(
+            `SELECT
+                SUM(status = 'active')   AS active,
+                SUM(status = 'inactive') AS inactive,
+                SUM(status = 'closed')   AS closed,
+                SUM(status = 'partner')  AS partner
+             FROM nsf_facilities ${where}`,
+            params
+        );
+
+        res.json({
+            total:    Number(totalRow.total)     || 0,
+            active:   Number(statusRow.active)   || 0,
+            inactive: Number(statusRow.inactive) || 0,
+            closed:   Number(statusRow.closed)   || 0,
+            partner:  Number(statusRow.partner)  || 0,
+        });
+    } catch (err) {
+        console.error("getNSFSummaryCards error:", err);
+        res.status(500).json({ error: "Failed to fetch summary cards", message: err.message });
+    }
+};
+
+/*
 // ── STATUS DISTRIBUTION CHART ─────────────────────────────────────────────────
 const getNSFStatusDistribution = async (req, res) => {
     try {
@@ -535,6 +620,36 @@ const getNSFStatusDistribution = async (req, res) => {
              FROM nsf_facilities
              GROUP BY status
              ORDER BY count DESC`
+        );
+
+        res.json({ data: results });
+    } catch (err) {
+        console.error("getNSFStatusDistribution error:", err);
+        res.status(500).json({ error: "Failed to fetch status distribution", message: err.message });
+    }
+};
+*/
+const getNSFStatusDistribution = async (req, res) => {
+    try {
+        const province = req.query.province?.trim() || null; // ← add
+
+        const conditions = [];
+        const params     = [];
+
+        if (province) {
+            conditions.push(`province = ?`);
+            params.push(province);
+        }
+
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const [results] = await database.mysqlPool.query(
+            `SELECT status, COUNT(*) AS count
+             FROM nsf_facilities
+             ${where}
+             GROUP BY status
+             ORDER BY count DESC`,
+            params
         );
 
         res.json({ data: results });
@@ -591,7 +706,7 @@ const getNSFReactivationStatus = async (req, res) => {
     }
 };
 
-
+/*
 // ── REACTIVATION LOGS ─────────────────────────────────────────────────────────
 const getNSFReactivationLogs = async (req, res) => {
     try {
@@ -655,7 +770,76 @@ const getNSFReactivationLogs = async (req, res) => {
         res.status(500).json({ error: "Failed to fetch reactivation logs", message: err.message });
     }
 };
+*/
+const getNSFReactivationLogs = async (req, res) => {
+    try {
+        const { facility_id, action, page, limit: limitParam, month, year, province } = req.query; // ← add province
 
+        const conditions = [];
+        const params     = [];
+
+        if (facility_id) {
+            conditions.push("l.facility_id = ?");
+            params.push(facility_id);
+        }
+        if (action) {
+            conditions.push("l.action = ?");
+            params.push(action);
+        }
+        if (month && month !== 'All') {
+            conditions.push("MONTH(l.created_at) = ?");
+            params.push(parseInt(month));
+        }
+        if (year) {
+            conditions.push("YEAR(l.created_at) = ?");
+            params.push(parseInt(year));
+        }
+        if (province) {                          // ← add
+            conditions.push("f.province = ?");
+            params.push(province);
+        }
+
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+        const currentPage = parseInt(page)       || 1;
+        const limit       = parseInt(limitParam)  || 20;
+        const offset      = (currentPage - 1) * limit;
+
+        const [[{ total }]] = await database.mysqlPool.query(
+            `SELECT COUNT(*) AS total FROM nsf_reactivation_logs l
+             LEFT JOIN nsf_facilities f ON f.id = l.facility_id
+             ${where}`,
+            params
+        );
+
+        const [results] = await database.mysqlPool.query(
+            `SELECT
+                l.id, l.facility_id,
+                f.facility_name, f.facility_code,
+                f.province,
+                l.action, l.old_status, l.new_status,
+                l.remarks, l.created_by, l.created_at
+            FROM nsf_reactivation_logs l
+            LEFT JOIN nsf_facilities f ON f.id = l.facility_id
+            ${where}
+            ORDER BY l.created_at DESC
+            LIMIT ? OFFSET ?`,
+            [...params, limit, offset]
+        );
+
+        res.json({
+            data:        results,
+            total:       Number(total),
+            page:        currentPage,
+            limit:       limit,
+            total_pages: Math.ceil(total / limit),
+        });
+    } catch (err) {
+        console.error("getNSFReactivationLogs error:", err);
+        res.status(500).json({ error: "Failed to fetch reactivation logs", message: err.message });
+    }
+};
+/*
 const getNSFReactivatedByProvince = async (req, res) => {
     try {
         const { month, year, action } = req.query;
@@ -695,7 +879,49 @@ const getNSFReactivatedByProvince = async (req, res) => {
         res.status(500).json({ error: "Failed to fetch reactivated by province", message: err.message });
     }
 };
+*/
+const getNSFReactivatedByProvince = async (req, res) => {
+    try {
+        const { month, year, action, province } = req.query; // ← add province
 
+        const validActions   = ['reactivated', 'deactivated'];
+        const resolvedAction = validActions.includes(action) ? action : 'reactivated';
+
+        const conditions = [`l.action = ?`];
+        const params     = [resolvedAction];
+
+        if (month && month !== 'All') {
+            conditions.push('MONTH(l.created_at) = ?');
+            params.push(parseInt(month));
+        }
+        if (year) {
+            conditions.push('YEAR(l.created_at) = ?');
+            params.push(parseInt(year));
+        }
+        if (province) {                              // ← add
+            conditions.push('f.province = ?');
+            params.push(province);
+        }
+
+        const [results] = await database.mysqlPool.query(
+            `SELECT
+                COALESCE(f.province, 'Unknown') AS province,
+                COUNT(*)                         AS count
+             FROM nsf_reactivation_logs l
+             LEFT JOIN nsf_facilities f ON f.id = l.facility_id
+             WHERE ${conditions.join(' AND ')}
+             GROUP BY f.province
+             ORDER BY count DESC`,
+            params
+        );
+
+        const total = results.reduce((sum, r) => sum + Number(r.count), 0);
+        res.json({ data: results, total });
+    } catch (err) {
+        console.error("getNSFReactivatedByProvince error:", err);
+        res.status(500).json({ error: "Failed to fetch reactivated by province", message: err.message });
+    }
+};
 
 // ── PROVINCES DROPDOWN ────────────────────────────────────────────────────────
 const getNSFProvinces = async (req, res) => {
@@ -714,7 +940,7 @@ const getNSFProvinces = async (req, res) => {
     }
 };
 
-
+/*
 // ── SUMMARY TREND ─────────────────────────────────────────────────────────────
 const getNSFSummaryTrend = async (req, res) => {
     try {
@@ -760,7 +986,54 @@ const getNSFSummaryTrend = async (req, res) => {
         res.status(500).json({ error: "Failed to fetch summary trend", message: err.message });
     }
 };
+*/
+const getNSFSummaryTrend = async (req, res) => {
+    try {
+        const { month, year, province } = req.query; // ← add province
 
+        const conditions = [];
+        const params     = [];
+
+        if (month && month !== 'All') {
+            conditions.push('MONTH(l.created_at) = ?');
+            params.push(parseInt(month));
+        }
+        if (year) {
+            conditions.push('YEAR(l.created_at) = ?');
+            params.push(parseInt(year));
+        }
+        if (province) {                              // ← add
+            conditions.push('f.province = ?');
+            params.push(province);
+        }
+
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const [[row]] = await database.mysqlPool.query(
+            `SELECT
+                SUM(l.action = 'added')                              AS total,
+                SUM(l.new_status = 'active' AND l.action != 'added') AS active,
+                SUM(l.new_status = 'inactive')                       AS inactive,
+                SUM(l.new_status = 'closed')                         AS closed,
+                SUM(l.new_status = 'partner')                        AS partner
+             FROM nsf_reactivation_logs l
+             LEFT JOIN nsf_facilities f ON f.id = l.facility_id
+             ${where}`,
+            params
+        );
+
+        res.json({
+            total:    Number(row.total)    || 0,
+            active:   Number(row.active)   || 0,
+            inactive: Number(row.inactive) || 0,
+            closed:   Number(row.closed)   || 0,
+            partner:  Number(row.partner)  || 0,
+        });
+    } catch (err) {
+        console.error("getNSFSummaryTrend error:", err);
+        res.status(500).json({ error: "Failed to fetch summary trend", message: err.message });
+    }
+};
 
 // ── GET LAST SAMPLE SENT PER SUBMID (Oracle — raw view) ───────────────────────
 const getLastSampleSent = async (req, res) => {
