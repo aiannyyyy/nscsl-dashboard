@@ -8,14 +8,16 @@ import { useCalendar } from '../../hooks/useCalendar'
 import { useAuth } from '../../context/AuthContext'
 import type { CreateEventPayload } from '../../services/calendarService'
 
-export const Calendar = () => {
+export const LabCalendar = () => {
   const { user } = useAuth()
 
   const [currentDate, setCurrentDate] = useState(new Date())
 
+  // Detail modal (read-only)
   const [detailEvent,  setDetailEvent]  = useState<CalendarEvent | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
 
+  // Edit/Add modal (form)
   const [isModalOpen,  setIsModalOpen]  = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [editEvent,    setEditEvent]    = useState<CalendarEvent | null>(null)
@@ -36,13 +38,13 @@ export const Calendar = () => {
   const holidayEvents: CalendarEvent[] = useMemo(
     () =>
       holidays.map((h) => ({
-        event_id:        -Number(h.date.replace(/-/g, '')),
+        event_id:        -Number(h.date.replace(/-/g, '')), // negative → never clashes with DB ids
         title:           h.name,
         description:     h.localName,
         start_datetime:  `${h.date}T00:00:00`,
         end_datetime:    `${h.date}T23:59:59`,
         is_all_day:      true,
-        color:           '#10b981',
+        color:           '#10b981', // emerald — visually distinct from user events
         category:        'holiday',
         participant_ids: [],
         created_by:      0,
@@ -50,11 +52,13 @@ export const Calendar = () => {
     [holidays]
   )
 
+  // Holidays rendered behind user events
   const allEvents: CalendarEvent[] = useMemo(
     () => [...holidayEvents, ...events],
     [holidayEvents, events]
   )
 
+  // Set of "YYYY-MM-DD" strings for O(1) lookup in CalendarGrid
   const holidayDates: Set<string> = useMemo(
     () => new Set(holidays.map((h) => h.date)),
     [holidays]
@@ -65,44 +69,55 @@ export const Calendar = () => {
   const handleNext  = () => setCurrentDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))
   const handleToday = () => setCurrentDate(new Date())
 
+  // ─── Click on a day cell → open Add modal ─────────────────────
   const handleDayClick = (date: Date) => {
     setSelectedDate(date)
     setEditEvent(null)
     setIsModalOpen(true)
   }
 
+  // ─── Click on an event badge → open Detail modal ──────────────
+  // Holidays are read-only — don't open the edit modal for them
   const handleEventClick = (event: CalendarEvent) => {
     setDetailEvent(event)
     setIsDetailOpen(true)
   }
 
+  // ─── From Detail modal → open Edit modal ──────────────────────
+  // Prevent editing holiday events (negative id)
   const handleEditFromDetail = (event: CalendarEvent) => {
-    if (event.event_id < 0) return  // holidays are read-only
+    if (event.event_id < 0) return
     setEditEvent(event)
     setSelectedDate(null)
     setIsDetailOpen(false)
     setIsModalOpen(true)
   }
 
+  // ─── Add Event button in header ───────────────────────────────
   const handleAddEvent = () => {
     setSelectedDate(new Date())
     setEditEvent(null)
     setIsModalOpen(true)
   }
 
-  // ─── Save — no more created_by, backend gets it from JWT ──────
+  // ─── Save ─────────────────────────────────────────────────────
   const onSave = (payload: CreateEventPayload) => {
-    handleSave(payload, editEvent?.event_id)
+    handleSave(
+      { ...payload, created_by: Number(user?.id) },
+      editEvent?.event_id
+    )
     setIsModalOpen(false)
     setEditEvent(null)
   }
 
+  // ─── Delete ───────────────────────────────────────────────────
   const onDelete = (event_id: number) => {
     handleDelete(event_id)
     setIsDetailOpen(false)
     setDetailEvent(null)
   }
 
+  // ─── Loading ──────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full min-h-screen bg-white dark:bg-gray-900">
@@ -114,6 +129,7 @@ export const Calendar = () => {
     )
   }
 
+  // ─── Error ────────────────────────────────────────────────────
   if (isError) {
     return (
       <div className="flex items-center justify-center h-full min-h-screen bg-white dark:bg-gray-900">
@@ -145,6 +161,7 @@ export const Calendar = () => {
         onEventClick={handleEventClick}
       />
 
+      {/* Read-only detail modal */}
       <EventDetailModal
         isOpen={isDetailOpen}
         event={detailEvent}
@@ -155,6 +172,7 @@ export const Calendar = () => {
         onDelete={onDelete}
       />
 
+      {/* Add / Edit form modal — never opens for holiday events */}
       <EventModal
         isOpen={isModalOpen}
         selectedDate={selectedDate}

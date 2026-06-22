@@ -1,8 +1,7 @@
-import api from '../api'
-import type { CalendarEvent } from '../../pages/pdo/components/EventBadge'
+import api from './api'
+import type { CalendarEvent } from '../pages/pdo/components/EventBadge'
 
 export interface CreateEventPayload {
-  created_by?: number
   title: string
   description?: string
   start_datetime: string

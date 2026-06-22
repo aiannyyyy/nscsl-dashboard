@@ -1,6 +1,6 @@
 import React from 'react'
 import { X, Clock, AlignLeft, Tag, Users, Calendar, Edit, Trash2 } from 'lucide-react'
-import type { CalendarEvent } from '../../../types/calendar'
+import type { CalendarEvent } from './EventBadge'
 import type { UserOption } from './EventModal'
 
 interface EventDetailModalProps {

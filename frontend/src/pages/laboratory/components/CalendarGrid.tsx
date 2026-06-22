@@ -1,5 +1,5 @@
 import React from 'react'
-import type { CalendarEvent } from '../../../types/calendar'
+import type { CalendarEvent } from './EventBadge'
 import { EventBadge } from './EventBadge'
 
 interface CalendarGridProps {

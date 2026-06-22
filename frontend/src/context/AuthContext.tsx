@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import authService from '../services/authService';
+import { useQueryClient } from '@tanstack/react-query'
 
 // Define user roles
 export type UserRole = 'admin' | 'super-user' | 'user';
@@ -46,6 +47,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const queryClient = useQueryClient()
 
   // Check if user is already logged in on mount
   useEffect(() => {
@@ -125,13 +128,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Logout function
   const logout = () => {
-    console.log('🟢 [AUTH] Logging out...');
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('user');
-    setUser(null);
-    setError(null);
-    console.log('🟢 [AUTH] Logout completed');
-  };
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('user')
+    setUser(null)
+    setError(null)
+    queryClient.clear()
+  }
 
   // Check if user has permission for an action
   const hasPermission = (action: 'read' | 'create' | 'update' | 'delete'): boolean => {

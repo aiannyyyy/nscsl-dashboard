@@ -35,6 +35,7 @@ export const MENU_CONFIG = [
       { key: 'inventory',                  label: 'Inventory',                   path: '/dashboard/laboratory/inventory' },
       { key: 'patient-information-system', label: 'Patient Information System',  path: '/dashboard/laboratory/patient-information-system' },
       { key: 'endorsement-to-followup',    label: 'Endorsement to Follow Up',    path: '/dashboard/laboratory/endorsement-to-followup' },
+      { key: 'lab-calendar',    label: 'Calendar',    path: '/dashboard/laboratory/lab-calendar' },
     ],
   },
   {

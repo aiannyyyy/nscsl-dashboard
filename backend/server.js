@@ -177,9 +177,19 @@ const authRoutes = require("./routes/authRoutes");
 app.use("/api/auth", authRoutes);
 console.log("🔐 Authentication routes loaded");
 
+// ============================================
+// GENERAL ROUTES
+// ============================================
+
 // User Management (Admin)
 app.use('/api/admin/users',  require('./routes/AdminRoutes/userRoutes'));
 app.use('/api/admin/access', require('./routes/AdminRoutes/accessRoutes'));
+// Calendar
+app.use("/api/calendar", require("./routes/calendarRoutes"));
+
+// ============================================
+// PDO ROUTES
+// ============================================
 
 // Facility Visits
 app.use("/api/facility-visits", require("./routes/PDORoutes/facilityVisitsRoutes"));
@@ -205,11 +215,12 @@ app.use("/api/pdo", require("./routes/PDORoutes/lopezFilterCardRoutes"));
 // NSF Facilities
 app.use("/api/nsf", require("./routes/PDORoutes/nsfFacilitiesRoutes"));
 
-// Calendar
-app.use("/api/calendar", require("./routes/PDORoutes/calendarRoutes"));
-
 // Total Samples of Quezon and Lopez Nearby
 app.use("/api/samples", require("./routes/PDORoutes/quezonTotalSamplesRoutes"));
+
+// ============================================
+// LABORATORY ROUTES
+// ============================================
 
 // Laboratory Card Summary
 app.use("/api/laboratory/card-summary", require("./routes/LaboratoryRoutes/cardSummaryRoutes"));
@@ -250,11 +261,20 @@ app.use("/api/endorsements", require("./routes/LaboratoryRoutes/unsatEndorsement
 // Laboratory Logbook Endorsement
 app.use("/api/laboratory/logbook-endorsement", require("./routes/LaboratoryRoutes/logbookEndorsementRoutes"));
 
+
+// ============================================
+// mis ROUTES
+// ============================================
+
 // IT Job Order Routes
 app.use('/api/it-job-order', require('./routes/ITRoutes/itJobOrderRoutes'));
 
 // Notification Routes
 app.use('/api/notifications', require('./routes/notificationRoutes'));
+
+// ============================================
+// FOLLOWUP ROUTES
+// ============================================
 
 // Patient Details Routes
 app.use('/api/followup', require('./routes/FollowupRoutes/patientDetailsRoutes'));

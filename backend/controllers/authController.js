@@ -7,11 +7,13 @@ const { database } = require('../config');
 const db = database.mysqlPool;
 
 // Generate JWT Token
-const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET || 'your-secret-key-change-in-production', {
-    expiresIn: process.env.JWT_EXPIRE || '7d'
-  });
-};
+const generateToken = (userId, dept) => {
+  return jwt.sign(
+    { id: userId, dept: dept },
+    process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+    { expiresIn: process.env.JWT_EXPIRE || '7d' }
+  )
+}
 
 // Map database role and dept to frontend format
 const mapUserToFrontend = (user) => {
@@ -95,7 +97,7 @@ exports.login = async (req, res) => {
 
     // Generate token
     console.log('🟣 [BACKEND] Generating token...');
-    const token = generateToken(user.user_id);
+   const token = generateToken(user.user_id, user.dept);
 
     // Map user data
     console.log('🟣 [BACKEND] Mapping user data...');
@@ -155,7 +157,7 @@ exports.register = async (req, res) => {
     );
 
     // Generate token
-    const token = generateToken(result.insertId);
+    const token = generateToken(result.insertId, dept);
 
     const userData = {
       id: result.insertId.toString(),

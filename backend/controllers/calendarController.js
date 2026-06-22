@@ -1,25 +1,34 @@
-const { mysqlPool } = require("../../config/database");
-const { sendNotification } = require("../../utils/notificationHelper");
+const { mysqlPool } = require("../config/database");
+const { sendNotification } = require("../utils/notificationHelper");
 
-// GET all events with participants
+// GET all events with participants (department-aware)
 const getEvents = async (req, res) => {
   try {
+    const userDept = req.user.dept;
+    console.log('🔍 [CALENDAR] getEvents — userDept:', JSON.stringify(userDept))
+
     const [events] = await mysqlPool.query(`
       SELECT 
-        e.event_id, e.created_by, e.title, e.description,
+        e.event_id, e.created_by, e.department, e.title, e.description,
         e.start_datetime, e.end_datetime, e.is_all_day,
         e.color, e.category, e.created_at,
         u.name AS created_by_name, u.dept AS created_by_dept
       FROM events e
       JOIN user u ON e.created_by = u.user_id
+      WHERE e.department = ?
       ORDER BY e.start_datetime ASC
-    `);
+    `, [userDept]);
+
+    console.log('🔍 [CALENDAR] getEvents — userDept:', JSON.stringify(userDept))
 
     const [participants] = await mysqlPool.query(`
       SELECT ep.event_id, ep.user_id, u.name, u.dept
       FROM event_participants ep
       JOIN user u ON ep.user_id = u.user_id
-    `);
+      WHERE ep.event_id IN (
+        SELECT event_id FROM events WHERE department = ?
+      )
+    `, [userDept]); // ✅ scoped to department only, not all participants
 
     const result = events.map((event) => ({
       ...event,
@@ -38,11 +47,14 @@ const getEvents = async (req, res) => {
   }
 };
 
-// GET all users for participant picker
+// GET all users for participant picker (scoped to department)
 const getUsers = async (req, res) => {
   try {
+    const userDept = req.user.dept;
+
     const [rows] = await mysqlPool.query(
-      "SELECT user_id, name, dept, position FROM user ORDER BY name ASC"
+      "SELECT user_id, name, dept, position FROM user WHERE dept = ? ORDER BY name ASC",
+      [userDept]
     );
     return res.status(200).json(rows);
   } catch (err) {
@@ -65,28 +77,28 @@ const createEvent = async (req, res) => {
       reminder_minutes = null,
     } = req.body;
 
+    const department = req.user.dept;
+
     if (!title || !start_datetime || !end_datetime || !created_by) {
       return res.status(400).json({ message: "title, start_datetime, end_datetime and created_by are required" });
     }
 
     const [result] = await conn.query(`
-      INSERT INTO events (created_by, title, description, start_datetime, end_datetime, is_all_day, color, category)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO events (created_by, department, title, description, start_datetime, end_datetime, is_all_day, color, category)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      created_by, title, description || null,
+      created_by, department, title, description || null,
       start_datetime, end_datetime,
       is_all_day ? 1 : 0, color || '#3498db', category || null,
     ]);
 
     const event_id = result.insertId;
 
-    // Save participants
     if (participant_ids.length > 0) {
       const values = participant_ids.map((uid) => [event_id, uid]);
       await conn.query("INSERT INTO event_participants (event_id, user_id) VALUES ?", [values]);
     }
 
-    // Save reminder
     if (reminder_minutes !== null && reminder_minutes !== '') {
       const remind_at = new Date(new Date(start_datetime).getTime() - reminder_minutes * 60 * 1000);
       await conn.query(`
@@ -142,10 +154,11 @@ const updateEvent = async (req, res) => {
       UPDATE events SET
         title = ?, description = ?, start_datetime = ?, end_datetime = ?,
         is_all_day = ?, color = ?, category = ?, updated_at = NOW()
-      WHERE event_id = ?
+      WHERE event_id = ? AND department = ?
     `, [
       title, description || null, start_datetime, end_datetime,
-      is_all_day ? 1 : 0, color || '#3498db', category || null, id,
+      is_all_day ? 1 : 0, color || '#3498db', category || null,
+      id, req.user.dept,
     ]);
 
     if (result.affectedRows === 0) {
@@ -153,14 +166,12 @@ const updateEvent = async (req, res) => {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    // Update participants
     await conn.query("DELETE FROM event_participants WHERE event_id = ?", [id]);
     if (participant_ids.length > 0) {
       const values = participant_ids.map((uid) => [id, uid]);
       await conn.query("INSERT INTO event_participants (event_id, user_id) VALUES ?", [values]);
     }
 
-    // Update reminder — delete old and re-insert
     await conn.query("DELETE FROM event_reminders WHERE event_id = ?", [id]);
     if (reminder_minutes !== null && reminder_minutes !== '') {
       const remind_at = new Date(new Date(start_datetime).getTime() - reminder_minutes * 60 * 1000);
@@ -200,7 +211,8 @@ const deleteEvent = async (req, res) => {
   try {
     const { id } = req.params;
     const [result] = await mysqlPool.query(
-      "DELETE FROM events WHERE event_id = ?", [id]
+      "DELETE FROM events WHERE event_id = ? AND department = ?",
+      [id, req.user.dept]
     );
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Event not found" });
@@ -215,20 +227,13 @@ const deleteEvent = async (req, res) => {
 // GET check and send due reminders
 const checkReminders = async (req, res) => {
   try {
-    // Find all unsent reminders that are due — include category
     const [reminders] = await mysqlPool.query(`
       SELECT 
-        er.reminder_id,
-        er.event_id,
-        er.remind_at,
-        e.title,
-        e.start_datetime,
-        e.created_by,
-        e.category
+        er.reminder_id, er.event_id, er.remind_at,
+        e.title, e.start_datetime, e.created_by, e.department, e.category
       FROM event_reminders er
       JOIN events e ON er.event_id = e.event_id
-      WHERE er.is_sent = 0
-        AND er.remind_at <= NOW()
+      WHERE er.is_sent = 0 AND er.remind_at <= NOW()
     `);
 
     if (reminders.length === 0) {
@@ -238,7 +243,6 @@ const checkReminders = async (req, res) => {
     let totalSent = 0;
 
     for (const reminder of reminders) {
-      // Get participants + creator (UNION deduplicates if creator is also a participant)
       const [participants] = await mysqlPool.query(`
         SELECT u.user_id, u.name, u.dept
         FROM event_participants ep
@@ -250,17 +254,15 @@ const checkReminders = async (req, res) => {
         WHERE u.user_id = ?
       `, [reminder.event_id, reminder.created_by]);
 
-      // Calculate time label
-      const now        = new Date();
-      const eventStart = new Date(reminder.start_datetime);
+      const now          = new Date();
+      const eventStart   = new Date(reminder.start_datetime);
       const minutesUntil = Math.round((eventStart - now) / 60000);
       const timeLabel =
-        minutesUntil <= 0    ? 'now' :
-        minutesUntil < 60    ? `in ${minutesUntil} minute${minutesUntil !== 1 ? 's' : ''}` :
-        minutesUntil < 1440  ? `in ${Math.round(minutesUntil / 60)} hour${Math.round(minutesUntil / 60) !== 1 ? 's' : ''}` :
-                               `in ${Math.round(minutesUntil / 1440)} day${Math.round(minutesUntil / 1440) !== 1 ? 's' : ''}`;
+        minutesUntil <= 0   ? 'now' :
+        minutesUntil < 60   ? `in ${minutesUntil} minute${minutesUntil !== 1 ? 's' : ''}` :
+        minutesUntil < 1440 ? `in ${Math.round(minutesUntil / 60)} hour${Math.round(minutesUntil / 60) !== 1 ? 's' : ''}` :
+                              `in ${Math.round(minutesUntil / 1440)} day${Math.round(minutesUntil / 1440) !== 1 ? 's' : ''}`;
 
-      // Format date and time
       const eventDate = eventStart.toLocaleDateString('en-US', {
         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
       });
@@ -268,28 +270,28 @@ const checkReminders = async (req, res) => {
         hour: '2-digit', minute: '2-digit',
       });
 
-      // Build message
       const message = [
         `Your event "${reminder.title}" starts ${timeLabel}.`,
         `Date: ${eventDate} at ${eventTime}`,
         reminder.category ? `Category: ${reminder.category}` : null,
       ].filter(Boolean).join('\n');
 
-      const validDepts = ['admin', 'administrator', 'program', 'laboratory', 'followup', 'follow up'];
+      const eventDept = reminder.department?.toLowerCase().trim();
 
-      // Send one notification per participant + creator
       for (const user of participants) {
-        const dept = user.dept?.toLowerCase().trim();
-        if (!dept || !validDepts.includes(dept)) continue;
+        const userDeptNorm = user.dept?.toLowerCase().trim();
+
+        // ✅ Removed hardcoded validDepts list — just match the event's department directly
+        if (!userDeptNorm || userDeptNorm !== eventDept) continue;
 
         try {
           await sendNotification({
-            department:     dept,
+            department:     userDeptNorm,
             user_id:        user.user_id,
             type:           'calendar_reminder',
             title:          `Reminder: ${reminder.title}`,
             message,
-            link:           '/pdo/calendar',
+            link:           '/calendar',  // ✅ was hardcoded '/pdo/calendar'
             reference_id:   reminder.event_id,
             reference_type: 'calendar_event',
             created_by:     'System',
@@ -300,7 +302,6 @@ const checkReminders = async (req, res) => {
         }
       }
 
-      // Mark reminder as sent
       await mysqlPool.query(
         "UPDATE event_reminders SET is_sent = 1 WHERE reminder_id = ?",
         [reminder.reminder_id]
@@ -308,9 +309,9 @@ const checkReminders = async (req, res) => {
     }
 
     return res.status(200).json({
-      message:              'Reminders processed',
-      reminders_checked:    reminders.length,
-      notifications_sent:   totalSent,
+      message:            'Reminders processed',
+      reminders_checked:  reminders.length,
+      notifications_sent: totalSent,
     });
   } catch (err) {
     console.error("checkReminders error:", err);
@@ -318,12 +319,11 @@ const checkReminders = async (req, res) => {
   }
 };
 
+// GET public holidays from external API
 const getHolidays = async (req, res) => {
   try {
     const year = req.query.year || new Date().getFullYear();
-    const response = await fetch(
-      `https://date.nager.at/api/v3/PublicHolidays/${year}/PH`
-    );
+    const response = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/PH`);
     if (!response.ok) throw new Error("Failed to fetch holidays");
     const holidays = await response.json();
     res.json(holidays);
@@ -331,6 +331,5 @@ const getHolidays = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
-
 
 module.exports = { getEvents, getUsers, createEvent, updateEvent, deleteEvent, checkReminders, getHolidays };

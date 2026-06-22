@@ -1,5 +1,4 @@
 import React from 'react'
-import type { CalendarEvent } from '../../../types/calendar'
 
 export interface CalendarEvent {
   event_id: number

@@ -33,6 +33,7 @@ import { AutoMailerReport } from './pages/followup/AutoMailerReport';
 import { Overview } from './pages/intranet/Overview';
 import { Categories } from './pages/intranet/Categories';
 import { Files } from './pages/intranet/Files'
+import { LabCalendar } from './pages/laboratory/LabCalendar';
 
 
 // Create a QueryClient instance
@@ -86,6 +87,7 @@ function App() {
               <Route path="laboratory/inventory" element={<LaboratoryInventoryOverview />} />
               <Route path="laboratory/patient-information-system" element={<PatientInformationSystemContainer />} />
               <Route path="laboratory/endorsement-to-followup" element={<EndorsementToFollowUp />} />
+              <Route path="laboratory/lab-calendar" element={<LabCalendar />} />
  
               {/* Followup Routes */}
               <Route path="followup" element={<FollowupOverview />} />

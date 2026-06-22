@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { X, Clock, AlignLeft, Tag, Bell, Calendar, Trash2, Users } from 'lucide-react'
-import type { CalendarEvent } from '../../../types/calendar'
+import type { CalendarEvent } from './EventBadge'
 
 const CATEGORIES = ['Meeting', 'Holiday', 'Deadline', 'Training', 'Other']
 const COLORS = [

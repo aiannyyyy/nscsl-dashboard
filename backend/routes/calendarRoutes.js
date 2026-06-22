@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const calendarController = require("../../controllers/PDOController/calendarController");
-const verifyToken = require("../../middleware/authMiddleware");
+const calendarController = require("../controllers/calendarController");
+const verifyToken = require("../middleware/authMiddleware");
 
 router.get("/",              verifyToken, calendarController.getEvents);
 router.get("/users",         verifyToken, calendarController.getUsers);
