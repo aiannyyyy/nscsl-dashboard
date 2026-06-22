@@ -48,6 +48,7 @@ export const MENU_CONFIG = [
       { key: 'cms-urgent',                 label: 'CMS Urgent',                 path: '/dashboard/followup/cms-urgent' },
       { key: 'patient-information-system', label: 'Patient Information System', path: '/dashboard/followup/patient-information-system' },
       { key: 'automailer-report', label: 'Reports', path: '/dashboard/followup/automailer-report' },
+      { key: 'fun-calendar', label: 'Calendar', path: '/dashboard/followup/fun-calendar' },
     ],
   },
   {

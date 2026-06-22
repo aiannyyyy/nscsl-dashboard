@@ -34,6 +34,7 @@ import { Overview } from './pages/intranet/Overview';
 import { Categories } from './pages/intranet/Categories';
 import { Files } from './pages/intranet/Files'
 import { LabCalendar } from './pages/laboratory/LabCalendar';
+import { FunCalendar } from './pages/followup/FunCalendar';
 
 
 // Create a QueryClient instance
@@ -95,6 +96,8 @@ function App() {
               <Route path="followup/cms-urgent" element={ <CMSUrgent /> } />
               <Route path="followup/patient-information-system" element={<FollowUpPatientInformationSystem />} />
               <Route path="followup/automailer-report" element={<AutoMailerReport />} />
+              <Route path="followup/fun-calendar" element={<FunCalendar />} />
+
 
               {/* IT Job Order Routes */}
               <Route path="it-job-order" element={<ITJobOrderOverview />} />
