@@ -275,37 +275,37 @@ const getAllNSFFacilities = async (req, res) => {
         const limit    = parseInt(req.query.limit) || 20;
         const offset   = (page - 1) * limit;
         const search   = req.query.search?.trim()   || null;
-        const province = req.query.province?.trim() || null; // ← add
-
+        const province = req.query.province?.trim() || null;
+ 
         const conditions = [];
         const params     = [];
-
+ 
         if (search) {
             conditions.push(`(facility_name LIKE ? OR facility_code LIKE ?)`);
             params.push(`%${search}%`, `%${search}%`);
         }
-        if (province) {                              // ← add
+        if (province) {
             conditions.push(`province = ?`);
             params.push(province);
         }
-
+ 
         const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
+ 
         const [[{ total }]] = await database.mysqlPool.query(
             `SELECT COUNT(*) AS total FROM nsf_facilities ${where}`, params
         );
         const [results] = await database.mysqlPool.query(
-            `SELECT * FROM nsf_facilities ${where} ORDER BY date_accredited DESC LIMIT ? OFFSET ?`,
+            // CHANGED: ORDER BY created_date DESC, id DESC (was: date_accredited DESC)
+            `SELECT * FROM nsf_facilities ${where} ORDER BY created_date DESC, id DESC LIMIT ? OFFSET ?`,
             [...params, limit, offset]
         );
-
+ 
         res.json({ data: results, total: Number(total), page, limit, total_pages: Math.ceil(total / limit) });
     } catch (err) {
         console.error("getAllNSFFacilities error:", err);
         res.status(500).json({ error: "Failed to fetch facilities", message: err.message });
     }
 };
-
 
 // ── GET SINGLE FACILITY ───────────────────────────────────────────────────────
 const getNSFFacilityById = async (req, res) => {

@@ -8,159 +8,39 @@ import { useAuth } from '../../../context/AuthContext';
 // ─── Province / City Map ──────────────────────────────────────────────────────
 const PROVINCE_CITY_MAP: Record<string, string[]> = {
   'BATANGAS': [
-    'AGONCILLO',
-    'ALITAGTAG',
-    'BALAYAN',
-    'BALETE',
-    'BATANGAS CITY',
-    'BAUAN',
-    'CALACA CITY',
-    'CALATAGAN',
-    'CUENCA',
-    'IBAAN',
-    'LAUREL',
-    'LEMERY',
-    'LIAN',
-    'LIPA CITY',
-    'LOBO',
-    'MABINI',
-    'MALVAR',
-    'MATAASNAKAHOY',
-    'NASUGBU',
-    'PADRE GARCIA',
-    'ROSARIO',
-    'SAN JOSE',
-    'SAN JUAN',
-    'SAN LUIS',
-    'SAN NICOLAS',
-    'SAN PASCUAL',
-    'SANTA TERESITA',
-    'SANTO TOMAS CITY',
-    'TAAL',
-    'TALISAY',
-    'TANAUAN CITY',
-    'TAYSAN',
-    'TINGLOY',
-    'TUY'
+    'AGONCILLO', 'ALITAGTAG', 'BALAYAN', 'BALETE', 'BATANGAS CITY', 'BAUAN',
+    'CALACA CITY', 'CALATAGAN', 'CUENCA', 'IBAAN', 'LAUREL', 'LEMERY', 'LIAN',
+    'LIPA CITY', 'LOBO', 'MABINI', 'MALVAR', 'MATAASNAKAHOY', 'NASUGBU',
+    'PADRE GARCIA', 'ROSARIO', 'SAN JOSE', 'SAN JUAN', 'SAN LUIS', 'SAN NICOLAS',
+    'SAN PASCUAL', 'SANTA TERESITA', 'SANTO TOMAS CITY', 'TAAL', 'TALISAY',
+    'TANAUAN CITY', 'TAYSAN', 'TINGLOY', 'TUY'
   ],
-
   'CAVITE': [
-    'ALFONSO',
-    'AMADEO',
-    'BACOOR CITY',
-    'CARMONA',
-    'CAVITE CITY',
-    'DASMARINAS CITY',
-    'GENERAL EMILIO AGUINALDO',
-    'GENERAL MARIANO ALVAREZ',
-    'GENERAL TRIAS CITY',
-    'IMUS CITY',
-    'INDANG',
-    'KAWIT',
-    'MAGALLANES',
-    'MARAGONDON',
-    'MENDEZ',
-    'NAIC',
-    'NOVELETA',
-    'ROSARIO',
-    'SILANG',
-    'TAGAYTAY CITY',
-    'TANZA',
-    'TERNATE',
+    'ALFONSO', 'AMADEO', 'BACOOR CITY', 'CARMONA', 'CAVITE CITY', 'DASMARINAS CITY',
+    'GENERAL EMILIO AGUINALDO', 'GENERAL MARIANO ALVAREZ', 'GENERAL TRIAS CITY',
+    'IMUS CITY', 'INDANG', 'KAWIT', 'MAGALLANES', 'MARAGONDON', 'MENDEZ', 'NAIC',
+    'NOVELETA', 'ROSARIO', 'SILANG', 'TAGAYTAY CITY', 'TANZA', 'TERNATE',
     'TRECE MARTIRES CITY'
   ],
-
   'LAGUNA': [
-    'ALAMINOS',
-    'BAY',
-    'BINAN CITY',
-    'CABUYAO CITY',
-    'CALAMBA CITY',
-    'CALAUAN',
-    'CAVINTI',
-    'FAMY',
-    'KALAYAAN',
-    'LILIW',
-    'LOS BANOS',
-    'LUISIANA',
-    'LUMBAN',
-    'MABITAC',
-    'MAGDALENA',
-    'MAJAYJAY',
-    'NAGCARLAN',
-    'PAETE',
-    'PAGSANJAN',
-    'PAKIL',
-    'PANGIL',
-    'PILA',
-    'RIZAL',
-    'SAN PABLO CITY',
-    'SAN PEDRO CITY',
-    'SANTA CRUZ',
-    'SANTA MARIA',
-    'SANTA ROSA CITY',
-    'SINILOAN',
-    'VICTORIA'
+    'ALAMINOS', 'BAY', 'BINAN CITY', 'CABUYAO CITY', 'CALAMBA CITY', 'CALAUAN',
+    'CAVINTI', 'FAMY', 'KALAYAAN', 'LILIW', 'LOS BANOS', 'LUISIANA', 'LUMBAN',
+    'MABITAC', 'MAGDALENA', 'MAJAYJAY', 'NAGCARLAN', 'PAETE', 'PAGSANJAN', 'PAKIL',
+    'PANGIL', 'PILA', 'RIZAL', 'SAN PABLO CITY', 'SAN PEDRO CITY', 'SANTA CRUZ',
+    'SANTA MARIA', 'SANTA ROSA CITY', 'SINILOAN', 'VICTORIA'
   ],
-
   'QUEZON': [
-    'AGDANGAN',
-    'ALABAT',
-    'ATIMONAN',
-    'BUENAVISTA',
-    'BURDEOS',
-    'CALAUAG',
-    'CANDELARIA',
-    'CATANAUAN',
-    'DOLORES',
-    'GENERAL LUNA',
-    'GENERAL NAKAR',
-    'GUINAYANGAN',
-    'GUMACA',
-    'INFANTA',
-    'JOMALIG',
-    'LOPEZ',
-    'LUCBAN',
-    'LUCENA CITY',
-    'MACALELON',
-    'MAUBAN',
-    'MULANAY',
-    'PADRE BURGOS',
-    'PAGBILAO',
-    'PANUKULAN',
-    'PATNANUNGAN',
-    'PEREZ',
-    'PITOGO',
-    'PLARIDEL',
-    'POLILLO',
-    'QUEZON',
-    'REAL',
-    'SAMPALOC',
-    'SAN ANDRES',
-    'SAN ANTONIO',
-    'SAN FRANCISCO',
-    'SAN NARCISO',
-    'SARIAYA',
-    'TAGKAWAYAN',
-    'TAYABAS CITY',
-    'TIAONG',
-    'UNISAN'
+    'AGDANGAN', 'ALABAT', 'ATIMONAN', 'BUENAVISTA', 'BURDEOS', 'CALAUAG',
+    'CANDELARIA', 'CATANAUAN', 'DOLORES', 'GENERAL LUNA', 'GENERAL NAKAR',
+    'GUINAYANGAN', 'GUMACA', 'INFANTA', 'JOMALIG', 'LOPEZ', 'LUCBAN', 'LUCENA CITY',
+    'MACALELON', 'MAUBAN', 'MULANAY', 'PADRE BURGOS', 'PAGBILAO', 'PANUKULAN',
+    'PATNANUNGAN', 'PEREZ', 'PITOGO', 'PLARIDEL', 'POLILLO', 'QUEZON', 'REAL',
+    'SAMPALOC', 'SAN ANDRES', 'SAN ANTONIO', 'SAN FRANCISCO', 'SAN NARCISO',
+    'SARIAYA', 'TAGKAWAYAN', 'TAYABAS CITY', 'TIAONG', 'UNISAN'
   ],
-
   'RIZAL': [
-    'ANGONO',
-    'ANTIPOLO CITY',
-    'BARAS',
-    'BINANGONAN',
-    'CAINTA',
-    'CARDONA',
-    'JALAJALA',
-    'MORONG',
-    'PILILLA',
-    'RODRIGUEZ',
-    'SAN MATEO',
-    'TANAY',
-    'TAYTAY',
+    'ANGONO', 'ANTIPOLO CITY', 'BARAS', 'BINANGONAN', 'CAINTA', 'CARDONA',
+    'JALAJALA', 'MORONG', 'PILILLA', 'RODRIGUEZ', 'SAN MATEO', 'TANAY', 'TAYTAY',
     'TERESA'
   ]
 };
@@ -168,103 +48,42 @@ const PROVINCE_CITY_MAP: Record<string, string[]> = {
 const ALL_PROVINCES = Object.keys(PROVINCE_CITY_MAP).sort();
 
 const CATEGORIES: string[] = [
-  'BHS',
-  'BIRTHING HOME',
-  'CHD',
-  'CHO',
-  'CLINIC',
-  'CONTINUITY CLINIC',
-  'CUSTODIAL CARE',
-  'DIAGNOSTIC / THERAPEAUTIC',
-  'DIAGNOSTIC/THERAPEUTIC',
-  'GENERAL HOSPITAL',
-  'HEALTH CENTER',
-  'HEALTH FACILITY',
-  'INFIRMARY',
-  'INFIRMARY/DISPENSARY',
-  'LABORATORY',
-  'LEVEL 1',
-  'LEVEL 2',
-  'LEVEL 3',
-  'LEVEL 4',
-  'LYING-IN',
-  'MEDICAL/DIAGNOSTIC CLINIC',
-  'MHO',
-  'N/A',
-  'NSC',
-  'PHO',
-  'PHO-PHS',
-  'PRIMARY',
-  'PRIMARY CARE',
-  'PRIMARY CARE (BIRTHING HOME)',
-  'PRIMARY CARE (BIRTHING HOME) BHS',
-  'PRIMARY CARE (BIRTHING HOME) OTHERS',
-  'PRIMARY CARE (BIRTHING HOME) PRIVAT',
-  'PRIMARY CARE (BIRTHING HOME) PRIVATE',
-  'PRIMARY CARE (BIRTHING HOME) RHU',
-  'PRIMARY CARE (INFIRMARY/DISPENSARY)',
-  'RHU',
-  'SECONDARY',
-  'SPECIALIZED OUT-PATIENT',
-  'TERTIARY',
+  'BHS', 'BIRTHING HOME', 'CHD', 'CHO', 'CLINIC', 'CONTINUITY CLINIC',
+  'CUSTODIAL CARE', 'DIAGNOSTIC / THERAPEAUTIC', 'DIAGNOSTIC/THERAPEUTIC',
+  'GENERAL HOSPITAL', 'HEALTH CENTER', 'HEALTH FACILITY', 'INFIRMARY',
+  'INFIRMARY/DISPENSARY', 'LABORATORY', 'LEVEL 1', 'LEVEL 2', 'LEVEL 3',
+  'LEVEL 4', 'LYING-IN', 'MEDICAL/DIAGNOSTIC CLINIC', 'MHO', 'N/A', 'NSC',
+  'PHO', 'PHO-PHS', 'PRIMARY', 'PRIMARY CARE', 'PRIMARY CARE (BIRTHING HOME)',
+  'PRIMARY CARE (BIRTHING HOME) BHS', 'PRIMARY CARE (BIRTHING HOME) OTHERS',
+  'PRIMARY CARE (BIRTHING HOME) PRIVAT', 'PRIMARY CARE (BIRTHING HOME) PRIVATE',
+  'PRIMARY CARE (BIRTHING HOME) RHU', 'PRIMARY CARE (INFIRMARY/DISPENSARY)',
+  'RHU', 'SECONDARY', 'SPECIALIZED OUT-PATIENT', 'TERTIARY',
 ];
 
 const TYPE1_OPTIONS: string[] = [
-  'CHARTERED GOVERNMENT FACILITIES',
-  'CHD',
-  'CONTINUITY CLINIC',
-  'DOH RETAINED HOSPITAL',
-  'LGU',
-  'N/A',
-  'NSC',
-  'PRIVATE',
+  'CHARTERED GOVERNMENT FACILITIES', 'CHD', 'CONTINUITY CLINIC',
+  'DOH RETAINED HOSPITAL', 'LGU', 'N/A', 'NSC', 'PRIVATE',
 ];
 
 const TYPE2_OPTIONS: string[] = [
-  '3.5',
-  'CONTINUITY CLINIC',
-  'GOVERNMENT',
-  'LGU',
-  'NSC',
-  'NULL',
-  'PARTNER AGENCY',
-  'PRIVATE',
+  '3.5', 'CONTINUITY CLINIC', 'GOVERNMENT', 'LGU', 'NSC', 'NULL',
+  'PARTNER AGENCY', 'PRIVATE',
 ];
 
 const DESIGNATION_OPTIONS: string[] = [
-  'ADMINISTRATOR',
-  'CHIEF OF HOSPITAL',
-  'CLINIC MANAGER',
-  'CLINIC MANAGER/OWNER',
-  'CLINIC OWNER',
-  'FOLLOW-UP NURSE',
-  'HOSPITAL ADMINISTRATOR',
-  'MEDICAL ADMINISTRATOR',
-  'MEDICAL DIRECTOR',
-  'MHO',
-  'MIDWIFE',
-  'MUNICIPAL HEALTH OFFICER',
-  'NBS COODINATOR',
-  'NBS COORDINATOR',
-  'NBS COORDINATOR / NBS IN CHARGE',
-  'NBS HEAD',
-  'NBSC',
-  'NURSE I',
-  'NURSING AIDE/CLERK',
-  'OWNER',
-  'OWNER/MANAGER',
-  'OWNER/NBS COORDINATOR',
-  'PRESIDENT',
+  'ADMINISTRATOR', 'CHIEF OF HOSPITAL', 'CLINIC MANAGER', 'CLINIC MANAGER/OWNER',
+  'CLINIC OWNER', 'FOLLOW-UP NURSE', 'HOSPITAL ADMINISTRATOR', 'MEDICAL ADMINISTRATOR',
+  'MEDICAL DIRECTOR', 'MHO', 'MIDWIFE', 'MUNICIPAL HEALTH OFFICER', 'NBS COODINATOR',
+  'NBS COORDINATOR', 'NBS COORDINATOR / NBS IN CHARGE', 'NBS HEAD', 'NBSC', 'NURSE I',
+  'NURSING AIDE/CLERK', 'OWNER', 'OWNER/MANAGER', 'OWNER/NBS COORDINATOR', 'PRESIDENT',
   'REGIONAL COORDINATOR',
 ];
 
-// ─── Notification Email ───────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 const NOTIFICATION_EMAIL = 'itmis2nscsl@gmail.com';
-
-// ─── Current year constant ────────────────────────────────────────────────────
 const CURRENT_YEAR = String(new Date().getFullYear());
 
-// ─── Date Helper ──────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const toDateInput = (val?: string | null): string => {
   if (!val) return '';
   if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
@@ -272,40 +91,39 @@ const toDateInput = (val?: string | null): string => {
   return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
 };
 
-// ─── Email Builder ────────────────────────────────────────────────────────────
+// ─── Email Notification (fire-and-forget) ─────────────────────────────────────
 const sendFacilityEmail = async (
   facility: Partial<NSFFacility>,
   addedBy: string,
 ): Promise<void> => {
   try {
     const now = new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
-
-    const rows = [
-      ['Facility Code',    facility.facility_code  ?? '—'],
-      ['Facility Name',    facility.facility_name  ?? '—'],
-      ['Category',         facility.category       ?? '—'],
-      ['Type 1',           facility.type1          ?? '—'],
-      ['Type 2',           facility.type2          ?? '—'],
-      ['Region',           facility.region         ?? '—'],
-      ['Province',         facility.province       ?? '—'],
-      ['City / Municipality', facility.city        ?? '—'],
-      ['Address',          facility.address        ?? '—'],
-      ['Medical Director', facility.medical_director ?? '—'],
-      ['Contact Person',   facility.contact_person ?? '—'],
-      ['Designation',      facility.designation    ?? '—'],
-      ['Tel / Cell',       facility.tel_cell       ?? '—'],
-      ['Fax',              facility.fax            ?? '—'],
-      ['Email',            facility.email          ?? '—'],
-      ['Date Accredited',  facility.date_accredited ?? '—'],
-      ['Year Accredited',  facility.year_accredited ?? '—'],
-      ['Last PO Date',     facility.last_po_date   ?? '—'],
-      ['PO Number',        facility.po_number      ?? '—'],
-      ['Remarks',          facility.remarks        ?? '—'],
+    const rows: [string, string][] = [
+      ['Facility Code',       facility.facility_code    ?? '—'],
+      ['Facility Name',       facility.facility_name    ?? '—'],
+      ['Category',            facility.category         ?? '—'],
+      ['Type 1',              facility.type1            ?? '—'],
+      ['Type 2',              facility.type2            ?? '—'],
+      ['Region',              facility.region           ?? '—'],
+      ['Province',            facility.province         ?? '—'],
+      ['City / Municipality', facility.city             ?? '—'],
+      ['Address',             facility.address          ?? '—'],
+      ['Medical Director',    facility.medical_director ?? '—'],
+      ['Contact Person',      facility.contact_person   ?? '—'],
+      ['Designation',         facility.designation      ?? '—'],
+      ['Tel / Cell',          facility.tel_cell         ?? '—'],
+      ['Fax',                 facility.fax              ?? '—'],
+      ['Email',               facility.email            ?? '—'],
+      ['Date Accredited',     facility.date_accredited  ?? '—'],
+      ['Year Accredited',     facility.year_accredited  ?? '—'],
+      ['Last PO Date',        facility.last_po_date     ?? '—'],
+      ['PO Number',           facility.po_number        ?? '—'],
+      ['Remarks',             facility.remarks          ?? '—'],
     ];
 
     const tableRows = rows
       .map(([label, value]) =>
-        `        <tr>
+        `<tr>
           <td style="padding:6px 12px;font-weight:600;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;white-space:nowrap;">${label}</td>
           <td style="padding:6px 12px;color:#111827;border:1px solid #e5e7eb;">${value}</td>
         </tr>`,
@@ -319,25 +137,12 @@ const sendFacilityEmail = async (
     <p style="margin:4px 0 0;color:#bfdbfe;font-size:13px;">Submitted on ${now} by <strong>${addedBy}</strong></p>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:24px 32px;">
-    <table style="width:100%;border-collapse:collapse;font-size:14px;">
-      ${tableRows}
-    </table>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">${tableRows}</table>
     <p style="margin-top:20px;font-size:12px;color:#6b7280;">
       This is an automated notification from the NSF Facility Registry System.
     </p>
   </div>
 </div>`;
-
-    const prompt = `
-Send an HTML email using Gmail with these exact parameters and no other action:
-
-To: ${NOTIFICATION_EMAIL}
-Subject: [NSF Registry] New Facility Added – ${facility.facility_name ?? 'Unknown'} (Code: ${facility.facility_code ?? '—'})
-Body (HTML):
-${htmlBody}
-
-After sending, reply with only the word: SENT
-`.trim();
 
     await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -345,7 +150,10 @@ After sending, reply with only the word: SENT
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 256,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [{
+          role: 'user',
+          content: `Send an HTML email using Gmail:\nTo: ${NOTIFICATION_EMAIL}\nSubject: [NSF Registry] New Facility Added – ${facility.facility_name ?? 'Unknown'} (Code: ${facility.facility_code ?? '—'})\nBody (HTML):\n${htmlBody}\n\nAfter sending, reply with only: SENT`,
+        }],
         mcp_servers: [
           { type: 'url', url: 'https://gmailmcp.googleapis.com/mcp/v1', name: 'gmail-mcp' },
         ],
@@ -358,7 +166,7 @@ After sending, reply with only the word: SENT
 
 // ─── Empty Form ───────────────────────────────────────────────────────────────
 const EMPTY_FORM: Partial<NSFFacility> = {
-  facility_code:    '',               // ← varchar (was undefined / number)
+  facility_code:    '',
   facility_name:    '',
   category:         '',
   type1:            '',
@@ -374,7 +182,7 @@ const EMPTY_FORM: Partial<NSFFacility> = {
   province:         '',
   region:           '4A',
   date_accredited:  '',
-  year_accredited:  CURRENT_YEAR,     // ← pre-filled, readonly
+  year_accredited:  CURRENT_YEAR,
   last_po_date:     '',
   po_number:        '',
   remarks:          '',
@@ -404,26 +212,28 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
   const [citySearch,   setCitySearch]   = useState('');
   const [showCitySugg, setShowCitySugg] = useState(false);
 
+  // Reset form whenever modal opens or editing target changes
   React.useEffect(() => {
     const base = editing ?? EMPTY_FORM;
     setForm({
       ...base,
       date_accredited: toDateInput(base.date_accredited),
       last_po_date:    toDateInput(base.last_po_date),
-      // On edit keep the stored year; on add always use current year
       year_accredited: editing ? (base.year_accredited ?? CURRENT_YEAR) : CURRENT_YEAR,
     });
     setCitySearch(editing?.city ?? '');
   }, [editing, open]);
 
+  // ── Field helpers ────────────────────────────────────────────────────────
   const UPPERCASE_EXEMPT = new Set(['email', 'tel_cell', 'fax', 'facility_code', 'year_accredited']);
 
   const field = (key: keyof NSFFacility) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
+    const raw = e.target.value;
     const value = !UPPERCASE_EXEMPT.has(key) && e.target.type !== 'number' && e.target.type !== 'email' && e.target.type !== 'date'
-      ? e.target.value.toUpperCase()
-      : e.target.value;
+      ? raw.toUpperCase()
+      : raw;
     setForm(f => ({ ...f, [key]: value }));
   };
 
@@ -432,6 +242,7 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
     setCitySearch('');
   };
 
+  // ── City autocomplete ────────────────────────────────────────────────────
   const citiesForProvince = useMemo(() => {
     const prov = form.province ?? '';
     return prov && PROVINCE_CITY_MAP[prov] ? PROVINCE_CITY_MAP[prov] : [];
@@ -449,10 +260,15 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
     setShowCitySugg(false);
   };
 
+  // ── Submit ───────────────────────────────────────────────────────────────
   const isLoading = addMutation.isPending || updateMutation.isPending;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // NOTE: This handler is called via onClick on a type="button" in the footer.
+  // The footer lives OUTSIDE the <form> tag, so type="submit" would not reach it.
+  // Using type="button" + onClick avoids that disconnect and prevents any double-fire.
+  const handleSubmit = async (e: React.MouseEvent | React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return; // guard against accidental double-click
     try {
       if (editing?.id) {
         await updateMutation.mutateAsync({
@@ -465,22 +281,24 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
       }
       onClose();
     } catch {
-      // errors handled in hook
+      // errors surfaced via hook's onError
     }
   };
 
   if (!open) return null;
 
-  const inputCls        = "w-full h-9 px-3 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
+  // ── Style shortcuts ──────────────────────────────────────────────────────
+  const inputCls         = "w-full h-9 px-3 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
   const inputReadonlyCls = "w-full h-9 px-3 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed select-none";
-  const labelCls        = "block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1";
+  const labelCls         = "block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1";
+  const legendCls        = "text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b dark:border-gray-700">
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-6 py-4 border-b dark:border-gray-700 shrink-0">
           <div>
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">
               {editing ? 'Edit Facility' : 'Add New Facility'}
@@ -491,20 +309,22 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
                 : 'Fill in the details below to register a new NSF facility.'}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors">
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors"
+          >
             <X size={20} />
           </button>
         </div>
 
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+        {/* ── Scrollable body ── */}
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
 
           {/* Basic Info */}
           <fieldset>
-            <legend className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3">Basic Information</legend>
+            <legend className={legendCls}>Basic Information</legend>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-              {/* Facility Code — varchar, plain text input */}
               <div>
                 <label className={labelCls}>Facility Code *</label>
                 <input
@@ -516,10 +336,16 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
                   placeholder="e.g. 1234"
                 />
               </div>
-
               <div>
                 <label className={labelCls}>Facility Name *</label>
-                <input type="text" required value={form.facility_name ?? ''} onChange={field('facility_name')} className={inputCls} placeholder="e.g. Healthway Daniel Mercado Medical Center" />
+                <input
+                  type="text"
+                  required
+                  value={form.facility_name ?? ''}
+                  onChange={field('facility_name')}
+                  className={inputCls}
+                  placeholder="e.g. Healthway Daniel Mercado Medical Center"
+                />
               </div>
               <div>
                 <label className={labelCls}>Category</label>
@@ -542,8 +368,6 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
                   {TYPE2_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-
-              {/* Region — pre-filled with 4A, still editable */}
               <div>
                 <label className={labelCls}>Region</label>
                 <input
@@ -554,13 +378,12 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
                   placeholder="e.g. 4A"
                 />
               </div>
-
             </div>
           </fieldset>
 
           {/* Location */}
           <fieldset>
-            <legend className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3">Location</legend>
+            <legend className={legendCls}>Location</legend>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Province</label>
@@ -572,13 +395,19 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
               <div className="relative">
                 <label className={labelCls}>
                   City / Municipality
-                  {!form.province && <span className="ml-1 text-gray-400 font-normal">(select a province first)</span>}
+                  {!form.province && (
+                    <span className="ml-1 text-gray-400 font-normal">(select a province first)</span>
+                  )}
                 </label>
                 <input
                   type="text"
                   value={citySearch}
                   disabled={!form.province}
-                  onChange={e => { setCitySearch(e.target.value); setForm(f => ({ ...f, city: e.target.value })); setShowCitySugg(true); }}
+                  onChange={e => {
+                    setCitySearch(e.target.value);
+                    setForm(f => ({ ...f, city: e.target.value }));
+                    setShowCitySugg(true);
+                  }}
                   onFocus={() => setShowCitySugg(true)}
                   onBlur={() => setTimeout(() => setShowCitySugg(false), 150)}
                   className={`${inputCls} disabled:opacity-40 disabled:cursor-not-allowed`}
@@ -588,7 +417,11 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
                 {showCitySugg && citySuggestions.length > 0 && (
                   <ul className="absolute z-30 left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto text-sm">
                     {citySuggestions.map(c => (
-                      <li key={c} onMouseDown={() => pickCity(c)} className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer text-gray-800 dark:text-gray-200">
+                      <li
+                        key={c}
+                        onMouseDown={() => pickCity(c)}
+                        className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer text-gray-800 dark:text-gray-200"
+                      >
                         {c}
                       </li>
                     ))}
@@ -597,22 +430,39 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
               </div>
               <div className="sm:col-span-2">
                 <label className={labelCls}>Address</label>
-                <input type="text" value={form.address ?? ''} onChange={field('address')} className={inputCls} placeholder="Street address" />
+                <input
+                  type="text"
+                  value={form.address ?? ''}
+                  onChange={field('address')}
+                  className={inputCls}
+                  placeholder="Street address"
+                />
               </div>
             </div>
           </fieldset>
 
-          {/* Contact */}
+          {/* Contact Details */}
           <fieldset>
-            <legend className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3">Contact Details</legend>
+            <legend className={legendCls}>Contact Details</legend>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Medical Director</label>
-                <input type="text" value={form.medical_director ?? ''} onChange={field('medical_director')} className={inputCls} placeholder="Dr. Full Name" />
+                <input
+                  type="text"
+                  value={form.medical_director ?? ''}
+                  onChange={field('medical_director')}
+                  className={inputCls}
+                  placeholder="Dr. Full Name"
+                />
               </div>
               <div>
                 <label className={labelCls}>Contact Person</label>
-                <input type="text" value={form.contact_person ?? ''} onChange={field('contact_person')} className={inputCls} />
+                <input
+                  type="text"
+                  value={form.contact_person ?? ''}
+                  onChange={field('contact_person')}
+                  className={inputCls}
+                />
               </div>
               <div>
                 <label className={labelCls}>Designation</label>
@@ -623,29 +473,49 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
               </div>
               <div>
                 <label className={labelCls}>Tel / Cell</label>
-                <input type="text" value={form.tel_cell ?? ''} onChange={field('tel_cell')} className={inputCls} placeholder="+63..." />
+                <input
+                  type="text"
+                  value={form.tel_cell ?? ''}
+                  onChange={field('tel_cell')}
+                  className={inputCls}
+                  placeholder="+63..."
+                />
               </div>
               <div>
                 <label className={labelCls}>Fax</label>
-                <input type="text" value={form.fax ?? ''} onChange={field('fax')} className={inputCls} />
+                <input
+                  type="text"
+                  value={form.fax ?? ''}
+                  onChange={field('fax')}
+                  className={inputCls}
+                />
               </div>
               <div>
                 <label className={labelCls}>Email</label>
-                <input type="email" value={form.email ?? ''} onChange={field('email')} className={inputCls} placeholder="facility@example.com" />
+                <input
+                  type="email"
+                  value={form.email ?? ''}
+                  onChange={field('email')}
+                  className={inputCls}
+                  placeholder="facility@example.com"
+                />
               </div>
             </div>
           </fieldset>
 
-          {/* Accreditation */}
+          {/* Accreditation & PO */}
           <fieldset>
-            <legend className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3">Accreditation & PO</legend>
+            <legend className={legendCls}>Accreditation & PO</legend>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Date Accredited</label>
-                <input type="date" value={form.date_accredited ?? ''} onChange={field('date_accredited')} className={inputCls} />
+                <input
+                  type="date"
+                  value={form.date_accredited ?? ''}
+                  onChange={field('date_accredited')}
+                  className={inputCls}
+                />
               </div>
-
-              {/* Year Accredited — readonly, auto-set to current year */}
               <div>
                 <label className={labelCls}>
                   Year Accredited
@@ -659,14 +529,24 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
                   className={inputReadonlyCls}
                 />
               </div>
-
               <div>
                 <label className={labelCls}>Last PO Date</label>
-                <input type="date" value={form.last_po_date ?? ''} onChange={field('last_po_date')} className={inputCls} />
+                <input
+                  type="date"
+                  value={form.last_po_date ?? ''}
+                  onChange={field('last_po_date')}
+                  className={inputCls}
+                />
               </div>
               <div>
                 <label className={labelCls}>PO Number</label>
-                <input type="text" value={form.po_number ?? ''} onChange={field('po_number')} className={inputCls} placeholder="PO-2024-001" />
+                <input
+                  type="text"
+                  value={form.po_number ?? ''}
+                  onChange={field('po_number')}
+                  className={inputCls}
+                  placeholder="PO-2024-001"
+                />
               </div>
             </div>
           </fieldset>
@@ -683,10 +563,16 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
             />
           </div>
 
-        </form>
+        </div>{/* end scrollable body */}
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl">
+        {/* ── Footer ──
+            The footer is intentionally OUTSIDE the form scroll area.
+            The Save button uses type="button" + onClick={handleSubmit} because
+            a type="submit" button only submits the <form> it lives inside —
+            and this button is outside that form wrapper. Using type="button"
+            avoids any browser-submit confusion and fires handleSubmit exactly once.
+        */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -696,15 +582,16 @@ export const AddNSFFacilityModal: React.FC<AddNSFFacilityModalProps> = ({
             Cancel
           </button>
           <button
-            type="submit"
+            type="button"
             disabled={isLoading}
-            onClick={handleSubmit as any}
+            onClick={handleSubmit}
             className="h-9 px-5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
           >
             {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
             {editing ? 'Save Changes' : 'Add Facility'}
           </button>
         </div>
+
       </div>
     </div>
   );

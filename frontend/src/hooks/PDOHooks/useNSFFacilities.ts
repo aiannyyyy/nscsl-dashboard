@@ -59,7 +59,6 @@ export const useNSFFacility = (id: number) => {
 };
 
 // ── SUMMARY CARDS ─────────────────────────────────────────────────────────────
-// Accepts province so the cards filter to the selected province.
 
 export const useNSFSummaryCards = (params?: NSFFilterParams) => {
     return useQuery({
@@ -71,7 +70,6 @@ export const useNSFSummaryCards = (params?: NSFFilterParams) => {
 };
 
 // ── SUMMARY TREND ─────────────────────────────────────────────────────────────
-// Accepts province so the month-over-month delta reflects the selected province.
 
 export const useNSFSummaryTrend = (params?: NSFSummaryTrendParams) => {
     return useQuery({
@@ -83,7 +81,6 @@ export const useNSFSummaryTrend = (params?: NSFSummaryTrendParams) => {
 };
 
 // ── STATUS DISTRIBUTION CHART ─────────────────────────────────────────────────
-// Accepts province so the pie chart filters to the selected province.
 
 export const useNSFStatusDistribution = (params?: Pick<NSFFilterParams, 'province'>) => {
     return useQuery({
@@ -106,7 +103,6 @@ export const useNSFReactivationStatus = (params?: NSFReactivationParams) => {
 };
 
 // ── REACTIVATED BY PROVINCE (chart) ──────────────────────────────────────────
-// Accepts province to further narrow the pie chart to a single province's logs.
 
 export const useNSFReactivatedByProvince = (params?: NSFReactivationParams) => {
     return useQuery({
@@ -134,19 +130,25 @@ export const useNSFProvinces = () => {
     return useQuery({
         queryKey:  NSF_KEYS.provinces,
         queryFn:   () => nsfFacilitiesService.getProvinces(),
-        staleTime: 5 * 60_000, // 5 minutes — provinces change rarely
+        staleTime: 5 * 60_000,
     });
 };
 
 // ── ADD FACILITY ──────────────────────────────────────────────────────────────
+// FIX: added refetchQueries after invalidation so the table updates immediately
+// instead of waiting for the next poll cycle or staleTime to expire.
 
 export const useAddNSFFacility = () => {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: (data: Partial<NSFFacility>) =>
             nsfFacilitiesService.create(data),
-        onSuccess: () => invalidateAll(queryClient),
-        onError:   (error: any) =>
+        onSuccess: () => {
+            invalidateAll(queryClient);
+            // Force an immediate refetch of the facilities list
+            queryClient.refetchQueries({ queryKey: ['nsf', 'facilities'] });
+        },
+        onError: (error: any) =>
             console.error('addNSFFacility error:', error?.response?.data?.message || error.message),
     });
 };
