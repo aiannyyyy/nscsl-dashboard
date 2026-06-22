@@ -1,16 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { X, Clock, AlignLeft, Tag, Bell, Calendar, Trash2, Users } from 'lucide-react'
-import type { CalendarEvent } from './EventBadge'
+import type { CalendarEvent } from '../../../types/calendar'
 
 const CATEGORIES = ['Meeting', 'Holiday', 'Deadline', 'Training', 'Other']
 const COLORS = [
-  '#3b82f6',
-  '#10b981',
-  '#ef4444',
-  '#f97316',
-  '#8b5cf6',
-  '#ec4899',
-  '#eab308',
+  '#3b82f6', '#10b981', '#ef4444',
+  '#f97316', '#8b5cf6', '#ec4899', '#eab308',
 ]
 const REMINDER_OPTIONS = [
   { label: '5 minutes before',  value: 5    },
@@ -24,6 +19,7 @@ export interface UserOption {
   user_id: number
   name: string
   dept: string
+  position: string  // ✅ added
 }
 
 interface EventModalProps {
@@ -34,7 +30,7 @@ interface EventModalProps {
   isDeleting?: boolean
   users?: UserOption[]
   onClose: () => void
-  onSave: (event: Omit<CalendarEvent, 'event_id' | 'created_by'> & { 
+  onSave: (event: Omit<CalendarEvent, 'event_id' | 'created_by'> & {
     participant_ids: number[]
     reminder_minutes?: number
   }) => void
@@ -62,6 +58,7 @@ export const EventModal: React.FC<EventModalProps> = ({
     d.setHours(hours, minutes, 0, 0)
     return toDateTimeLocal(d)
   }
+
   const baseDate     = selectedDate ?? new Date()
   const defaultStart = makeDefault(baseDate, 8)
   const defaultEnd   = makeDefault(baseDate, 17)
@@ -109,24 +106,33 @@ export const EventModal: React.FC<EventModalProps> = ({
     )
   }
 
+  // ✅ filter then group by department
   const filteredUsers = users.filter((u) =>
     u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-    u.dept.toLowerCase().includes(userSearch.toLowerCase())
+    u.dept.toLowerCase().includes(userSearch.toLowerCase()) ||
+    u.position?.toLowerCase().includes(userSearch.toLowerCase())
   )
+
+  const groupedUsers = filteredUsers.reduce<Record<string, UserOption[]>>((acc, u) => {
+    const dept = u.dept || 'Other'
+    if (!acc[dept]) acc[dept] = []
+    acc[dept].push(u)
+    return acc
+  }, {})
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (!title.trim()) return
     onSave({
-      title:           title.trim(),
-      description:     description.trim(),
-      start_datetime:  startDatetime,
-      end_datetime:    endDatetime,
-      is_all_day:      isAllDay,
+      title:            title.trim(),
+      description:      description.trim(),
+      start_datetime:   startDatetime,
+      end_datetime:     endDatetime,
+      is_all_day:       isAllDay,
       color,
-      category:        category || undefined,
-      participant_ids: participants,
+      category:         category || undefined,
+      participant_ids:  participants,
       reminder_minutes: reminder !== '' ? reminder : undefined,
     })
   }
@@ -243,45 +249,63 @@ export const EventModal: React.FC<EventModalProps> = ({
 
               <input
                 type="text"
-                placeholder="Search users..."
+                placeholder="Search by name, department, or position..."
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
                 className="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 outline-none focus:border-blue-500 transition-colors"
               />
 
-              <div className="max-h-32 overflow-y-auto flex flex-col gap-1 border border-gray-200 dark:border-gray-700 rounded-lg p-1">
+              {/* ✅ grouped by department */}
+              <div className="max-h-40 overflow-y-auto flex flex-col border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                 {filteredUsers.length === 0 ? (
-                  <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-2">No users found</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-3">No users found</p>
                 ) : (
-                  filteredUsers.map((u) => (
-                    <button
-                      key={u.user_id}
-                      type="button"
-                      onClick={() => toggleParticipant(u.user_id)}
-                      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${
-                        participants.includes(u.user_id)
-                          ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700'
-                          : 'hover:bg-gray-50 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      <div
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                        style={{ backgroundColor: COLORS[u.user_id % COLORS.length] }}
-                      >
-                        {u.name.charAt(0).toUpperCase()}
+                  Object.entries(groupedUsers).map(([dept, deptUsers]) => (
+                    <div key={dept}>
+                      {/* Department label */}
+                      <div className="sticky top-0 px-3 py-1 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                          {dept}
+                        </span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">{u.name}</p>
-                        <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{u.dept}</p>
+
+                      {/* Users in this dept */}
+                      <div className="flex flex-col p-1 gap-0.5">
+                        {deptUsers.map((u) => {
+                          const isSelected = participants.includes(u.user_id)
+                          return (
+                            <button
+                              key={u.user_id}
+                              type="button"
+                              onClick={() => toggleParticipant(u.user_id)}
+                              className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${
+                                isSelected
+                                  ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700'
+                                  : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                              }`}
+                            >
+                              <div
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                                style={{ backgroundColor: COLORS[u.user_id % COLORS.length] }}
+                              >
+                                {u.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">{u.name}</p>
+                                <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{u.position || u.dept}</p>
+                              </div>
+                              {isSelected && (
+                                <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                                  <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                              )}
+                            </button>
+                          )
+                        })}
                       </div>
-                      {participants.includes(u.user_id) && (
-                        <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      )}
-                    </button>
+                    </div>
                   ))
                 )}
               </div>

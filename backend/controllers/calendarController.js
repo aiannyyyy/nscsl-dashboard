@@ -4,8 +4,8 @@ const { sendNotification } = require("../utils/notificationHelper");
 // GET all events with participants (department-aware)
 const getEvents = async (req, res) => {
   try {
-    const userDept = req.user.dept;
-    console.log('🔍 [CALENDAR] getEvents — userDept:', JSON.stringify(userDept))
+    const userDept   = req.user.dept
+    const userId     = req.user.user_id
 
     const [events] = await mysqlPool.query(`
       SELECT 
@@ -15,20 +15,27 @@ const getEvents = async (req, res) => {
         u.name AS created_by_name, u.dept AS created_by_dept
       FROM events e
       JOIN user u ON e.created_by = u.user_id
-      WHERE e.department = ?
+      WHERE e.department = ?                    -- own dept events
+         OR EXISTS (                            -- ✅ event has ANY participant from user's dept
+           SELECT 1 
+           FROM event_participants ep
+           JOIN user pu ON ep.user_id = pu.user_id
+           WHERE ep.event_id = e.event_id
+             AND pu.dept = ?                    -- any participant belongs to my dept
+         )
       ORDER BY e.start_datetime ASC
-    `, [userDept]);
+    `, [userDept, userDept])
 
-    console.log('🔍 [CALENDAR] getEvents — userDept:', JSON.stringify(userDept))
+    const eventIds = events.map(e => e.event_id)
 
-    const [participants] = await mysqlPool.query(`
-      SELECT ep.event_id, ep.user_id, u.name, u.dept
-      FROM event_participants ep
-      JOIN user u ON ep.user_id = u.user_id
-      WHERE ep.event_id IN (
-        SELECT event_id FROM events WHERE department = ?
-      )
-    `, [userDept]); // ✅ scoped to department only, not all participants
+    const [participants] = eventIds.length > 0
+      ? await mysqlPool.query(`
+          SELECT ep.event_id, ep.user_id, u.name, u.dept
+          FROM event_participants ep
+          JOIN user u ON ep.user_id = u.user_id
+          WHERE ep.event_id IN (?)
+        `, [eventIds])
+      : [[]]
 
     const result = events.map((event) => ({
       ...event,
@@ -38,30 +45,28 @@ const getEvents = async (req, res) => {
       participants: participants
         .filter((p) => p.event_id === event.event_id)
         .map((p) => ({ user_id: p.user_id, name: p.name, dept: p.dept })),
-    }));
+    }))
 
-    return res.status(200).json(result);
+    return res.status(200).json(result)
   } catch (err) {
-    console.error("getEvents error:", err);
-    return res.status(500).json({ message: "Failed to fetch events", error: err.message });
+    console.error("getEvents error:", err)
+    return res.status(500).json({ message: "Failed to fetch events", error: err.message })
   }
-};
+}
 
 // GET all users for participant picker (scoped to department)
 const getUsers = async (req, res) => {
   try {
-    const userDept = req.user.dept;
-
     const [rows] = await mysqlPool.query(
-      "SELECT user_id, name, dept, position FROM user WHERE dept = ? ORDER BY name ASC",
-      [userDept]
-    );
-    return res.status(200).json(rows);
+      "SELECT user_id, name, dept, position FROM user ORDER BY dept ASC, name ASC"
+      // ✅ removed WHERE dept = ? — returns all departments
+    )
+    return res.status(200).json(rows)
   } catch (err) {
-    console.error("getUsers error:", err);
-    return res.status(500).json({ message: "Failed to fetch users", error: err.message });
+    console.error("getUsers error:", err)
+    return res.status(500).json({ message: "Failed to fetch users", error: err.message })
   }
-};
+}
 
 // POST create event
 const createEvent = async (req, res) => {
