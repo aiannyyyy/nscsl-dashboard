@@ -321,7 +321,7 @@ app.use('/api/intranet/move', require('./routes/IntranetRoutes/moveRoutes'));
 app.use('/api/intranet/category-move', require('./routes/IntranetRoutes/categoryMoveRoutes'));
 
 // NSF Performance
-app.use("/api", require("./routes/PDORoutes/nsfPerformanceRoutes"));
+app.use("/api/pdo/nsf-performance", require("./routes/PDORoutes/nsfPerformanceRoutes"));
 
 
 console.log("💬 Chat routes loaded");

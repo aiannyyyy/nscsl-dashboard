@@ -66,8 +66,8 @@ export const MENU_CONFIG = [
     path: '/dashboard/intranet-file-management',
     subItems: [
       { key: 'overview', label: 'Overview', path: '/dashboard/intranet-file-management' },
-      { key: 'summary',  label: 'Categories',  path: '/dashboard/intranet-file-management/categories' },
-      { key: 'summary',  label: 'Files',  path: '/dashboard/intranet-file-management/files' },
+      { key: 'categories', label: 'Categories', path: '/dashboard/intranet-file-management/categories' },
+      { key: 'files',      label: 'Files',      path: '/dashboard/intranet-file-management/files' },
     ],
   },
   {

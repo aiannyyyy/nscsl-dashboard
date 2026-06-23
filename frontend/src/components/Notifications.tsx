@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, X, ClipboardList, CheckCircle, XCircle, Wrench, Clock, AlertTriangle, BookOpen, Send } from 'lucide-react';
+import { Bell, X, ClipboardList, CheckCircle, XCircle, Wrench, Clock, AlertTriangle, BookOpen, Send, Share2 } from 'lucide-react';
 import {
     useGetNotifications,
     useGetUnreadCount,
@@ -30,9 +30,15 @@ export const Notifications: React.FC = () => {
                 await markAsReadMutation.mutateAsync(notification.id);
             }
 
-            // ✅ Don't navigate for calendar reminders — just mark as read
             if (notification.type === 'calendar_reminder') {
-                return
+                return;
+            }
+
+            // File share → go to intranet overview
+            if (notification.type === 'file_share') {
+                navigate('/dashboard/intranet-file-management');
+                setShowNotifications(false);
+                return;
             }
 
             if (notification.link?.trim()) {
@@ -53,12 +59,9 @@ export const Notifications: React.FC = () => {
         deleteNotificationMutation.mutate(id);
     };
 
-    // =========================================================================
-    // ICONS — existing endorsement types preserved + job order types added
-    // =========================================================================
     const getNotificationIcon = (type: string): React.ReactNode => {
         switch (type) {
-            // ── Existing types (do not remove) ───────────────────────────────
+            // Existing types
             case 'endorsement_added':   return '📋';
             case 'facility_visit':      return '🏥';
             case 'document_uploaded':   return '📄';
@@ -66,41 +69,32 @@ export const Notifications: React.FC = () => {
             case 'task_assigned':       return '📌';
             case 'system_alert':        return '⚠️';
 
-            // ── Job Order types ───────────────────────────────────────────────
-            case 'new_job_order':
-                return <ClipboardList size={16} />;
-            case 'approved':
-                return <CheckCircle size={16} />;
-            case 'rejected':
-                return <XCircle size={16} />;
-            case 'assigned':
-                return <Wrench size={16} />;
-            case 'resolved':
-                return <CheckCircle size={16} />;
-            case 'status_update':
-                return <Clock size={16} />;
+            // Job Order types
+            case 'new_job_order':       return <ClipboardList size={16} />;
+            case 'approved':            return <CheckCircle size={16} />;
+            case 'rejected':            return <XCircle size={16} />;
+            case 'assigned':            return <Wrench size={16} />;
+            case 'resolved':            return <CheckCircle size={16} />;
+            case 'status_update':       return <Clock size={16} />;
 
-            case 'logbook_endorsement':
-                return <BookOpen size={16} />;
-            case 'logbook_tc_approved':
-                return <CheckCircle size={16} />;
-            case 'logbook_endorsement_recall':
-                return <Send size={16} />;
+            // Logbook types
+            case 'logbook_endorsement':        return <BookOpen size={16} />;
+            case 'logbook_tc_approved':        return <CheckCircle size={16} />;
+            case 'logbook_endorsement_recall': return <Send size={16} />;
 
-            case 'calendar_reminder':
-                return <Bell size={16} />;
+            // Calendar
+            case 'calendar_reminder':   return <Bell size={16} />;
 
-            default:
-                return 'ℹ️';
+            // File share
+            case 'file_share':          return <Share2 size={16} />;
+
+            default:                    return 'ℹ️';
         }
     };
 
-    // =========================================================================
-    // COLORS — existing types preserved + job order types added
-    // =========================================================================
     const getNotificationColor = (type: string): string => {
         switch (type) {
-            // ── Existing types (do not remove) ───────────────────────────────
+            // Existing types
             case 'endorsement_added':
             case 'approval_needed':
                 return 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
@@ -112,7 +106,7 @@ export const Notifications: React.FC = () => {
             case 'task_assigned':
                 return 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400';
 
-            // ── Job Order types ───────────────────────────────────────────────
+            // Job Order types
             case 'new_job_order':
                 return 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
             case 'approved':
@@ -125,6 +119,7 @@ export const Notifications: React.FC = () => {
             case 'status_update':
                 return 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400';
 
+            // Logbook types
             case 'logbook_endorsement':
                 return 'bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400';
             case 'logbook_tc_approved':
@@ -132,24 +127,27 @@ export const Notifications: React.FC = () => {
             case 'logbook_endorsement_recall':
                 return 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400';
 
+            // Calendar
             case 'calendar_reminder':
                 return 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
+
+            // File share
+            case 'file_share':
+                return 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400';
 
             default:
                 return 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400';
         }
     };
 
-    // =========================================================================
-    // LABEL BADGE — shows a small pill for job order notifications
-    // =========================================================================
-    const getJobOrderBadge = (type: string): string | null => {
+    const getNotificationBadge = (type: string): string | null => {
         const jobOrderTypes = ['new_job_order', 'approved', 'rejected', 'assigned', 'resolved', 'status_update'];
-        if (jobOrderTypes.includes(type)) return 'IT Work Order';
-        if (type === 'logbook_endorsement') return 'Logbook';
-        if (type === 'logbook_tc_approved') return 'Logbook TC';
+        if (jobOrderTypes.includes(type))          return 'IT Work Order';
+        if (type === 'logbook_endorsement')        return 'Logbook';
+        if (type === 'logbook_tc_approved')        return 'Logbook TC';
         if (type === 'logbook_endorsement_recall') return 'Recall';
-        if (type === 'calendar_reminder') return 'Calendar';
+        if (type === 'calendar_reminder')          return 'Calendar';
+        if (type === 'file_share')                 return 'Shared File';
         return null;
     };
 
@@ -158,9 +156,9 @@ export const Notifications: React.FC = () => {
         const now  = new Date();
         const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-        if (diffInSeconds < 60)    return 'Just now';
-        if (diffInSeconds < 3600)  return `${Math.floor(diffInSeconds / 60)}m ago`;
-        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+        if (diffInSeconds < 60)     return 'Just now';
+        if (diffInSeconds < 3600)   return `${Math.floor(diffInSeconds / 60)}m ago`;
+        if (diffInSeconds < 86400)  return `${Math.floor(diffInSeconds / 3600)}h ago`;
         if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
         return date.toLocaleDateString();
     };
@@ -267,12 +265,12 @@ export const Notifications: React.FC = () => {
                             ) : (
                                 <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
                                     {notifications.map((notification) => {
-                                        const badge = getJobOrderBadge(notification.type);
+                                        const badge = getNotificationBadge(notification.type);
                                         return (
                                             <div
                                                 key={notification.id}
                                                 onClick={() => handleNotificationClick(notification)}
-                                                className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer ${
+                                                className={`group p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer ${
                                                     !notification.is_read
                                                         ? 'bg-blue-50/50 dark:bg-blue-900/10 border-l-2 border-l-blue-500'
                                                         : ''
@@ -288,7 +286,6 @@ export const Notifications: React.FC = () => {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-start justify-between gap-2">
                                                             <div className="flex-1 min-w-0">
-                                                                {/* Badge for job order notifications */}
                                                                 {badge && (
                                                                     <span className="inline-block text-[10px] font-semibold uppercase tracking-wide bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded mb-1">
                                                                         {badge}

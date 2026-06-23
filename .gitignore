@@ -6,3 +6,8 @@ electron/dist-installer/
 .env
 *.log
 .DS_Store
+uploads/
+temp-intranet/
+uploads-intranet/
+CMSReportExporter/
+CrystalReportExporter/

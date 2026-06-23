@@ -48,6 +48,7 @@ export interface CategoryFile {
     is_active: number;
     download_count: number;
     created_by: number;
+    created_by_name?: string;
     created_at: string;
 }
 
@@ -55,19 +56,19 @@ export interface CategoryFile {
 // CATEGORIES
 // ============================================
 export const getCategories = (params?: { is_active?: boolean; created_by?: number }) =>
-    api.get<{ message: string; categories: Category[]; count: number }>(`${BASE}/categories`, { params });
+    api.get<{ message: string; categories: Category[]; count: number }>(`${BASE}`, { params });
 
 export const getCategory = (id: number) =>
-    api.get<{ message: string; category: Category }>(`${BASE}/categories/${id}`);
+    api.get<{ message: string; category: Category }>(`${BASE}/${id}`);
 
 export const createCategory = (data: { name: string; description?: string; color?: string; icon?: string; created_by: number }) =>
-    api.post(`${BASE}/categories`, data);
+    api.post(`${BASE}`, data);
 
 export const updateCategory = (id: number, data: Partial<Category> & { updated_by: number }) =>
-    api.put(`${BASE}/categories/${id}`, data);
+    api.put(`${BASE}/${id}`, data);
 
 export const deleteCategory = (id: number, deleted_by: number) =>
-    api.delete(`${BASE}/categories/${id}`, { data: { deleted_by } });
+    api.delete(`${BASE}/${id}`, { data: { deleted_by } });
 
 // ============================================
 // FOLDERS
@@ -85,7 +86,7 @@ export const updateFolder = (id: number, data: Partial<CategoryFolder> & { updat
     api.put(`${BASE}/folders/${id}`, data);
 
 export const deleteFolder = (id: number, deleted_by: number) =>
-    api.delete(`${BASE}/categories/folders/${id}`, { data: { deleted_by } });
+    api.delete(`${BASE}/folders/${id}`, { data: { deleted_by } }); // ✅ fixed
 
 export const getFolderTree = (categoryId: number) =>
     api.get(`${BASE}/folders/tree/${categoryId}`);
@@ -109,34 +110,43 @@ export const updateFile = (id: number, data: Partial<CategoryFile> & { updated_b
     api.put(`${BASE}/files/${id}`, data);
 
 export const deleteFile = (id: number, deleted_by: number) =>
-    api.delete(`${BASE}/categories/files/${id}`, { data: { deleted_by } });
+    api.delete(`${BASE}/files/${id}`, { data: { deleted_by } }); // ✅ fixed
 
 // ============================================
 // UPLOAD
 // ============================================
-export const uploadSingleFile = (file: File, category_id: number, folder_id: number | null, created_by: number, description = '') => {
+export const uploadSingleFile = (
+    file: File,
+    category_id: number,
+    folder_id: number | null,
+    created_by: number,
+    extra?: Record<string, string>,
+) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('category_id', String(category_id));
     formData.append('created_by', String(created_by));
-    formData.append('description', description);
     if (folder_id) formData.append('folder_id', String(folder_id));
+    if (extra) Object.entries(extra).forEach(([k, v]) => formData.append(k, v));
 
-    return api.post(`${BASE}/files/upload-single`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    return api.post(`${BASE}/files/upload-single`, formData);
 };
 
-export const uploadMultipleFiles = (files: File[], category_id: number, folder_id: number | null, created_by: number) => {
+export const uploadMultipleFiles = (
+    files: File[],
+    category_id: number,
+    folder_id: number | null,
+    created_by: number,
+    extra?: Record<string, string>,
+) => {
     const formData = new FormData();
     files.forEach(f => formData.append('files', f));
     formData.append('category_id', String(category_id));
     formData.append('created_by', String(created_by));
     if (folder_id) formData.append('folder_id', String(folder_id));
+    if (extra) Object.entries(extra).forEach(([k, v]) => formData.append(k, v));
 
-    return api.post(`${BASE}/files/upload-multiple`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    return api.post(`${BASE}/files/upload-multiple`, formData);
 };
 
 export const resolveUploadConflict = (payload: {
@@ -150,6 +160,8 @@ export const resolveUploadConflict = (payload: {
     category_id: number;
     folder_id: number | null;
     created_by: number;
+    document_status?: string;
+    stamp_placement?: string;
 }) => api.post(`${BASE}/files/upload/resolve`, payload);
 
 // ============================================
@@ -161,10 +173,21 @@ export const getDownloadUrl = (fileId: number, userId: number, preview = false) 
 export const getPreviewUrl = (fileId: number, userId: number) =>
     `${api.defaults.baseURL}${BASE}/files/${fileId}/preview?user_id=${userId}`;
 
+export const downloadFileBlob = (fileId: number, userId: number) =>
+    api.get<Blob>(`${BASE}/files/${fileId}/download`, {
+        params: { user_id: userId },
+        responseType: 'blob',
+    });
+
 // ============================================
 // MOVE
 // ============================================
-export const moveMultipleFiles = (file_ids: number[], target_category_id: number, target_folder_id: number | null, moved_by: number) =>
+export const moveMultipleFiles = (
+    file_ids: number[],
+    target_category_id: number,
+    target_folder_id: number | null,
+    moved_by: number,
+) =>
     api.post(`${BASE}/files/move-multiple`, { file_ids, target_category_id, target_folder_id, moved_by });
 
 // ============================================
@@ -222,6 +245,7 @@ export default {
     resolveUploadConflict,
     getDownloadUrl,
     getPreviewUrl,
+    downloadFileBlob,
     moveMultipleFiles,
     getFileVersions,
     restoreFileVersion,
@@ -230,5 +254,5 @@ export default {
     toggleStar,
     unstarFile,
     getStarStatus,
-    getFileStats
+    getFileStats,
 };

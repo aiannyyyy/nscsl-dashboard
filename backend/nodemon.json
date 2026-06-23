@@ -1,0 +1,15 @@
+{
+  "watch": ["."],
+  "ext": "js,json",
+  "ignore": [
+    "node_modules/*",
+    "uploads-intranet/*",
+    "uploads-intranet/**/*",
+    "temp-intranet/*",
+    "temp-intranet/**/*",
+    "utils/temp/*",
+    "utils/temp/**/*",
+    "*.log"
+  ],
+  "delay": "500"
+}

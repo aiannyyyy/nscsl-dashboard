@@ -9,7 +9,7 @@ import {
   ChevronDown,
   ChevronRight,
   Settings,
-  File,
+  Folders,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useAllowedMenu } from '../hooks/useAllowedMenu';
@@ -23,7 +23,7 @@ const SIDEBAR_ICONS: Record<MenuKey, React.ReactNode> = {
   'laboratory':   <FlaskConical size={20} />,
   'followup':     <UserCheck size={20} />,
   'it-job-order': <Briefcase size={20} />,
-  'intranet-file-management': <File size={20} />,
+  'intranet-file-management': <Folders size={20} />,
   'settings':     <Settings size={20} />,
 };
 

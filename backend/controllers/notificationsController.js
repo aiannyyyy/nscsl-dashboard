@@ -328,6 +328,61 @@ const deleteAllNotifications = async (req, res) => {
     }
 };
 
+// Bulk share notifications — called fire-and-forget from shareController
+const createShareNotificationsForMany = async (sharedBy, recipientUserIds, fileName, fileId, categoryFileId) => {
+    if (!recipientUserIds || recipientUserIds.length === 0) return;
+
+    try {
+        // Get sharer's name
+        const [sharers] = await database.mysqlPool.query(
+            'SELECT name FROM user WHERE user_id = ?',
+            [sharedBy]
+        );
+        const sharerName = sharers[0]?.name || 'Someone';
+
+        const now = new Date();
+
+        // Get each recipient's department so we can store it on the notification
+        const [recipients] = await database.mysqlPool.query(
+            `SELECT user_id, dept FROM user WHERE user_id IN (${recipientUserIds.map(() => '?').join(',')})`,
+            recipientUserIds
+        );
+
+        if (recipients.length === 0) return;
+
+        const link = fileId
+            ? `/intranet/shared?file=${fileId}`
+            : categoryFileId
+                ? `/intranet/shared?categoryFile=${categoryFileId}`
+                : `/intranet/shared`;
+
+        const rows = recipients.map(r => [
+            r.dept || 'admin',          // department
+            r.user_id,                  // user_id (targeted, not broadcast)
+            'file_share',               // type
+            'File Shared With You',     // title
+            `${sharerName} shared "${fileName}" with you.`, // message
+            link,                       // link
+            fileId || categoryFileId || null, // reference_id
+            fileId ? 'file' : 'category_file', // reference_type
+            sharerName,                 // created_by
+            now                         // created_at
+        ]);
+
+        await database.mysqlPool.query(
+            `INSERT INTO test_nscslcom_nscsl_dashboard.notifications
+             (department, user_id, type, title, message, link, reference_id, reference_type, created_by, created_at)
+             VALUES ?`,
+            [rows]
+        );
+
+        console.log(`🔔 Share notifications sent to ${recipients.length} user(s) for "${fileName}"`);
+    } catch (err) {
+        console.error('❌ createShareNotificationsForMany error:', err);
+        // swallow — this is fire-and-forget; don't crash the caller
+    }
+};
+
 module.exports = {
     getNotifications,
     getUnreadCount,
@@ -335,5 +390,6 @@ module.exports = {
     markAsRead,
     markAllAsRead,
     deleteNotification,
-    deleteAllNotifications
+    deleteAllNotifications,
+    createShareNotificationsForMany,
 };

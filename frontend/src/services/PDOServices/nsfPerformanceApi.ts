@@ -184,7 +184,7 @@ export const getNsfPerformance = async (
     console.log('🔍 Fetching NSF Performance data:', params);
 
     const response = await api.get<NsfPerformanceResponse>(
-      '/nsf-performance',
+      '/pdo/nsf-performance',
       {
         params: {
           county: params.county,
@@ -228,7 +228,7 @@ export const getNsfPerformanceLabDetails = async (
     console.log('🔍 Fetching Lab Details:', params);
 
     const response = await api.get<LabDetailsResponse>(
-      '/nsf-performance/lab-details',
+      '/pdo/nsf-performance/lab-details',
       {
         params: {
           submid: params.submid,
@@ -279,7 +279,7 @@ export const generateNsfReport = async (
       generator: 'Crystal Reports via VB.NET Executable',
     });
 
-    const response = await api.get('/nsf-performance/generate-report', {
+    const response = await api.get('/pdo/nsf-performance/generate-report', {
       params: {
         submid: params.submid,
         dateFrom: params.dateFrom,
@@ -412,7 +412,7 @@ export const listReports = async (): Promise<ListReportsResponse> => {
     console.log('📋 Fetching Crystal Reports list...');
 
     const response = await api.get<ListReportsResponse>(
-      '/nsf-performance/reports',
+      '/pdo/nsf-performance/reports',
       { timeout: 10000 }
     );
 
@@ -443,7 +443,7 @@ export const getReportByFilename = async (filename: string): Promise<Blob> => {
     console.log('📥 Downloading Crystal Report:', filename);
 
     const response = await api.get(
-      `/nsf-performance/reports/${encodeURIComponent(filename)}`,
+      `/pdo/nsf-performance/reports/${encodeURIComponent(filename)}`,
       {
         responseType: 'blob',
         timeout: 30000,
@@ -505,7 +505,7 @@ export const getReportSystemHealth = async (): Promise<ReportHealthResponse> => 
     console.log('🏥 Checking Crystal Reports system health...');
 
     const response = await api.get<ReportHealthResponse>(
-      '/nsf-performance/report-health',
+      '/pdo/nsf-performance/report-health',
       { timeout: 10000 }
     );
 

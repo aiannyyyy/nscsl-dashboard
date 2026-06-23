@@ -82,20 +82,22 @@ export const uploadFile = (file: File, folder_id: number | null, created_by: num
     if (folder_id) formData.append('folder_id', String(folder_id));
     if (extra) Object.entries(extra).forEach(([k, v]) => formData.append(k, v));
 
-    return api.post<{ message: string; fileId: number; fileName: string }>(`${BASE}/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    return api.post<{ message: string; fileId: number; fileName: string }>(`${BASE}/upload`, formData);
 };
 
-export const uploadMultipleFiles = (files: File[], folder_id: number | null, created_by: number) => {
+export const uploadMultipleFiles = (
+    files: File[],
+    folder_id: number | null,
+    created_by: number,
+    extra?: Record<string, string>,
+) => {
     const formData = new FormData();
     files.forEach(f => formData.append('files', f));
     formData.append('created_by', String(created_by));
     if (folder_id) formData.append('folder_id', String(folder_id));
+    if (extra) Object.entries(extra).forEach(([k, v]) => formData.append(k, v));
 
-    return api.post(`${BASE}/upload/multiple`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    return api.post(`${BASE}/upload/multiple`, formData);
 };
 
 export const resolveUploadConflict = (payload: {
@@ -107,6 +109,8 @@ export const resolveUploadConflict = (payload: {
     folder_id: number | null;
     created_by: number;
     existing_file_id?: number;
+    document_status?: string;
+    stamp_placement?: string;
 }) => api.post(`${BASE}/upload/resolve`, payload);
 
 // ============================================
@@ -123,6 +127,15 @@ export const downloadFolderAsZip = (folderId: number) =>
 
 export const bulkDownload = (itemIds: number[]) =>
     api.post(`${BASE}/download/bulk`, { itemIds }, { responseType: 'blob' });
+
+export const downloadFileBlob = (fileId: number, userId: number) =>
+    api.get<Blob>(`${BASE}/download/${fileId}`, {
+        params: { user_id: userId },
+        responseType: 'blob',
+    });
+
+export const downloadFolderBlob = (folderId: number) =>
+    api.get<Blob>(`${BASE}/download/folder/${folderId}`, { responseType: 'blob' });
 
 // ============================================
 // MANAGEMENT
@@ -195,6 +208,8 @@ export default {
     getPreviewUrl,
     downloadFolderAsZip,
     bulkDownload,
+    downloadFileBlob,
+    downloadFolderBlob,
     renameItem,
     moveItem,
     deleteItem,

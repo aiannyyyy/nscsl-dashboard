@@ -5,7 +5,7 @@ const path = require('path');
 // ============================================
 // STAMP IMAGE PATHS
 // ============================================
-const STAMPS_DIR = path.join(__dirname, '../assets/stamps');
+const STAMPS_DIR = path.join(__dirname, '../../assets/stamps/');
 
 const STAMP_IMAGE = {
   controlled_copy: path.join(STAMPS_DIR, 'controlled.png'),

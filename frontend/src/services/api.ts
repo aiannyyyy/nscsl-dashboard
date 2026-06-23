@@ -12,19 +12,17 @@ const api = axios.create({
 
 api.interceptors.request.use(
     (config) => {
-        // Change 'token' to 'authToken' to match your AuthContext
-        const token = localStorage.getItem('authToken'); // ← Change this line
-        
-        console.log('🔍 Interceptor running');
-        console.log('🔍 Token from localStorage:', token ? 'EXISTS' : 'NULL');
-        
+        const token = localStorage.getItem('authToken');
+
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
-            console.log('✅ Authorization header set');
-        } else {
-            console.log('❌ No token found');
         }
-        
+
+        // Let the browser set multipart boundary — default application/json breaks file uploads
+        if (config.data instanceof FormData) {
+            delete config.headers['Content-Type'];
+        }
+
         return config;
     },
     (error) => {
@@ -43,5 +41,17 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+export function getAxiosErrorMessage(error: unknown, fallback = 'Request failed'): string {
+    if (axios.isAxiosError(error)) {
+        const data = error.response?.data;
+        if (data && typeof data === 'object' && 'error' in data) {
+            return String((data as { error?: string }).error || fallback);
+        }
+        if (typeof data === 'string' && data.trim()) return data;
+    }
+    if (error instanceof Error && error.message) return error.message;
+    return fallback;
+}
 
 export default api;

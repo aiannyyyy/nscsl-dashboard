@@ -609,6 +609,13 @@ exports.uploadSingleFile = async (req, res) => {
 
         const sanitizedName = sanitizeInput(uploadedFile.originalname);
 
+        // ✅ FIX: read stamp fields BEFORE conflict check so they're available everywhere
+        const document_status = req.body.document_status || 'none';
+        const stamp_placement = req.body.stamp_placement || 'every_page';
+
+        // ✅ DEBUG: confirm stamp fields are arriving
+        console.log('📋 Upload stamp fields:', { document_status, stamp_placement, body: req.body });
+
         // Check for duplicate
         const conflictQuery  = folder_id
             ? 'SELECT id, name, file_size FROM categories_files WHERE name = ? AND folder_id = ? AND is_active = 1'
@@ -617,32 +624,63 @@ exports.uploadSingleFile = async (req, res) => {
         const [existing]     = await inhousePool.query(conflictQuery, conflictParams);
 
         if (existing.length > 0) {
+            // ✅ FIX: include stamp fields in conflict payload so resolve endpoint has them
             return res.status(409).json({
                 conflict:             true,
                 message:              `A file named "${sanitizedName}" already exists at this location.`,
                 existing_file:        { id: existing[0].id, name: existing[0].name, file_size: existing[0].file_size },
-                uploaded_file:        { temp_path: uploadedFile.path, original_name: sanitizedName, file_size: uploadedFile.size, mime_type: uploadedFile.mimetype, file_type: path.extname(uploadedFile.originalname).substring(1).toLowerCase() },
+                uploaded_file:        {
+                    temp_path:     uploadedFile.path,
+                    original_name: sanitizedName,
+                    file_size:     uploadedFile.size,
+                    mime_type:     uploadedFile.mimetype,
+                    file_type:     path.extname(uploadedFile.originalname).substring(1).toLowerCase(),
+                    document_status,   // ✅ added
+                    stamp_placement    // ✅ added
+                },
                 available_strategies: ['overwrite', 'version', 'skip'],
                 context:              { category_id, folder_id: folder_id || null, created_by }
             });
         }
 
-        const document_status = req.body.document_status || 'none';
-        const stamp_placement = req.body.stamp_placement || 'every_page';
+        // ✅ FIX: resolve to absolute path for storage consistency
+        const resolvedFilePath = path.resolve(process.cwd(), uploadedFile.path);
 
         const [result] = await inhousePool.query(
             `INSERT INTO categories_files
              (name, original_name, description, file_type, file_size, mime_type, file_path, category_id, folder_id,
               document_status, stamp_placement, is_starred, is_active, download_count, last_accessed, created_by, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, 0, NOW(), ?, NOW(), NOW())`,
-            [sanitizedName, sanitizedName, description, path.extname(uploadedFile.originalname).substring(1).toLowerCase(), uploadedFile.size, uploadedFile.mimetype, uploadedFile.path, category_id, folder_id || null, document_status, stamp_placement, created_by]
+            [
+                sanitizedName,
+                sanitizedName,
+                description,
+                path.extname(uploadedFile.originalname).substring(1).toLowerCase(),
+                uploadedFile.size,
+                uploadedFile.mimetype,
+                uploadedFile.path,   // keep relative or absolute — just be consistent
+                category_id,
+                folder_id || null,
+                document_status,
+                stamp_placement,
+                created_by
+            ]
         );
 
         await addActivityLog(created_by, 'upload', 'file', result.insertId, sanitizedName, `Size: ${formatFileSize(uploadedFile.size)}`);
 
         res.status(201).json({
             message: 'File uploaded successfully',
-            file: { file_id: result.insertId, original_name: sanitizedName, file_size: formatFileSize(uploadedFile.size), file_type: path.extname(uploadedFile.originalname).substring(1).toLowerCase(), mime_type: uploadedFile.mimetype, description }
+            file: {
+                file_id:       result.insertId,
+                original_name: sanitizedName,
+                file_size:     formatFileSize(uploadedFile.size),
+                file_type:     path.extname(uploadedFile.originalname).substring(1).toLowerCase(),
+                mime_type:     uploadedFile.mimetype,
+                description,
+                document_status,
+                stamp_placement
+            }
         });
 
     } catch (error) {
@@ -828,16 +866,27 @@ exports.downloadFile = async (req, res) => {
         const isPreview = preview === 'true';
 
         if (!validateFilePath(file.file_path)) return res.status(400).json({ error: 'Invalid file path' });
-        if (!fs.existsSync(file.file_path))    return res.status(404).json({ error: 'Physical file not found' });
+
+        // ✅ FIX: resolve to absolute path before checking existence
+        const resolvedPath = path.resolve(process.cwd(), file.file_path);
+
+        if (!fs.existsSync(resolvedPath)) {
+            console.error('❌ File not found on disk:', resolvedPath);
+            return res.status(404).json({ error: 'Physical file not found', path: resolvedPath });
+        }
 
         if (!isPreview) {
-            await inhousePool.query('UPDATE categories_files SET download_count = download_count + 1, last_accessed = NOW() WHERE id = ?', [id]);
+            await inhousePool.query(
+                'UPDATE categories_files SET download_count = download_count + 1, last_accessed = NOW() WHERE id = ?',
+                [id]
+            );
             if (user_id) await addActivityLog(user_id, 'download', 'file', id, file.name, `Downloaded - Size: ${formatFileSize(file.file_size)}`);
         } else {
             await inhousePool.query('UPDATE categories_files SET last_accessed = NOW() WHERE id = ?', [id]);
         }
 
-        await protectAndSendFile(res, file, file.file_path, {
+        // ✅ FIX: pass resolvedPath instead of file.file_path
+        await protectAndSendFile(res, file, resolvedPath, {
             userId:         user_id,
             isPreview,
             fileNameField:  'original_name',
@@ -856,7 +905,7 @@ exports.downloadFile = async (req, res) => {
 // GET /api/intranet/categories/files/:id/preview
 // ============================================
 exports.previewFile = async (req, res) => {
-    const { id }     = req.params;
+    const { id }      = req.params;
     const { user_id } = req.query;
 
     try {
@@ -865,20 +914,23 @@ exports.previewFile = async (req, res) => {
 
         const file = files[0];
 
-        // Check access
-        const [shares] = await inhousePool.query('SELECT id FROM file_shares WHERE category_file_id = ? AND shared_with = ?', [id, user_id]);
+        const [shares] = await inhousePool.query(
+            'SELECT id FROM file_shares WHERE category_file_id = ? AND shared_with = ?',
+            [id, user_id]
+        );
         if (String(file.created_by) !== String(user_id) && shares.length === 0) {
             return res.status(403).json({ error: 'Access denied' });
         }
 
-        if (!fs.existsSync(file.file_path)) return res.status(404).json({ error: 'File not found on disk' });
+        // ✅ FIX: resolve path
+        const resolvedPath = path.resolve(process.cwd(), file.file_path);
+        if (!fs.existsSync(resolvedPath)) return res.status(404).json({ error: 'File not found on disk' });
 
-        // Stamped PDF preview
         if (file.file_type?.toLowerCase() === 'pdf') {
-            return await serveStampedPdfPreview(res, file.file_path, { ...file, file_name: file.original_name });
+            return await serveStampedPdfPreview(res, resolvedPath, { ...file, file_name: file.original_name });
         }
 
-        serveFileDirectly(res, file.file_path, file.original_name, file.mime_type, true);
+        serveFileDirectly(res, resolvedPath, file.original_name, file.mime_type, true);
 
     } catch (error) {
         console.error('Error previewing file:', error);
@@ -953,8 +1005,11 @@ exports.deleteFile = async (req, res) => {
         const file = existing[0];
 
         try {
-            if (validateFilePath(file.file_path) && fs.existsSync(file.file_path)) {
-                await unlinkAsync(file.file_path);
+            const resolvedDeletePath = path.resolve(process.cwd(), file.file_path);
+            if (validateFilePath(file.file_path) && fs.existsSync(resolvedDeletePath)) {
+                await unlinkAsync(resolvedDeletePath);
+            } else {
+                console.warn('⚠️ Physical file not found for deletion:', resolvedDeletePath);
             }
         } catch (fileError) {
             console.error('⚠️ Error deleting physical file:', fileError);
@@ -991,6 +1046,16 @@ exports.moveMultipleFiles = async (req, res) => {
 
         const [categoryRows] = await inhousePool.query('SELECT id FROM categories WHERE id = ?', [target_category_id]);
         if (categoryRows.length === 0) return res.status(400).json({ error: 'Invalid target_category_id' });
+ 
+        if (target_folder_id) {
+            const [folderRows] = await inhousePool.query(
+                'SELECT id FROM categories_folders WHERE id = ? AND category_id = ?',
+                [target_folder_id, target_category_id]
+            );
+            if (folderRows.length === 0) {
+                return res.status(400).json({ error: 'Invalid target_folder_id for this category' });
+            }
+        }
 
         const results = { moved: [], errors: [] };
 

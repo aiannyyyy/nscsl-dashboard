@@ -27,10 +27,11 @@ export const Navbar: React.FC<NavbarProps> = ({ isCollapsed, setIsCollapsed }) =
   // Function to get current dashboard from route
   const getCurrentDashboard = (pathname: string): string => {
     if (pathname.includes('/dashboard/admin')) return 'Admin';
-    if (pathname.includes('/dashboard/pdo')) return 'PDO';
+    if (pathname.includes('/dashboard/pdo')) return 'Program';
     if (pathname.includes('/dashboard/laboratory')) return 'Laboratory';
     if (pathname.includes('/dashboard/followup')) return 'Follow-up';
     if (pathname.includes('/dashboard/it-job-order')) return 'IT Job Order';
+    if (pathname.includes('/dashboard/intranet-file-management')) return 'Intranet';
     return 'Dashboard';
   };
 
