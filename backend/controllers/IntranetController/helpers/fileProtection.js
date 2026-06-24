@@ -149,7 +149,27 @@ async function protectAndSendFile(res, file, filePath, options = {}) {
     const fileName     = file[fileNameField] || file.file_name || file.name || 'download';
     const fileId       = file[fileIdField]   || file.id;
 
-    // Non-protected or preview — serve directly
+    // ── PDF PREVIEW: stamp the file (no encryption) ──────────
+    // Previews are served unencrypted via serveFileDirectly, but the
+    // stamp itself is a separate step from encryption — so we still need
+    // to burn the stamp into the PDF before sending it, even on preview.
+    if (isPreview && fileType === 'pdf' && requiresStamp(documentStatus)) {
+        let previewStampedPath = null;
+        try {
+            previewStampedPath = await applyPdfStamp(filePath, documentStatus, stampPlacement);
+            serveFileDirectly(res, previewStampedPath, fileName, file.mime_type, isPreview);
+        } catch (stampError) {
+            console.error('❌ [Protection] Preview stamp failed, serving raw file:', stampError.message);
+            serveFileDirectly(res, filePath, fileName, file.mime_type, isPreview);
+        } finally {
+            if (previewStampedPath && previewStampedPath !== filePath) {
+                setTimeout(() => cleanupTempFile(previewStampedPath), 10000);
+            }
+        }
+        return;
+    }
+
+    // Non-protected or preview (non-pdf / no stamp needed) — serve directly
     if (!needsProtection(fileType, isPreview)) {
         console.log('✅ [Protection] Non-protected file, serving directly');
         return serveFileDirectly(res, filePath, fileName, file.mime_type, isPreview);

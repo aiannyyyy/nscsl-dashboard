@@ -47,7 +47,8 @@ const CMS_REPORT_CONFIG = {
     get REPORTS_DIR() {
         return path.join(this.EXE_DIR, 'Reports');
     },
-    TIMEOUT_MS: 180000, // 3 minutes
+    TIMEOUT_MS: 180000,     // 3 minutes per exe call
+    CACHE_TTL_MS: 5 * 60 * 1000, // 5 minutes — skip re-generation for same file
 };
 
 // ============================================================================
@@ -177,11 +178,8 @@ exports.getPatientResultTable = async (req, res) => {
         });
     } finally {
         if (connection) {
-            try {
-                await connection.close();
-            } catch (closeErr) {
-                console.error('Error closing connection:', closeErr);
-            }
+            try { await connection.close(); }
+            catch (closeErr) { console.error('Error closing connection:', closeErr); }
         }
     }
 };
@@ -280,10 +278,7 @@ exports.getPatientDisorderResultTable = async (req, res) => {
                 "NAME"       ASC
         `;
 
-        const binds = {
-            labno_a: labno,
-            labno_b: labno,
-        };
+        const binds = { labno_a: labno, labno_b: labno };
 
         connection = await oracledb.getConnection();
 
@@ -338,11 +333,8 @@ exports.getPatientDisorderResultTable = async (req, res) => {
         });
     } finally {
         if (connection) {
-            try {
-                await connection.close();
-            } catch (closeErr) {
-                console.error('Error closing connection:', closeErr);
-            }
+            try { await connection.close(); }
+            catch (closeErr) { console.error('Error closing connection:', closeErr); }
         }
     }
 };
@@ -353,29 +345,22 @@ exports.getPatientDisorderResultTable = async (req, res) => {
 
 /**
  * Build a deterministic output filename from labNo + disorders.
- *
- * Same labNo + same disorders  → same filename → file gets overwritten (intended).
- * Same labNo + different disorders → different filename → both files kept.
- *
- * Example: cms_20261060483_CAH_HGBHPLC_G6PD.pdf
+ * Same labNo + same disorders → same filename → file gets overwritten (intended).
  */
 const buildOutputFileName = (labNo, disorderNames) => {
     const safeLabNo = labNo.replace(/[/\\]/g, '-');
-
-    // Sanitise each disorder: keep only alphanumerics, sort so order doesn't matter
     const disorderPart = disorderNames
         .map(d => d.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())
         .sort()
         .join('_');
-
     return `cms_${safeLabNo}_${disorderPart}.pdf`;
 };
 
 /**
  * Run CMSReportExporter.exe for a specific reportType ('master' | 'archive').
  *
- * The exe always writes to its own timestamped path; we then MOVE/RENAME the
- * result to our deterministic path so the same labNo+disorder combo overwrites.
+ * Each call gets its own temp filename so parallel runs don't collide on disk.
+ * The caller is responsible for renaming/cleaning up afterward.
  *
  * Returns { hasData, fileName, filePath } on success.
  * Returns { hasData: false }              when no records matched.
@@ -397,9 +382,9 @@ const runCMSReport = async (reportType, labNo, disorderNames, isUrgent, outputFi
     console.log(`[CMS Report] Command: ${command}`);
 
     const { stdout, stderr } = await execPromise(command, {
-        cwd:        exeDir,
-        timeout:    CMS_REPORT_CONFIG.TIMEOUT_MS,
-        maxBuffer:  10 * 1024 * 1024,
+        cwd:         exeDir,
+        timeout:     CMS_REPORT_CONFIG.TIMEOUT_MS,
+        maxBuffer:   10 * 1024 * 1024,
         windowsHide: true,
     });
 
@@ -416,14 +401,13 @@ const runCMSReport = async (reportType, labNo, disorderNames, isUrgent, outputFi
     const fileMatch   = stdout.match(/^FILE:(.+)/m);
     const sizeMatch   = stdout.match(/^SIZE:(\d+)/m);
 
-    const status       = statusMatch ? statusMatch[1].trim()              : 'FAILED';
-    const exeFilePath  = fileMatch   ? fileMatch[1].trim()               : null;
-    const fileSize     = sizeMatch   ? parseInt(sizeMatch[1].trim(), 10) : 0;
+    const status      = statusMatch ? statusMatch[1].trim()              : 'FAILED';
+    const exeFilePath = fileMatch   ? fileMatch[1].trim()                : null;
+    const fileSize    = sizeMatch   ? parseInt(sizeMatch[1].trim(), 10) : 0;
 
     console.log(`[CMS Report - ${reportType}] STATUS: ${status} | SIZE: ${fileSize}`);
 
     if (status === 'NODATA' || fileSize === 0) {
-        // Clean up the empty file the exe may have created
         if (exeFilePath && fs.existsSync(exeFilePath)) {
             try { fs.unlinkSync(exeFilePath); } catch (_) { /* ignore */ }
         }
@@ -438,22 +422,13 @@ const runCMSReport = async (reportType, labNo, disorderNames, isUrgent, outputFi
         throw new Error(`PDF not found on disk after export: ${exeFilePath}`);
     }
 
-    // ── Move exe's timestamped file → our deterministic filename ─────────────
-    const finalPath = path.join(CMS_REPORT_CONFIG.REPORTS_DIR, outputFileName);
-
-    // Overwrite any previous file with the same labNo+disorder combo
-    if (fs.existsSync(finalPath)) {
-        fs.unlinkSync(finalPath);
-        console.log(`[CMS Report] Overwriting existing file: ${outputFileName}`);
-    }
-
-    fs.renameSync(exeFilePath, finalPath);
-    console.log(`[CMS Report] Saved as: ${outputFileName}`);
-
+    // Each parallel run keeps the exe's own timestamped path until the
+    // winner is decided — the caller will rename it to outputFileName.
     return {
-        hasData:  true,
-        fileName: outputFileName,
-        filePath: finalPath,
+        hasData:     true,
+        fileName:    outputFileName,
+        filePath:    exeFilePath,   // still the exe's temp path at this point
+        reportType,
     };
 };
 
@@ -467,24 +442,11 @@ const runCMSReport = async (reportType, labNo, disorderNames, isUrgent, outputFi
  *   urgent        : boolean
  * }
  *
- * Strategy:
- *   1. Try "master" report first.
- *   2. If no data found in master, fall back to "archive".
- *   3. Return a single { hasData, fileName } — one file, one response.
- *
- * Filename is deterministic (labNo + disorders, no timestamp), so re-generating
- * for the same patient + same disorders will overwrite the previous PDF.
- * Different disorders for the same patient produce a separate file.
- *
- * Response (success):
- * {
- *   success  : true,
- *   labNo    : "20261060483",
- *   urgent   : false,
- *   source   : "master" | "archive",   ← which rpt was used
- *   hasData  : true | false,
- *   fileName : "cms_20261060483_CAH_HGBHPLC.pdf" | null
- * }
+ * Strategy (parallel, ~50 % faster than sequential):
+ *   1. If a fresh cached PDF already exists on disk → return it immediately.
+ *   2. Otherwise, run "master" and "archive" concurrently with Promise.allSettled.
+ *   3. Prefer "master" when both have data; discard the unused file.
+ *   4. Return a single { hasData, fileName } response.
  */
 exports.generateCMSReport = async (req, res) => {
     const { labNo, disorderNames, urgent } = req.body;
@@ -509,38 +471,74 @@ exports.generateCMSReport = async (req, res) => {
     const cleanDisorders = disorderNames.map(d => d.trim()).filter(Boolean);
     const isUrgent       = urgent;
 
-    // Deterministic filename — same combo always resolves to the same file name
     const outputFileName = buildOutputFileName(cleanLabNo, cleanDisorders);
+    const finalPath      = path.join(CMS_REPORT_CONFIG.REPORTS_DIR, outputFileName);
 
-    // ── Try master first, then archive ────────────────────────────────────────
-    const REPORT_TYPES = ['master', 'archive'];
-    let result = null;
-    let usedSource = null;
+    // ── Cache check — skip exe if file is fresh enough ────────────────────────
+    if (fs.existsSync(finalPath)) {
+        const { mtimeMs } = fs.statSync(finalPath);
+        if (Date.now() - mtimeMs < CMS_REPORT_CONFIG.CACHE_TTL_MS) {
+            console.log(`[CMS Report] Cache hit — serving existing file: ${outputFileName}`);
+            return res.status(200).json({
+                success:  true,
+                labNo:    cleanLabNo,
+                urgent:   isUrgent,
+                source:   'cache',
+                hasData:  true,
+                fileName: outputFileName,
+            });
+        }
+        console.log(`[CMS Report] Cache expired — regenerating: ${outputFileName}`);
+    }
+
+    // ── Run master & archive IN PARALLEL ──────────────────────────────────────
+    console.log('[CMS Report] Starting parallel master + archive runs...');
+
+    const [masterSettled, archiveSettled] = await Promise.allSettled([
+        runCMSReport('master',  cleanLabNo, cleanDisorders, isUrgent, outputFileName),
+        runCMSReport('archive', cleanLabNo, cleanDisorders, isUrgent, outputFileName),
+    ]);
+
+    // ── Collect results ───────────────────────────────────────────────────────
+    const settled = [
+        { reportType: 'master',  settled: masterSettled  },
+        { reportType: 'archive', settled: archiveSettled },
+    ];
+
+    let winner   = null;   // { hasData, filePath, fileName, reportType }
     const errors = [];
 
-    for (const reportType of REPORT_TYPES) {
-        try {
-            console.log(`[CMS Report] Attempting ${reportType}...`);
-            const attempt = await runCMSReport(reportType, cleanLabNo, cleanDisorders, isUrgent, outputFileName);
+    for (const { reportType, settled: s } of settled) {
+        if (s.status === 'rejected') {
+            console.error(`[CMS Report] ${reportType} failed:`, s.reason?.message);
+            errors.push({ reportType, error: s.reason?.message });
+            continue;
+        }
 
-            if (attempt.hasData) {
-                result     = attempt;
-                usedSource = reportType;
-                console.log(`[CMS Report] Data found in ${reportType}. Done.`);
-                break; // No need to try the next source
+        const attempt = s.value;
+
+        if (!attempt.hasData) {
+            console.log(`[CMS Report] No data from ${reportType}.`);
+            continue;
+        }
+
+        if (!winner) {
+            // First result with data becomes the winner (master is always first in the array)
+            winner = attempt;
+            console.log(`[CMS Report] Winner: ${reportType} — will rename to ${outputFileName}`);
+        } else {
+            // Both ran and both had data — discard the runner-up's temp file
+            console.log(`[CMS Report] Discarding duplicate from ${reportType}: ${attempt.filePath}`);
+            try {
+                if (fs.existsSync(attempt.filePath)) fs.unlinkSync(attempt.filePath);
+            } catch (e) {
+                console.warn(`[CMS Report] Could not delete duplicate: ${e.message}`);
             }
-
-            console.log(`[CMS Report] No data in ${reportType}, trying next...`);
-
-        } catch (err) {
-            console.error(`[CMS Report] ${reportType} failed with error:`, err.message);
-            errors.push({ reportType, error: err.message });
-            // Continue to the next source even on hard errors
         }
     }
 
-    // ── Both sources errored out ──────────────────────────────────────────────
-    if (!result && errors.length === REPORT_TYPES.length) {
+    // ── Both errored out ──────────────────────────────────────────────────────
+    if (!winner && errors.length === 2) {
         return res.status(500).json({
             success: false,
             error:   'Report generation failed for both master and archive.',
@@ -548,8 +546,8 @@ exports.generateCMSReport = async (req, res) => {
         });
     }
 
-    // ── No data found in either source (no hard error) ────────────────────────
-    if (!result || !result.hasData) {
+    // ── No data in either source ──────────────────────────────────────────────
+    if (!winner) {
         return res.status(200).json({
             success:  true,
             labNo:    cleanLabNo,
@@ -560,14 +558,22 @@ exports.generateCMSReport = async (req, res) => {
         });
     }
 
+    // ── Move winner's temp file → deterministic final path ────────────────────
+    if (fs.existsSync(finalPath)) {
+        try { fs.unlinkSync(finalPath); } catch (_) { /* ignore */ }
+    }
+
+    fs.renameSync(winner.filePath, finalPath);
+    console.log(`[CMS Report] Saved: ${outputFileName} (source: ${winner.reportType})`);
+
     // ── Success ───────────────────────────────────────────────────────────────
     return res.status(200).json({
         success:  true,
         labNo:    cleanLabNo,
         urgent:   isUrgent,
-        source:   usedSource,   // "master" or "archive" — useful for debugging
+        source:   winner.reportType,
         hasData:  true,
-        fileName: result.fileName,
+        fileName: outputFileName,
     });
 };
 
@@ -575,6 +581,7 @@ exports.generateCMSReport = async (req, res) => {
  * GET /api/cms/serve-report/:filename
  *
  * Streams the generated PDF back to the client.
+ * Uses a short private cache so the browser doesn't re-download on every open.
  */
 exports.serveCMSReport = async (req, res) => {
     const { filename } = req.params;
@@ -601,7 +608,9 @@ exports.serveCMSReport = async (req, res) => {
     res.setHeader('Content-Type',        'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     res.setHeader('Content-Length',      stats.size);
-    res.setHeader('Cache-Control',       'no-cache, no-store, must-revalidate');
+    // Allow the browser to cache the PDF for 5 minutes — avoids re-downloading
+    // the blob on every tab open or component remount
+    res.setHeader('Cache-Control',       'private, max-age=300');
 
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
