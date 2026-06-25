@@ -50,6 +50,24 @@ export interface G6PDResponse {
     timestamp:     string;
 }
 
+export interface G6PDGenerateIndividualParams {
+    labNo: string;
+}
+
+export interface G6PDGenerateSummaryParams {
+    dateFrom: string; // YYYY-MM-DD
+    dateTo:   string; // YYYY-MM-DD
+}
+
+export interface G6PDGenerateResponse {
+    success:   boolean;
+    labNo?:    string;
+    dateFrom?: string;
+    dateTo?:   string;
+    hasData:   boolean;
+    fileName:  string | null;
+}
+
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 /**
@@ -76,4 +94,53 @@ export const fetchG6PDSummary = async (
         { params },
     );
     return data;
+};
+
+/**
+ * Trigger generation of the G6PD individual PDF via the CrystalReports exe.
+ * Returns hasData: false (no error) when no records matched.
+ */
+export const generateG6PDIndividualReport = async (
+    params: G6PDGenerateIndividualParams,
+): Promise<G6PDGenerateResponse> => {
+    const { data } = await api.post<G6PDGenerateResponse>(
+        '/followup/auto-mailer/individual/generate',
+        params,
+    );
+    return data;
+};
+
+/**
+ * Trigger generation of the G6PD summary PDF via the CrystalReports exe.
+ * Returns hasData: false (no error) when no records matched.
+ */
+export const generateG6PDSummaryReport = async (
+    params: G6PDGenerateSummaryParams,
+): Promise<G6PDGenerateResponse> => {
+    const { data } = await api.post<G6PDGenerateResponse>(
+        '/followup/auto-mailer/summary/generate',
+        params,
+    );
+    return data;
+};
+
+/**
+ * Relative path to a generated PDF — pass this into the shared `api`
+ * axios instance (e.g. `api.get(path, { responseType: 'blob' })`).
+ * Axios applies `baseURL` (e.g. "/api") to it exactly once.
+ * Do NOT use this directly in an <a href> — browsers resolve relative
+ * paths against the current page URL, not your API base.
+ */
+export const getG6PDReportPath = (fileName: string): string => {
+    return `/followup/auto-mailer/serve-report/${encodeURIComponent(fileName)}`;
+};
+
+/**
+ * Full path to a generated PDF, safe for direct use in <a href>,
+ * window.open(), or an <iframe src> — includes baseURL (e.g. "/api")
+ * exactly once. Do NOT pass this into `api.get()`; that would double
+ * up baseURL (axios re-applies it to any non-absolute-URL path).
+ */
+export const getG6PDReportUrl = (fileName: string): string => {
+    return `${api.defaults.baseURL ?? ''}${getG6PDReportPath(fileName)}`;
 };

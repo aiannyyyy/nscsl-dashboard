@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { Search, Eye, Mail, FlaskConical, Loader2, AlertCircle, FileText } from 'lucide-react';
-import { useG6PDIndividual, useG6PDSummary } from '../../../hooks/FollowupHooks/useAutoMailer';
+import {
+    useG6PDIndividual,
+    useG6PDSummary,
+    useGenerateG6PDIndividual,
+} from '../../../hooks/FollowupHooks/useAutoMailer';
 import type { G6PDRecord } from '../../../services/FollowupServices/autoMailerServices';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -19,9 +23,11 @@ export type { G6PDRecord };
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface G6PDIndividualTableProps {
-    onViewReport: (record: G6PDRecord) => void;
+    // fileName is passed once generation succeeds (null while generating / on no-data)
+    onViewReport: (record: G6PDRecord, fileName: string | null) => void;
     onViewPIS:    (record: G6PDRecord) => void;
     onSendEmail:  (record: G6PDRecord) => void;
+    onGenerating?: (record: G6PDRecord) => void;
 }
 
 const Badge: React.FC<{ label?: string | null; color?: 'slate' | 'emerald' | 'amber' | 'blue' }> = ({
@@ -46,6 +52,7 @@ export const G6PDIndividualTable: React.FC<G6PDIndividualTableProps> = ({
     onViewReport,
     onViewPIS,
     onSendEmail,
+    onGenerating,
 }) => {
     const [labno,     setLabno]     = useState('');
     const [committed, setCommitted] = useState('');
@@ -69,6 +76,35 @@ export const G6PDIndividualTable: React.FC<G6PDIndividualTableProps> = ({
     } = isSearchMode ? searchQuery : todayQuery;
 
     const rows = data?.data ?? [];
+
+    // ── PDF generation (per-row "View Report") ──────────────────────────
+    const { mutate: generateReport, isPending: isGeneratingReport, variables } =
+        useGenerateG6PDIndividual();
+
+    const handleViewReportClick = (row: G6PDRecord) => {
+        const labNo = row.LABNO ?? '';
+        if (!labNo) return;
+
+        onGenerating?.(row);
+        // Let the parent show the "generating" state immediately
+        onViewReport(row, null);
+
+        generateReport(
+            { labNo },
+            {
+                onSuccess: (result) => {
+                    const fileName = result.hasData ? result.fileName : null;
+                    onViewReport(row, fileName);
+                },
+                onError: () => {
+                    onViewReport(row, null);
+                },
+            },
+        );
+    };
+
+    const isRowGenerating = (row: G6PDRecord) =>
+        isGeneratingReport && variables?.labNo === row.LABNO;
 
     const handleSearch = () => {
         const trimmed = labno.trim();
@@ -221,10 +257,14 @@ export const G6PDIndividualTable: React.FC<G6PDIndividualTableProps> = ({
                                     <td className="px-4 py-2.5 whitespace-nowrap sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/10 transition-colors">
                                         <div className="flex items-center gap-1.5">
                                             <button
-                                                onClick={() => onViewReport(row)}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                                                onClick={() => handleViewReportClick(row)}
+                                                disabled={isRowGenerating(row)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50 transition-colors"
                                             >
-                                                <Eye size={11} />
+                                                {isRowGenerating(row)
+                                                    ? <Loader2 size={11} className="animate-spin" />
+                                                    : <Eye size={11} />
+                                                }
                                                 View Report
                                             </button>
                                             <button

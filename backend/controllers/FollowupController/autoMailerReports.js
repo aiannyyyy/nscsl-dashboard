@@ -1,3 +1,8 @@
+const fs   = require('fs');
+const path = require('path');
+const { execFile } = require('child_process');
+const util = require('util');
+const execFilePromise = util.promisify(execFile);
 const oracledb = require('oracledb');
 
 /**
@@ -14,7 +19,7 @@ const oracledb = require('oracledb');
  */
 
 // ── Shared column list (same for master and archive legs) ─────────────────────
-const COLUMNS = `
+const COLUMNS = ` 
     LIB_DISORDER."MAILERNAME",
     D."LABNO",
     D."REPTCODE",
@@ -292,4 +297,285 @@ exports.getSummaryReport = async (req, res) => {
             }
         }
     }
+};
+
+/**
+ * ============================================================================
+ * G6PD REPORT GENERATION (CrystalReports .exe wrapper)
+ * ============================================================================
+ *
+ * Add these requires to the TOP of autoMailerReports.js (alongside `oracledb`):
+ *
+ *   const fs   = require('fs');
+ *   const path = require('path');
+ *   const { execFile } = require('child_process');
+ *   const util = require('util');
+ *   const execFilePromise = util.promisify(execFile);
+ *
+ * Then paste everything below into autoMailerReports.js.
+ * ============================================================================
+ */
+
+// ── Config ───────────────────────────────────────────────────────────────────
+const G6PD_REPORT_CONFIG = {
+    EXE_DIR: path.join(__dirname, '..', '..', 'CMSReportGeneration'),
+    get EXE_PATH() {
+        return path.join(this.EXE_DIR, 'CMSReportGeneration.exe');
+    },
+    get REPORTS_DIR() {
+        return path.join(this.EXE_DIR, 'Reports');
+    },
+    TIMEOUT_MS: 120000, // 2 minutes
+};
+
+// ── Validation helpers ───────────────────────────────────────────────────────
+
+// LABNO is numeric per the examples in the exe usage text (e.g. 20261060483).
+// Lock it down to digits only — this is what protects against argument
+// injection at the source, on top of using execFile (see below).
+const LABNO_REGEX = /^\d+$/;
+const DATE_REGEX  = /^\d{4}-\d{2}-\d{2}$/;
+
+const buildIndividualFileName = (labNo) => `g6pd_individual_${labNo}.pdf`;
+const buildSummaryFileName    = (dateFrom, dateTo) =>
+    `g6pd_summary_${dateFrom.replace(/-/g, '')}_to_${dateTo.replace(/-/g, '')}.pdf`;
+
+/**
+ * Run G6PDReportExporter.exe ("CMSReportGeneration.exe" per the exe project,
+ * matching the VB.net Module1 you shared).
+ *
+ * IMPORTANT: uses execFile, NOT exec — args are passed as an array, so the
+ * OS spawns the process directly without going through a shell. There is no
+ * string interpolation into a command line, so shell metacharacters in any
+ * argument are inert. This is the fix for the injection risk in the CMS
+ * controller's exec()-based runCMSReport.
+ */
+const runG6PDReport = async (reportArgs) => {
+    const exePath = G6PD_REPORT_CONFIG.EXE_PATH;
+    const exeDir  = G6PD_REPORT_CONFIG.EXE_DIR;
+
+    if (!fs.existsSync(exePath)) {
+        throw new Error(`G6PD report exe not found at: ${exePath}`);
+    }
+
+    console.log(`[G6PD Report] Running: ${exePath} ${reportArgs.join(' ')}`);
+
+    const { stdout, stderr } = await execFilePromise(exePath, reportArgs, {
+        cwd:         exeDir,
+        timeout:     G6PD_REPORT_CONFIG.TIMEOUT_MS,
+        maxBuffer:   10 * 1024 * 1024,
+        windowsHide: true,
+    });
+
+    if (stdout) {
+        stdout.split('\n').forEach(line => { if (line.trim()) console.log(`  ${line.trim()}`); });
+    }
+    if (stderr) {
+        stderr.split('\n').forEach(line => { if (line.trim()) console.warn(`  [stderr] ${line.trim()}`); });
+    }
+
+    const statusMatch = stdout.match(/^STATUS:(\w+)/m);
+    const fileMatch   = stdout.match(/^FILE:(.+)/m);
+    const sizeMatch   = stdout.match(/^SIZE:(\d+)/m);
+
+    const status      = statusMatch ? statusMatch[1].trim() : 'FAILED';
+    const exeFilePath = fileMatch   ? fileMatch[1].trim()   : null;
+    const fileSize    = sizeMatch   ? parseInt(sizeMatch[1].trim(), 10) : 0;
+
+    console.log(`[G6PD Report] STATUS: ${status} | SIZE: ${fileSize}`);
+
+    if (status === 'NODATA' || fileSize === 0) {
+        // Exe still writes a 0-byte file in the NODATA case per the VB code —
+        // clean it up so it doesn't linger in Reports/.
+        if (exeFilePath && fs.existsSync(exeFilePath)) {
+            try { fs.unlinkSync(exeFilePath); } catch (_) { /* ignore */ }
+        }
+        return { hasData: false };
+    }
+
+    if (status !== 'SUCCESS' || !exeFilePath) {
+        throw new Error(`G6PD report exporter failed. STATUS: ${status}`);
+    }
+
+    if (!fs.existsSync(exeFilePath)) {
+        throw new Error(`PDF not found on disk after export: ${exeFilePath}`);
+    }
+
+    return { hasData: true, exeFilePath };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * POST /api/followup/auto-mailer/individual/generate
+ *
+ * Body: { labNo: string }
+ */
+exports.generateIndividualG6PDReport = async (req, res) => {
+    const { labNo } = req.body;
+
+    if (!labNo || typeof labNo !== 'string' || !labNo.trim()) {
+        return res.status(400).json({ success: false, error: 'labNo is required.' });
+    }
+
+    const cleanLabNo = labNo.trim();
+
+    if (!LABNO_REGEX.test(cleanLabNo)) {
+        return res.status(400).json({
+            success: false,
+            error: 'labNo must contain digits only.',
+        });
+    }
+
+    try {
+        const outputFileName = buildIndividualFileName(cleanLabNo);
+        const finalPath      = path.join(G6PD_REPORT_CONFIG.REPORTS_DIR, outputFileName);
+
+        const result = await runG6PDReport(['individual', cleanLabNo]);
+
+        if (!result.hasData) {
+            return res.status(200).json({
+                success:  true,
+                labNo:    cleanLabNo,
+                hasData:  false,
+                fileName: null,
+            });
+        }
+
+        if (fs.existsSync(finalPath)) {
+            try { fs.unlinkSync(finalPath); } catch (_) { /* ignore */ }
+        }
+        fs.renameSync(result.exeFilePath, finalPath);
+
+        return res.status(200).json({
+            success:  true,
+            labNo:    cleanLabNo,
+            hasData:  true,
+            fileName: outputFileName,
+        });
+
+    } catch (err) {
+        console.error('[G6PD Report] Individual generation error:', err);
+        return res.status(500).json({
+            success: false,
+            error:   'Report generation failed.',
+            details: err.message,
+        });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * POST /api/followup/auto-mailer/summary/generate
+ *
+ * Body: { dateFrom: 'YYYY-MM-DD', dateTo: 'YYYY-MM-DD' }
+ */
+exports.generateSummaryG6PDReport = async (req, res) => {
+    const { dateFrom, dateTo } = req.body;
+
+    if (!dateFrom || !dateTo) {
+        return res.status(400).json({
+            success: false,
+            error: 'dateFrom and dateTo are required (YYYY-MM-DD).',
+        });
+    }
+
+    if (!DATE_REGEX.test(dateFrom) || !DATE_REGEX.test(dateTo)) {
+        return res.status(400).json({
+            success: false,
+            error: 'Dates must be in YYYY-MM-DD format.',
+        });
+    }
+
+    if (new Date(dateFrom) > new Date(dateTo)) {
+        return res.status(400).json({
+            success: false,
+            error: 'dateFrom must be on or before dateTo.',
+        });
+    }
+
+    try {
+        const outputFileName = buildSummaryFileName(dateFrom, dateTo);
+        const finalPath      = path.join(G6PD_REPORT_CONFIG.REPORTS_DIR, outputFileName);
+
+        const result = await runG6PDReport(['summary', dateFrom, dateTo]);
+
+        if (!result.hasData) {
+            return res.status(200).json({
+                success:  true,
+                dateFrom,
+                dateTo,
+                hasData:  false,
+                fileName: null,
+            });
+        }
+
+        if (fs.existsSync(finalPath)) {
+            try { fs.unlinkSync(finalPath); } catch (_) { /* ignore */ }
+        }
+        fs.renameSync(result.exeFilePath, finalPath);
+
+        return res.status(200).json({
+            success:  true,
+            dateFrom,
+            dateTo,
+            hasData:  true,
+            fileName: outputFileName,
+        });
+
+    } catch (err) {
+        console.error('[G6PD Report] Summary generation error:', err);
+        return res.status(500).json({
+            success: false,
+            error:   'Report generation failed.',
+            details: err.message,
+        });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * GET /api/followup/auto-mailer/serve-report/:filename
+ *
+ * Streams the generated PDF back to the client.
+ */
+exports.serveG6PDReport = async (req, res) => {
+    const { filename } = req.params;
+
+    if (!filename || !filename.endsWith('.pdf')) {
+        return res.status(400).json({ success: false, error: 'Invalid filename.' });
+    }
+
+    const filePath = path.join(G6PD_REPORT_CONFIG.REPORTS_DIR, filename);
+
+    // Security: prevent directory traversal
+    const resolvedFile = path.resolve(filePath);
+    const resolvedDir  = path.resolve(G6PD_REPORT_CONFIG.REPORTS_DIR);
+    if (!resolvedFile.startsWith(resolvedDir)) {
+        return res.status(403).json({ success: false, error: 'Access denied.' });
+    }
+
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ success: false, error: 'Report file not found.' });
+    }
+
+    const stats = fs.statSync(filePath);
+
+    res.setHeader('Content-Type',        'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.setHeader('Content-Length',      stats.size);
+    res.setHeader('Cache-Control',       'private, max-age=300');
+
+    const stream = fs.createReadStream(filePath);
+    stream.pipe(res);
+
+    stream.on('end', () => {
+        console.log(`[G6PD Report] Served: ${filename}`);
+    });
+
+    stream.on('error', (err) => {
+        console.error(`[G6PD Report] Stream error for ${filename}:`, err.message);
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, error: 'Error streaming report.' });
+        }
+    });
 };

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
     X, FileText, Download, Maximize2, RefreshCw,
-    User, MapPin, FlaskConical, Calendar,
 } from 'lucide-react';
 import type { G6PDRecord } from './G6PDIndividualTable';
 import api from '../../../services/api';
@@ -39,29 +38,6 @@ const useBlobUrl = (url: string | null) => {
 
     return { blobUrl, loading };
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const fmtDate = (val?: string | null) => {
-    if (!val) return '—';
-    const d = new Date(val);
-    if (isNaN(d.getTime())) return val;
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
-};
-
-const Field: React.FC<{ label: string; value?: string | null }> = ({ label, value }) => (
-    <div>
-        <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">{label}</p>
-        <p className="text-xs font-medium text-slate-800 dark:text-slate-100">{value ?? '—'}</p>
-    </div>
-);
-
-const SectionTitle: React.FC<{ icon: React.ReactNode; title: string }> = ({ icon, title }) => (
-    <div className="flex items-center gap-2 mb-3">
-        <span className="text-blue-500">{icon}</span>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{title}</span>
-    </div>
-);
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -154,67 +130,8 @@ const ReportContent: React.FC<{
                 </div>
             </div>
 
-            {/* ── Body — split ────────────────────────────────────── */}
+            {/* ── Body — PDF only, full width ────────────────────── */}
             <div className="flex flex-1 min-h-0 overflow-hidden">
-
-                {/* Left: details panel */}
-                <div className="w-72 shrink-0 flex flex-col border-r border-slate-100 dark:border-slate-800 overflow-y-auto">
-                    {record ? (
-                        <div className="px-5 py-5 space-y-5">
-                            <div>
-                                <SectionTitle icon={<User size={13} />} title="Patient" />
-                                <div className="grid grid-cols-1 gap-3">
-                                    <Field label="Lab No."    value={record.LABNO} />
-                                    <Field label="Last Name"  value={record.LNAME} />
-                                    <Field label="First Name" value={record.FNAME} />
-                                    <Field label="Sex"        value={record.SEX} />
-                                    <Field label="Birth Date" value={fmtDate(record.BIRTHDT)} />
-                                    <Field label="Birth Wt."  value={record.BIRTHWT} />
-                                    <Field label="Twin"       value={record.TWIN} />
-                                    <Field label="Physician"  value={record.PHYSID} />
-                                </div>
-                            </div>
-                            <hr className="border-slate-100 dark:border-slate-800" />
-                            <div>
-                                <SectionTitle icon={<FlaskConical size={13} />} title="Test Info" />
-                                <div className="grid grid-cols-1 gap-3">
-                                    <Field label="Mnemonic"    value={record.MNEMONIC} />
-                                    <Field label="Test Code"   value={record.TESTCODE} />
-                                    <Field label="Value"       value={record.VALUE} />
-                                    <Field label="Description" value={record.DESCR1} />
-                                    <Field label="Rept. Code"  value={record.REPTCODE} />
-                                </div>
-                            </div>
-                            <hr className="border-slate-100 dark:border-slate-800" />
-                            <div>
-                                <SectionTitle icon={<Calendar size={13} />} title="Dates" />
-                                <div className="grid grid-cols-1 gap-3">
-                                    <Field label="Date Collected" value={fmtDate(record.DTCOLL)} />
-                                    <Field label="Date Reported"  value={fmtDate(record.DTRPTD)} />
-                                </div>
-                            </div>
-                            <hr className="border-slate-100 dark:border-slate-800" />
-                            <div>
-                                <SectionTitle icon={<MapPin size={13} />} title="Provider" />
-                                <div className="grid grid-cols-1 gap-3">
-                                    <Field label="Facility Code"  value={record.SUBMID} />
-                                    <Field label="Provider Name"  value={record.PROVIDER_NAME} />
-                                    <Field label="Street 1"       value={record.STREET1} />
-                                    <Field label="Street 2"       value={record.STREET2} />
-                                    <Field label="City"           value={record.CITY} />
-                                    <Field label="Mailer Name"    value={record.MAILERNAME} />
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full gap-2 text-slate-400 p-6">
-                            <User size={24} className="text-slate-300 dark:text-slate-600" />
-                            <p className="text-xs text-center">Select a record from the table above to view details</p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Right: PDF */}
                 <div className="flex-1 flex flex-col bg-slate-100 dark:bg-slate-800/50 min-w-0">
                     {showSpinner ? (
                         <div className="flex flex-col items-center justify-center h-full gap-3">

@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
-import { Calendar, Eye, Mail, FlaskConical, Loader2, AlertCircle, Search, FileText } from 'lucide-react';
-import { useG6PDSummary } from '../../../hooks/FollowupHooks/useAutoMailer';
+import {
+    Calendar, Eye, Mail, FlaskConical, Loader2, AlertCircle, Search, FileText,
+    FileStack,
+} from 'lucide-react';
+import {
+    useG6PDSummary,
+    useGenerateG6PDIndividual,
+    useGenerateG6PDSummary,
+} from '../../../hooks/FollowupHooks/useAutoMailer';
 import type { G6PDRecord } from '../../../services/FollowupServices/autoMailerServices';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -34,9 +41,14 @@ const Badge: React.FC<{ label?: string | null; color?: 'slate' | 'emerald' | 'am
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface G6PDSummaryTableProps {
-    onViewReport: (record: G6PDRecord) => void;
-    onViewPIS:    (record: G6PDRecord) => void;
-    onSendEmail:  (record: G6PDRecord) => void;
+    onViewReport:         (record: G6PDRecord, fileName: string | null) => void;
+    onViewPIS:            (record: G6PDRecord) => void;
+    onSendEmail:          (record: G6PDRecord) => void;
+    onGenerating?:        (record: G6PDRecord) => void;
+    /** Fires as soon as Generate All is clicked — passes date range for the modal title */
+    onSummaryGenerating?: (dateFrom: string, dateTo: string) => void;
+    /** Fires when the summary PDF generation settles — fileName or null on no-data/error */
+    onSummaryReport?:     (fileName: string | null) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -45,13 +57,16 @@ export const G6PDSummaryTable: React.FC<G6PDSummaryTableProps> = ({
     onViewReport,
     onViewPIS,
     onSendEmail,
+    onGenerating,
+    onSummaryGenerating,
+    onSummaryReport,
 }) => {
-    const [dateFrom,     setDateFrom]     = useState(fmtISO(firstOfMonth));
-    const [dateTo,       setDateTo]       = useState(fmtISO(lastOfMonth));
-    const [search,       setSearch]       = useState('');
-    const [shouldFetch,  setShouldFetch]  = useState(true); // auto-load current month's records on mount
+    const [dateFrom,    setDateFrom]    = useState(fmtISO(firstOfMonth));
+    const [dateTo,      setDateTo]      = useState(fmtISO(lastOfMonth));
+    const [search,      setSearch]      = useState('');
+    const [shouldFetch, setShouldFetch] = useState(true);
 
-    // ── Hook — fires only when shouldFetch is true ─────────────────────
+    // ── Table data ─────────────────────────────────────────────────────
     const {
         data,
         isLoading,
@@ -64,13 +79,10 @@ export const G6PDSummaryTable: React.FC<G6PDSummaryTableProps> = ({
 
     const handleGenerate = () => {
         if (!dateFrom || !dateTo) return;
-        // If params are the same as a previous fetch, reset the flag briefly
-        // to force a re-enable (TanStack Query won't refetch if key didn't change)
         setShouldFetch(false);
         setTimeout(() => setShouldFetch(true), 0);
     };
 
-    // Reset fetch flag whenever dates change so Generate is required again
     const handleDateFromChange = (val: string) => {
         setDateFrom(val);
         setShouldFetch(false);
@@ -80,7 +92,63 @@ export const G6PDSummaryTable: React.FC<G6PDSummaryTableProps> = ({
         setShouldFetch(false);
     };
 
-    // Client-side search filter
+    // ── Per-row individual report ──────────────────────────────────────
+    const { mutate: generateIndividual, isPending: isGeneratingRow, variables: rowVariables } =
+        useGenerateG6PDIndividual();
+
+    const handleViewReportClick = (row: G6PDRecord) => {
+        const labNo = row.LABNO ?? '';
+        if (!labNo) return;
+
+        onGenerating?.(row);
+        onViewReport(row, null);
+
+        generateIndividual(
+            { labNo },
+            {
+                onSuccess: (result) => {
+                    onViewReport(row, result.hasData ? result.fileName : null);
+                },
+                onError: () => {
+                    onViewReport(row, null);
+                },
+            },
+        );
+    };
+
+    const isRowGenerating = (row: G6PDRecord) =>
+        isGeneratingRow && rowVariables?.labNo === row.LABNO;
+
+    // ── Generate All (summary PDF) ─────────────────────────────────────
+    const {
+        mutate:    generateSummaryPdf,
+        isPending: isGeneratingSummary,
+        data:      summaryPdfResult,
+        isError:   isSummaryGenError,
+        error:     summaryGenError,
+        reset:     resetSummaryPdf,
+    } = useGenerateG6PDSummary();
+
+    const handleGenerateAll = () => {
+        if (!dateFrom || !dateTo) return;
+        resetSummaryPdf();
+        onSummaryGenerating?.(dateFrom, dateTo);
+        generateSummaryPdf(
+            { dateFrom, dateTo },
+            {
+                onSuccess: (result) => {
+                    onSummaryReport?.(
+                        result.hasData && result.fileName ? result.fileName : null,
+                    );
+                },
+                onError: () => {
+                    onSummaryReport?.(null);
+                },
+            },
+        );
+    };
+
+    // ── Client-side search filter ──────────────────────────────────────
     const filtered = rows.filter(r => {
         if (!search) return true;
         const q = search.toLowerCase();
@@ -96,9 +164,8 @@ export const G6PDSummaryTable: React.FC<G6PDSummaryTableProps> = ({
     const hasFetched = shouldFetch && !isLoading;
 
     return (
-        <div
-            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm flex flex-col overflow-hidden h-full"
-        >
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm flex flex-col overflow-hidden h-full">
+
             {/* ── Header ──────────────────────────────────────────── */}
             <div className="shrink-0 px-5 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between gap-3">
@@ -130,7 +197,6 @@ export const G6PDSummaryTable: React.FC<G6PDSummaryTableProps> = ({
 
                 {/* Controls row */}
                 <div className="flex flex-wrap items-center gap-2">
-                    {/* Date From */}
                     <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 cursor-pointer">
                         <Calendar size={12} className="text-slate-400 shrink-0" />
                         <input
@@ -144,7 +210,6 @@ export const G6PDSummaryTable: React.FC<G6PDSummaryTableProps> = ({
 
                     <span className="text-slate-400 text-xs">—</span>
 
-                    {/* Date To */}
                     <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 cursor-pointer">
                         <Calendar size={12} className="text-slate-400 shrink-0" />
                         <input
@@ -156,7 +221,6 @@ export const G6PDSummaryTable: React.FC<G6PDSummaryTableProps> = ({
                         />
                     </label>
 
-                    {/* Generate */}
                     <button
                         onClick={handleGenerate}
                         disabled={isLoading || !dateFrom || !dateTo}
@@ -166,7 +230,6 @@ export const G6PDSummaryTable: React.FC<G6PDSummaryTableProps> = ({
                         Generate
                     </button>
 
-                    {/* Search */}
                     <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 ml-auto cursor-text">
                         <Search size={12} className="text-slate-400 shrink-0" />
                         <input
@@ -222,12 +285,9 @@ export const G6PDSummaryTable: React.FC<G6PDSummaryTableProps> = ({
                                     key={`${row.LABNO}-${i}`}
                                     className="border-b border-slate-50 dark:border-slate-800/80 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-colors group"
                                 >
-                                    {/* Lab No. */}
                                     <td className="px-4 py-2.5 whitespace-nowrap">
                                         <Badge label={row.LABNO} color="blue" />
                                     </td>
-
-                                    {/* Patient Name */}
                                     <td className="px-4 py-2.5 whitespace-nowrap">
                                         <p className="font-semibold text-slate-800 dark:text-slate-100 text-xs leading-tight">
                                             {row.LNAME ?? '—'}
@@ -236,20 +296,20 @@ export const G6PDSummaryTable: React.FC<G6PDSummaryTableProps> = ({
                                             {row.FNAME ?? ''}
                                         </p>
                                     </td>
-
-                                    {/* Facility Code */}
                                     <td className="px-4 py-2.5 whitespace-nowrap">
                                         <Badge label={row.SUBMID} color="emerald" />
                                     </td>
-
-                                    {/* Actions */}
                                     <td className="px-4 py-2.5 whitespace-nowrap sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-emerald-50/50 dark:group-hover:bg-emerald-900/10 transition-colors">
                                         <div className="flex items-center gap-1.5">
                                             <button
-                                                onClick={() => onViewReport(row)}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                                                onClick={() => handleViewReportClick(row)}
+                                                disabled={isRowGenerating(row)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50 transition-colors"
                                             >
-                                                <Eye size={11} />
+                                                {isRowGenerating(row)
+                                                    ? <Loader2 size={11} className="animate-spin" />
+                                                    : <Eye size={11} />
+                                                }
                                                 View Report
                                             </button>
                                             <button
@@ -273,6 +333,40 @@ export const G6PDSummaryTable: React.FC<G6PDSummaryTableProps> = ({
                         </tbody>
                     </table>
                 )}
+            </div>
+
+            {/* ── Footer — Generate All ────────────────────────────── */}
+            <div className="shrink-0 px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
+                <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                        onClick={handleGenerateAll}
+                        disabled={isGeneratingSummary || !dateFrom || !dateTo}
+                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 dark:bg-emerald-600 dark:hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors shadow-sm"
+                    >
+                        {isGeneratingSummary
+                            ? <Loader2 size={12} className="animate-spin" />
+                            : <FileStack size={12} />
+                        }
+                        Generate All ({dateFrom} → {dateTo})
+                    </button>
+
+                    {isGeneratingSummary && (
+                        <span className="text-[11px] text-slate-400">Generating consolidated PDF…</span>
+                    )}
+
+                    {isSummaryGenError && (
+                        <span className="flex items-center gap-1 text-[11px] text-rose-500">
+                            <AlertCircle size={12} />
+                            {(summaryGenError as Error)?.message ?? 'Failed to generate report'}
+                        </span>
+                    )}
+
+                    {summaryPdfResult && !summaryPdfResult.hasData && !isGeneratingSummary && (
+                        <span className="text-[11px] text-slate-400">
+                            No records found for this date range — nothing to generate.
+                        </span>
+                    )}
+                </div>
             </div>
         </div>
     );

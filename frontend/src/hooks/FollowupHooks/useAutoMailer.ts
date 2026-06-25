@@ -1,12 +1,17 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     fetchG6PDIndividual,
     fetchG6PDSummary,
+    generateG6PDIndividualReport,
+    generateG6PDSummaryReport,
 } from '../../services/FollowupServices/autoMailerServices';
 import type {
     G6PDIndividualParams,
     G6PDSummaryParams,
     G6PDResponse,
+    G6PDGenerateIndividualParams,
+    G6PDGenerateSummaryParams,
+    G6PDGenerateResponse,
 } from '../../services/FollowupServices/autoMailerServices';
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
@@ -70,5 +75,38 @@ export const useG6PDSummary = (
         enabled:   canFetch,
         staleTime: 5 * 60 * 1000,
         retry:     1,
+    });
+};
+
+// ─── Generate individual PDF (mutation) ───────────────────────────────────────
+
+/**
+ * Triggers PDF generation for a single specimen via the CrystalReports exe.
+ * Use this for an explicit "Generate Report" button rather than useQuery,
+ * since it's a side-effecting action (runs the exe, writes a file).
+ *
+ * @example
+ * const { mutate, isPending, data } = useGenerateG6PDIndividual();
+ * <button onClick={() => mutate({ labNo: '20261540478' })}>Generate PDF</button>
+ * // data?.fileName -> pass to getG6PDReportUrl() once available
+ */
+export const useGenerateG6PDIndividual = () => {
+    return useMutation<G6PDGenerateResponse, Error, G6PDGenerateIndividualParams>({
+        mutationFn: (params) => generateG6PDIndividualReport(params),
+    });
+};
+
+// ─── Generate summary PDF (mutation) ───────────────────────────────────────────
+
+/**
+ * Triggers PDF generation for a date range via the CrystalReports exe.
+ *
+ * @example
+ * const { mutate, isPending, data } = useGenerateG6PDSummary();
+ * <button onClick={() => mutate({ dateFrom, dateTo })}>Generate PDF</button>
+ */
+export const useGenerateG6PDSummary = () => {
+    return useMutation<G6PDGenerateResponse, Error, G6PDGenerateSummaryParams>({
+        mutationFn: (params) => generateG6PDSummaryReport(params),
     });
 };
