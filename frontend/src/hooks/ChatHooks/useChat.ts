@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
+import { isMockMode } from '../../mocks/config';
 import chatService, {
   type Conversation,
   type Message,
@@ -35,7 +36,9 @@ export const chatKeys = {
 
 let socketInstance: Socket | null = null;
 
-const getSocket = (): Socket => {
+const getSocket = (): Socket | null => {
+  if (isMockMode()) return null;
+
   if (!socketInstance) {
     const BASE_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
     socketInstance = io(BASE_URL, {
@@ -351,7 +354,7 @@ export const useSocket = (
   const socket = getSocket();
   const joinedRooms = useRef<Set<number>>(new Set());
   const allConvIdsRef = useRef(allConversationIds);
-  const [isConnected, setIsConnected] = useState(socket.connected);
+  const [isConnected, setIsConnected] = useState(socket?.connected ?? false);
 
   useEffect(() => {
     allConvIdsRef.current = allConversationIds;
@@ -366,6 +369,7 @@ export const useSocket = (
 
   const joinRooms = useCallback(
     (ids: number[]) => {
+      if (!socket) return;
       for (const rawId of ids) {
         const id = toNum(rawId);
         if (!joinedRooms.current.has(id)) {
@@ -379,6 +383,7 @@ export const useSocket = (
 
   const joinConversation = useCallback(
     (conversationId: number) => {
+      if (!socket) return;
       const id = toNum(conversationId);
       socket.emit('conversation:join', { conversationId: id });
       joinedRooms.current.add(id);
@@ -387,7 +392,7 @@ export const useSocket = (
   );
 
   const emitUserJoin = useCallback(() => {
-    if (!user) return;
+    if (!user || !socket) return;
     socket.emit('user:join', {
       userId: toNum(user.id),
       name: user.name,
@@ -399,7 +404,7 @@ export const useSocket = (
   useEffect(() => {
     if (!user) {
       joinedRooms.current.clear();
-      if (socket.connected) socket.disconnect();
+      if (socket?.connected) socket.disconnect();
       setIsConnected(false);
       queryClient.removeQueries({ queryKey: chatKeys.all() });
       return;
@@ -410,7 +415,7 @@ export const useSocket = (
 
   // ── Connect & register all incoming event handlers ──────────────────
   useEffect(() => {
-    if (!user) return;
+    if (!user || !socket || isMockMode()) return;
 
     // ── Incoming: new message ──────────────────────────────────────────
     const onNewMessage = ({
@@ -596,26 +601,26 @@ export const useSocket = (
   // ── Typing helpers ──────────────────────────────────────────────────
   const emitTypingStart = useCallback(
     (conversationId: number) => {
-      if (!user) return;
+      if (!user || !socket) return;
       socket.emit('typing:start', {
         conversationId,
         userId: toNum(user.id),
         user_name: user.name,
       });
     },
-    [user]
+    [user, socket]
   );
 
   const emitTypingStop = useCallback(
     (conversationId: number) => {
-      if (!user) return;
+      if (!user || !socket) return;
       socket.emit('typing:stop', {
         conversationId,
         userId: toNum(user.id),
         user_name: user.name,
       });
     },
-    [user]
+    [user, socket]
   );
 
   // ── Typing state — uses useState so changes cause re-renders ────────
@@ -627,7 +632,7 @@ export const useSocket = (
     const [typingMap, setTypingMap] = useState<Map<number, string>>(new Map());
 
     useEffect(() => {
-      if (!conversationId) return;
+      if (!conversationId || !socket) return;
 
       const onTypingUpdate = ({
         conversationId: cid,
@@ -659,12 +664,13 @@ export const useSocket = (
         // Clear typing state when leaving the conversation
         setTypingMap(new Map());
       };
-    }, [conversationId]);
+    }, [conversationId, socket]);
 
     return typingMap;
   };
 
   useEffect(() => {
+    if (!socket) return;
     const onDisconnect = () => setIsConnected(false);
     socket.on('disconnect', onDisconnect);
     return () => {

@@ -1,5 +1,6 @@
 // src/services/screenedApi.ts
 import axios from "axios";
+import { applyMockAdapter } from "../../mocks/setupMocks";
 
 /**
  * Base API instance
@@ -11,6 +12,8 @@ const api = axios.create({
   },
   timeout: 60000
 });
+
+applyMockAdapter(api);
 
 /**
  * ================================

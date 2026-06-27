@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import authService from '../services/authService';
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query';
+import { isMockMode, MOCK_TOKEN } from '../mocks/config';
+import { MOCK_USER } from '../mocks/data/mockFixtures';
 
 // Define user roles
 export type UserRole = 'admin' | 'super-user' | 'user';
@@ -60,6 +62,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const checkAuthStatus = async () => {
     console.log('🟢 [AUTH] Checking auth status...');
     try {
+      if (isMockMode()) {
+        localStorage.setItem('authToken', MOCK_TOKEN);
+        localStorage.setItem('user', JSON.stringify(MOCK_USER));
+        setUser(MOCK_USER);
+        return;
+      }
+
       const token = localStorage.getItem('authToken');
       const storedUser = localStorage.getItem('user');
       
@@ -128,6 +137,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Logout function
   const logout = () => {
+    if (isMockMode()) {
+      queryClient.clear();
+      return;
+    }
     localStorage.removeItem('authToken')
     localStorage.removeItem('user')
     setUser(null)

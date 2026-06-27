@@ -52,7 +52,8 @@ export const Endorsements: React.FC = () => {
   // API Hooks
   const { data: endorsementsData, isLoading, refetch } = useGetAllEndorsements();
   const deleteMutation = useDeleteEndorsement();
-  const { data: uniqueTestResults = [] } = useGetUniqueTestResults();
+  const { data: uniqueTestResultsRaw } = useGetUniqueTestResults();
+  const uniqueTestResults = Array.isArray(uniqueTestResultsRaw) ? uniqueTestResultsRaw : [];
   
   const [showDateRangeModal, setShowDateRangeModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);

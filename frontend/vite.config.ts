@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   
   // Development server configuration
@@ -34,7 +34,7 @@ export default defineConfig({
   
   // Build configuration
   build: {
-    outDir: '../backend/public',
+    outDir: mode === 'portfolio' ? 'dist' : '../backend/public',
     emptyOutDir: true,
     sourcemap: false,
     rollupOptions: {
@@ -52,4 +52,4 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src')
     }
   }
-})
+}))

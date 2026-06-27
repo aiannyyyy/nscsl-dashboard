@@ -22,11 +22,33 @@ import { useNSFSummaryCards, useNSFSummaryTrend } from '../../../hooks/PDOHooks/
 // 2. Component accepts province prop
 // 3. province forwarded to all 3 hook calls so cards + trend deltas
 //    all reflect the selected province (or all provinces if undefined)
+// 4. FIX: cur/thisMo/lastMo now spread over a complete default object
+//    instead of using `current ?? {...}`. This guards against the case
+//    where the hook resolves to an object that exists but is missing
+//    one or more keys (e.g. mock data returning `totalFacilities`
+//    instead of `total`, or a province with partial fields) — `??`
+//    only catches a fully undefined/null value, not missing keys.
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface NSFSummaryCardsProps {
   province?: string;
 }
+
+interface NSFCardTotals {
+  total: number;
+  active: number;
+  inactive: number;
+  closed: number;
+  partner: number;
+}
+
+const EMPTY_TOTALS: NSFCardTotals = {
+  total: 0,
+  active: 0,
+  inactive: 0,
+  closed: 0,
+  partner: 0,
+};
 
 export const NSFSummaryCards: React.FC<NSFSummaryCardsProps> = ({ province }) => {
   const now = new Date();
@@ -39,17 +61,17 @@ export const NSFSummaryCards: React.FC<NSFSummaryCardsProps> = ({ province }) =>
   const prevYear  = String(prevDate.getFullYear());
 
   // All-time totals — big displayed numbers
-  // CHANGED: added province to params
   const { data: current, isLoading: curLoading } = useNSFSummaryCards({ province });
 
   // Trend — from reactivation_logs, this month vs last month
-  // CHANGED: added province to both trend calls
   const { data: thisTrend, isLoading: thisLoading } = useNSFSummaryTrend({ month: curMonth,  year: curYear,  province });
   const { data: lastTrend, isLoading: prevLoading } = useNSFSummaryTrend({ month: prevMonth, year: prevYear, province });
 
-  const cur    = current   ?? { total: 0, active: 0, inactive: 0, closed: 0, partner: 0 };
-  const thisMo = thisTrend ?? { total: 0, active: 0, inactive: 0, closed: 0, partner: 0 };
-  const lastMo = lastTrend ?? { total: 0, active: 0, inactive: 0, closed: 0, partner: 0 };
+  // FIX: spread over full defaults so any individual missing key
+  // (not just a fully undefined object) still falls back to 0.
+  const cur    = { ...EMPTY_TOTALS, ...current };
+  const thisMo = { ...EMPTY_TOTALS, ...thisTrend };
+  const lastMo = { ...EMPTY_TOTALS, ...lastTrend };
 
   const isLoading = curLoading;
   const hasPrev   = !prevLoading && !thisLoading && !!lastTrend && !!thisTrend;

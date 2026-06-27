@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { isMockMode } from "../../../mocks/config";
+import { getMockWeather } from "../../../mocks/data/mockFixtures";
 
 const apiKey = "a750bc4606f0dc6c29f1041e4cd1080c";
 
@@ -22,17 +24,40 @@ const emojiMap: Record<string, string> = {
   Fog: "🌫️",
 };
 
+type WeatherCurrent = {
+  temp: number;
+  desc: string;
+  icon: string;
+};
+
+type WeatherDay = {
+  day: string;
+  temp: number;
+  icon: string;
+};
+
 export const WeatherBar: React.FC = () => {
   const [index, setIndex] = useState(0);
-  const [current, setCurrent] = useState<any>(null);
-  const [forecast, setForecast] = useState<any[]>([]);
+  const [current, setCurrent] = useState<WeatherCurrent | null>(null);
+  const [forecast, setForecast] = useState<WeatherDay[]>([]);
   const [loading, setLoading] = useState(false);
 
   const province = provinces[index];
 
   const getEmoji = (cond: string) => emojiMap[cond] || "🌤️";
 
+  const applyMockWeather = () => {
+    const mock = getMockWeather(province.name);
+    setCurrent({ temp: mock.temp, desc: mock.desc, icon: mock.icon });
+    setForecast(mock.forecast);
+  };
+
   const fetchWeather = async () => {
+    if (isMockMode()) {
+      applyMockWeather();
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -46,13 +71,25 @@ export const WeatherBar: React.FC = () => {
       );
       const fData = await fRes.json();
 
+      if (!cRes.ok || !cData?.main?.temp || !cData?.weather?.[0]) {
+        console.warn("[Weather] Current weather unavailable:", cData?.message ?? cRes.status);
+        setCurrent(null);
+        setForecast([]);
+        return;
+      }
+
       setCurrent({
         temp: Math.round(cData.main.temp),
         desc: cData.weather[0].description,
         icon: getEmoji(cData.weather[0].main),
       });
 
-      const daily = fData.list.slice(0, 5).map((item: any) => ({
+      if (!fRes.ok || !Array.isArray(fData?.list)) {
+        setForecast([]);
+        return;
+      }
+
+      const daily = fData.list.slice(0, 5).map((item: { dt: number; main: { temp: number }; weather: { main: string }[] }) => ({
         day: new Date(item.dt * 1000).toLocaleDateString("en-US", {
           weekday: "short",
         }),
@@ -63,6 +100,8 @@ export const WeatherBar: React.FC = () => {
       setForecast(daily);
     } catch (e) {
       console.error(e);
+      setCurrent(null);
+      setForecast([]);
     } finally {
       setLoading(false);
     }
@@ -82,7 +121,7 @@ export const WeatherBar: React.FC = () => {
         <div>
           <div className="font-semibold text-sm">{province.name}</div>
           <div className="text-xs text-slate-200">
-            {loading ? "Loading..." : current?.desc}
+            {loading ? "Loading..." : current?.desc ?? "Weather unavailable"}
           </div>
         </div>
       </div>

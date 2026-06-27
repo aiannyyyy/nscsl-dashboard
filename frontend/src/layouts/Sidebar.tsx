@@ -90,15 +90,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed })
       <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-800">
         {isCollapsed ? (
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mx-auto">
-            <span className="text-white font-bold text-sm">NS</span>
+            <span className="text-white font-bold text-sm">CO</span>
           </div>
         ) : (
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">NS</span>
+              <span className="text-white font-bold text-sm">CO</span>
             </div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">
-              NSCSL
+              CORPORATE
             </h1>
           </div>
         )}

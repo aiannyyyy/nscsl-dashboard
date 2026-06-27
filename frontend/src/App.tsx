@@ -16,6 +16,7 @@ import ListCar from './pages/pdo/ListCar';
 import NSFPerformance from './pages/pdo/NSFPerformance';
 import DemoAndUnsat from './pages/laboratory/DemoAndUnsat';
 import AccountingOverview from './pages/admin/AccountingOverview';
+import SupplyPurchasingOverview from './pages/admin/SupplyPurchasingOverview';
 import { ITJobOrderSummary } from './pages/it-job-order/ITJobOrderSummary';
 import { PatientInformationSystemContainer } from './pages/laboratory/PatientInformationSystemContainer';
 import { LaboratoryInventoryOverview } from './pages/laboratory/LaboratoryInventoryOverview';
@@ -35,7 +36,9 @@ import { Categories } from './pages/intranet/Categories';
 import { Files } from './pages/intranet/Files'
 import { LabCalendar } from './pages/laboratory/LabCalendar';
 import { FunCalendar } from './pages/followup/FunCalendar';
+import { isMockMode } from './mocks/config';
 
+const entryPath = isMockMode() ? '/dashboard/pdo' : '/login';
 
 // Create a QueryClient instance
 const queryClient = new QueryClient({
@@ -55,11 +58,14 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            {/* Public Route - Login */}
-            <Route path="/login" element={<Login />} />
+            {/* Public Route - Login (skipped in portfolio mock mode) */}
+            <Route
+              path="/login"
+              element={isMockMode() ? <Navigate to={entryPath} replace /> : <Login />}
+            />
 
-            {/* Root redirects to login */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            {/* Root */}
+            <Route path="/" element={<Navigate to={entryPath} replace />} />
 
             {/* Protected Routes */}
             <Route path="/dashboard" element={<DashboardLayout />}>
@@ -80,7 +86,7 @@ function App() {
               {/* Admin Routes */}
               <Route path="admin" element={<AdminOverview />} />
               <Route path="admin/accounting" element={<AccountingOverview />} />
-              <Route path="admin/supply" element={<div>Supply & Purchasing Page</div>} />
+              <Route path="admin/supply" element={<SupplyPurchasingOverview />} />
 
               {/* Laboratory Routes */}
               <Route path="laboratory" element={<LaboratoryOverview />} />
@@ -114,8 +120,8 @@ function App() {
               <Route path="settings/change-password" element={ <ChangePassword />} />
             </Route>
 
-            {/* Catch all - redirect to login */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            {/* Catch all */}
+            <Route path="*" element={<Navigate to={entryPath} replace />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>

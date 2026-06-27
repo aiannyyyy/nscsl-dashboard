@@ -10,10 +10,10 @@ const avatarColors = [
 ];
 
 const NURSES = [
-    { name: 'Mia Carla Garcia',    role: 'Follow Up Nurse I',   avatar: 'MG', assignedTest: 'METAB' },
-    { name: 'Vivien Marie Wagan',  role: 'Follow Up Nurse II',  avatar: 'VM', assignedTest: 'HEMOG' },
-    { name: 'Gretel Yedra',        role: 'Follow Up Nurse III', avatar: 'GY', assignedTest: 'ENDO'  },
-    { name: 'Milyne Macayanan',    role: 'Follow Up Nurse IV',  avatar: 'MM', assignedTest: 'G6PD'  },
+    { name: 'Name I',    role: 'Follow Up Nurse I',   avatar: 'I', assignedTest: 'METAB' },
+    { name: 'Name II',  role: 'Follow Up Nurse II',  avatar: 'II', assignedTest: 'HEMOG' },
+    { name: 'Name III',        role: 'Follow Up Nurse III', avatar: 'III', assignedTest: 'ENDO'  },
+    { name: 'Name IV',    role: 'Follow Up Nurse IV',  avatar: 'IV', assignedTest: 'G6PD'  },
 ];
 
 export const NurseCards: React.FC = () => {

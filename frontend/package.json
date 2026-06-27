@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "dev:mock": "vite --host 0.0.0.0 --mode portfolio",
     "build": "vite build",
+    "build:portfolio": "vite build --mode portfolio",
     "preview": "vite preview --host 0.0.0.0",
+    "preview:portfolio": "vite preview --host 0.0.0.0 --mode portfolio",
     "lint": "eslint ."
   },
   "dependencies": {

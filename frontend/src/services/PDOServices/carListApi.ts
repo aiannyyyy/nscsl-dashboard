@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios';
+import { applyMockAdapter } from '../../mocks/setupMocks';
 
 // =================== TYPES ===================
 
@@ -134,6 +135,8 @@ const axiosInstance = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+applyMockAdapter(axiosInstance);
 
 // Request interceptor for logging
 axiosInstance.interceptors.request.use(

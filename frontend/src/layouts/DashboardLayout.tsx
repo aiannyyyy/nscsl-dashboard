@@ -4,6 +4,7 @@ import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
 import { GlobalJobOrderManager } from '../components/GlobalJobOrderManager';
 import FloatingChat from '../pages/chat/FloatingChat';
+import { MockModeBanner } from '../components/MockModeBanner';
 
 const APPEARANCE_KEY = 'nscsl:appearance';
 const SYSTEM_KEY     = 'nscsl:system';
@@ -76,6 +77,7 @@ export const DashboardLayout: React.FC = () => {
       </div>
 
       <FloatingChat />
+      <MockModeBanner />
     </div>
   );
 };

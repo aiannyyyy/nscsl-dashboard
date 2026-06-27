@@ -1,22 +1,33 @@
 import api from '../api';
 
-export interface LabReagents {
+export type ReagentStatus = 'normal' | 'warning' | 'critical' | 'out-of-stock';
+
+export interface ReagentThresholds {
+  critical: number;
+  warning: number;
+  unit: string;
+}
+
+export interface LabReagent {
   itemCode: string;
   description: string;
   stock: number;
   unit: string;
-  status: 'normal' | 'warning' | 'critical';
+  status: ReagentStatus;
+  thresholds?: ReagentThresholds;
 }
+
+/** @deprecated Use LabReagent */
+export type LabReagents = LabReagent;
 
 export interface LabReagentsResponse {
   success: boolean;
   count: number;
-  data: LabReagents[];
+  data: LabReagent[];
   timestamp: string;
 }
 
-// Changed function name from getLabSupplies to getLabReagents
 export const getLabReagents = async (): Promise<LabReagentsResponse> => {
-  const { data } = await api.get('/laboratory/lab-reagents');
+  const { data } = await api.get<LabReagentsResponse>('/laboratory/lab-reagents');
   return data;
 };

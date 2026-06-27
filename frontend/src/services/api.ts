@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { applyMockAdapter } from '../mocks/setupMocks';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -41,6 +42,8 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+applyMockAdapter(api);
 
 export function getAxiosErrorMessage(error: unknown, fallback = 'Request failed'): string {
     if (axios.isAxiosError(error)) {

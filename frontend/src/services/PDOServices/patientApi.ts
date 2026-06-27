@@ -1,8 +1,8 @@
 // patientApi.ts
 import axios from "axios";
 import type { PatientDetails } from "./patientDetailsTypes";
+import { applyMockAdapter } from "../../mocks/setupMocks";
 
-// ⚠️ Is this api instance defined here?
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   headers: {
@@ -10,6 +10,8 @@ const api = axios.create({
   },
   timeout: 60000
 });
+
+applyMockAdapter(api);
 
 export const getPatientDetailsByLabNo = async (
   labno: string

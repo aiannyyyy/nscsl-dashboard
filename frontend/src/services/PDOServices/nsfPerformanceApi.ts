@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { applyMockAdapter } from '../../mocks/setupMocks';
 
 /**
  * Base API instance
@@ -11,6 +12,8 @@ const api = axios.create({
   },
   timeout: 300000, // 5 minutes default
 });
+
+applyMockAdapter(api);
 
 // ============================================================================
 // TYPES & INTERFACES - Data Queries

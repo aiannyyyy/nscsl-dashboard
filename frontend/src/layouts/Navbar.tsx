@@ -3,6 +3,7 @@ import { User, LogOut, Settings, Menu } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDarkMode } from '../hooks';
 import { useAuth } from '../hooks/useAuth';
+import { isMockMode } from '../mocks/config';
 import { Notifications } from '../components';
 import { DarkModeToggle } from '../components/DarkModeToggle';
 
@@ -41,7 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({ isCollapsed, setIsCollapsed }) =
   // Handle logout
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate(isMockMode() ? '/dashboard/pdo' : '/login');
   };
 
   // Format role for display
